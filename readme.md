@@ -21,3 +21,4 @@ a Java and LibGDX NES Emulator POC
 - added code for around half the instructions
 ### 5-15-2024
 - finally added to github
+- completed instructions (untested)
