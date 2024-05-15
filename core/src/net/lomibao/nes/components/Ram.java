@@ -25,7 +25,8 @@ public class Ram  extends CPUBusComponent {
      * @param readOnly
      * @return
      */
-    public byte read(short address,boolean readOnly){
+    @Override
+    public int read(int address,boolean readOnly){
         int index=getIndex(address);
         if(index==-1){
             return 0;
@@ -37,9 +38,10 @@ public class Ram  extends CPUBusComponent {
             log.error("attempting to read memory out of range {}. valid range [{},{}]",address,ADDRESS_RANGE_START,ADDRESS_RANGE_START+ADDRESS_RANGE_SIZE);
             return -1;
         }
-        return address%MEMORY_SIZE;
+        return (address-ADDRESS_RANGE_START)%MEMORY_SIZE;
     }
-    public byte read(short address){
+    @Override
+    public int read(int address){
         return read(address,false);
     }
 
@@ -50,5 +52,11 @@ public class Ram  extends CPUBusComponent {
     @Override
     public int getEndAddress(){
         return (ADDRESS_RANGE_START+ADDRESS_RANGE_SIZE);
+    }
+
+    public void writeRange(int address,byte[] bytes){
+        for(int i=0;i<bytes.length;i++){
+            write(address+i,bytes[i]);
+        }
     }
 }

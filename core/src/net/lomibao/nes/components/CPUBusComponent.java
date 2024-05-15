@@ -15,10 +15,10 @@ public abstract class CPUBusComponent {
      * @param readOnly
      * @return
      */
-    public byte read(int address,boolean readOnly){
+    public int read(int address,boolean readOnly){
         return bus.read(address);
     }
-    public byte read(int address){
+    public int read(int address){
         return read(address,false);
     }
 

@@ -45,12 +45,12 @@ public class APU  extends CPUBusComponent {
      * @return
      */
     @Override
-    public byte read(int address,boolean readOnly){
+    public int read(int address,boolean readOnly){
         int index=getIndex(address);
         if(index==-1){
             return 0;
         }
-        return registers[index];
+        return Byte.toUnsignedInt(registers[index]);
     }
 
     private int getIndex(int address){

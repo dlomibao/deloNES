@@ -173,7 +173,7 @@ public class CPU6502  extends CPUBusComponent {
     @NoArgsConstructor
 
     public static class Instruction{
-        private short id;
+        private int id;
         private String hexOpcode;
         private String opcodeName;
         private String addressingModeDescription;
@@ -289,7 +289,7 @@ public class CPU6502  extends CPUBusComponent {
             String[] s=line.split(",");
             Instruction instruction=Instruction.builder()
                     .cpu(this)
-                    .id(Short.valueOf(s[0]))
+                    .id(Integer.valueOf(s[0]))
                     .hexOpcode(s[1])
                     .opcodeName("???".equals(s[2])?"XXX":s[2])
                     .addressingModeDescription(s[3])
@@ -302,7 +302,7 @@ public class CPU6502  extends CPUBusComponent {
         }
         for(Instruction x: instructions){
             x.initHandlers();
-            log.info(x);
+            log.trace(x);
         }
     }
 
@@ -331,8 +331,8 @@ public class CPU6502  extends CPUBusComponent {
     /*takes an address, reads in the low byte and high byte and sets the pc*/
     private int getProgramCounterAtAddress(int address) {
         addressAbs=address;
-        short low=read(addressAbs);
-        short high=read(addressAbs+1);
+        int low=read(addressAbs);
+        int high=read(addressAbs+1);
         //set program counter
         return (high<<8)|low;
     }

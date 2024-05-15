@@ -16,9 +16,11 @@ public class Bus{
     PPU ppu;
     APU apu;
     Cartridge cartridge;
+    FullAddressRam testRam;
+
 
     public Bus connect(){
-
+        Optional.ofNullable(testRam).ifPresent(testRam->testRam.connectBus(this));
         Optional.ofNullable(cpu).ifPresent(cpu-> cpu.connectBus(this));
         Optional.ofNullable(ram).ifPresent(ram-> ram.connectBus(this));
         Optional.ofNullable(ppu).ifPresent(ppu-> ppu.connectBus(this));
@@ -28,8 +30,14 @@ public class Bus{
     }
 
     public void write(int address,byte value){
-        address=address&0xFFFF;//mask to 16b
-        throw new NotImplementedException();
+        final int addr=address&0xFFFF;//mask to 16b
+        if(Optional.ofNullable(testRam).map(r->r.inRange(addr)).orElse(false)){//test ram gets top priority if set and covers full address range
+            testRam.write(addr,value);
+        }else if(Optional.ofNullable(ram).map(r->r.inRange(addr)).orElse(false)){
+            ram.write(addr,value);
+        }
+        log.error("no device found in range of address {}",address);
+
     }
 
     /**
@@ -38,21 +46,24 @@ public class Bus{
      * @param readOnly
      * @return
      */
-    public byte read(int address,boolean readOnly){
+    public int read(int address,boolean readOnly){
         final int addr=address&0xFFFF;//mask to 16b
-        if(Optional.ofNullable(ram).map(r->r.inRange(addr)).orElse(false)){
-            return ram.read(address,readOnly);
+
+        if(Optional.ofNullable(testRam).map(r->r.inRange(addr)).orElse(false)){//test ram gets top priority if set and covers full address range
+            return testRam.read(addr,readOnly);
+        }else if(Optional.ofNullable(ram).map(r->r.inRange(addr)).orElse(false)){
+            return ram.read(addr,readOnly);
         }else if(Optional.ofNullable(ppu).map(p->p.inRange(addr)).orElse(false)){
-            return ppu.read(address,readOnly);
+            return ppu.read(addr,readOnly);
         }else if(Optional.ofNullable(apu).map(a->a.inRange(addr)).orElse(false)){
-            return apu.read(address,readOnly);
+            return apu.read(addr,readOnly);
         }else if(Optional.ofNullable(cartridge).map(c->c.inRange(addr)).orElse(false)){
-            return cartridge.read(address,readOnly);
+            return cartridge.read(addr,readOnly);
         }
         log.error("no device found in range of address {}",address);
         return 0;
     }
-    public byte read(int address){
+    public int read(int address){
         return read(address,false);
     }
 
