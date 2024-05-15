@@ -1,0 +1,257 @@
+id,opcode,name,mode,description,bytes,clocks,address
+0,00,BRK,Implied,Force Interrupt,1,7,IMM
+1,01,ORA,(Indirect;X),Logical Inclusive OR,2,6,IZX
+2,02,???,???,???,1,2,IMP
+3,03,???,???,???,1,8,IMP
+4,04,???,???,???,1,3,IMP
+5,05,ORA,ZeroPage,Logical Inclusive OR,2,3,ZP0
+6,06,ASL,ZeroPage,Arithmetic Shift Left,2,5,ZP0
+7,07,???,???,???,1,5,IMP
+8,08,PHP,Implied,Push Processor Status,1,3,IMP
+9,09,ORA,Immediate,Logical Inclusive OR,2,2,IMM
+10,0A,ASL,Accumulator,Arithmetic Shift Left,1,2,IMP
+11,0B,???,???,???,1,2,IMP
+12,0C,???,???,???,1,4,IMP
+13,0D,ORA,Absolute,Logical Inclusive OR,3,4,ABS
+14,0E,ASL,Absolute,Arithmetic Shift Left,3,6,ABS
+15,0F,???,???,???,1,6,IMP
+16,10,BPL,Relative,Branch if Positive,2,2,REL
+17,11,ORA,(Indirect);Y,Logical Inclusive OR,2,5,IZY
+18,12,???,???,???,1,2,IMP
+19,13,???,???,???,1,8,IMP
+20,14,???,???,???,1,4,IMP
+21,15,ORA,ZeroPage;X,Logical Inclusive OR,2,4,ZPX
+22,16,ASL,ZeroPage;X,Arithmetic Shift Left,2,6,ZPX
+23,17,???,???,???,1,6,IMP
+24,18,CLC,Implied,Clear Carry Flag,1,2,IMP
+25,19,ORA,Absolute;Y,Logical Inclusive OR,3,4,ABY
+26,1A,???,???,???,1,2,IMP
+27,1B,???,???,???,1,7,IMP
+28,1C,???,???,???,1,4,IMP
+29,1D,ORA,Absolute;X,Logical Inclusive OR,3,4,ABX
+30,1E,ASL,Absolute;X,Arithmetic Shift Left,3,7,ABX
+31,1F,???,???,???,1,7,IMP
+32,20,JSR,Absolute,Jump to Subroutine,3,6,ABS
+33,21,AND,(Indirect;X),Logical AND,2,6,IZX
+34,22,???,???,???,1,2,IMP
+35,23,???,???,???,1,8,IMP
+36,24,BIT,ZeroPage,Bit Test,2,3,ZP0
+37,25,AND,ZeroPage,Logical AND,2,3,ZP0
+38,26,ROL,ZeroPage,Rotate Left,2,5,ZP0
+39,27,???,???,???,1,5,IMP
+40,28,PLP,Implied,Pull Processor Status,1,4,IMP
+41,29,AND,Immediate,Logical AND,2,2,IMM
+42,2A,ROL,Accumulator,Rotate Left,1,2,IMP
+43,2B,???,???,???,1,2,IMP
+44,2C,BIT,Absolute,Bit Test,3,4,ABS
+45,2D,AND,Absolute,Logical AND,3,4,ABS
+46,2E,ROL,Absolute,Rotate Left,3,6,ABS
+47,2F,???,???,???,1,6,IMP
+48,30,BMI,Relative,Branch if Minus,2,2,REL
+49,31,AND,(Indirect);Y,Logical AND,2,5,IZY
+50,32,???,???,???,1,2,IMP
+51,33,???,???,???,1,8,IMP
+52,34,???,???,???,1,4,IMP
+53,35,AND,ZeroPage;X,Logical AND,2,4,ZPX
+54,36,ROL,ZeroPage;X,Rotate Left,2,6,ZPX
+55,37,???,???,???,1,6,IMP
+56,38,SEC,Implied,Set Carry Flag,1,2,IMP
+57,39,AND,Absolute;Y,Logical AND,3,4,ABY
+58,3A,???,???,???,1,2,IMP
+59,3B,???,???,???,1,7,IMP
+60,3C,???,???,???,1,4,IMP
+61,3D,AND,Absolute;X,Logical AND,3,4,ABX
+62,3E,ROL,Absolute;X,Rotate Left,3,7,ABX
+63,3F,???,???,???,1,7,IMP
+64,40,RTI,Implied,Return from Interrupt,1,6,IMP
+65,41,EOR,(Indirect;X),Exclusive OR,2,6,IZX
+66,42,???,???,???,1,2,IMP
+67,43,???,???,???,1,8,IMP
+68,44,???,???,???,1,3,IMP
+69,45,EOR,ZeroPage,Exclusive OR,2,3,ZP0
+70,46,LSR,ZeroPage,Logical Shift Right,2,5,ZP0
+71,47,???,???,???,1,5,IMP
+72,48,PHA,Implied,Push Accumulator,1,3,IMP
+73,49,EOR,Immediate,Exclusive OR,2,2,IMM
+74,4A,LSR,Accumulator,Logical Shift Right,1,2,IMP
+75,4B,???,???,???,1,2,IMP
+76,4C,JMP,Absolute,Jump,3,3,ABS
+77,4D,EOR,Absolute,Exclusive OR,3,4,ABS
+78,4E,LSR,Absolute,Logical Shift Right,3,6,ABS
+79,4F,???,???,???,1,6,IMP
+80,50,BVC,Relative,Branch if Overflow Clear,2,2,REL
+81,51,EOR,(Indirect);Y,Exclusive OR,2,5,IZY
+82,52,???,???,???,1,2,IMP
+83,53,???,???,???,1,8,IMP
+84,54,???,???,???,1,4,IMP
+85,55,EOR,ZeroPage;X,Exclusive OR,2,4,ZPX
+86,56,LSR,ZeroPage;X,Logical Shift Right,2,6,ZPX
+87,57,???,???,???,1,6,IMP
+88,58,CLI,Implied,Clear Interrupt Disable,1,2,IMP
+89,59,EOR,Absolute;Y,Exclusive OR,3,4,ABY
+90,5A,???,???,???,1,2,IMP
+91,5B,???,???,???,1,7,IMP
+92,5C,???,???,???,1,4,IMP
+93,5D,EOR,Absolute;X,Exclusive OR,3,4,ABX
+94,5E,LSR,Absolute;X,Logical Shift Right,3,7,ABX
+95,5F,???,???,???,1,7,IMP
+96,60,RTS,Implied,Return from Subroutine,1,6,IMP
+97,61,ADC,(Indirect;X),Add with Carry,2,6,IZX
+98,62,???,???,???,1,2,IMP
+99,63,???,???,???,1,8,IMP
+100,64,???,???,???,1,3,IMP
+101,65,ADC,ZeroPage,Add with Carry,2,3,ZP0
+102,66,ROR,ZeroPage,Rotate Right,2,5,ZP0
+103,67,???,???,???,1,5,IMP
+104,68,PLA,Implied,Pull Accumulator,1,4,IMP
+105,69,ADC,Immediate,Add with Carry,2,2,IMM
+106,6A,ROR,Accumulator,Rotate Right,1,2,IMP
+107,6B,???,???,???,1,2,IMP
+108,6C,JMP,Indirect ,Jump,3,5,IND
+109,6D,ADC,Absolute,Add with Carry,3,4,ABS
+110,6E,ROR,Absolute,Rotate Right,3,6,ABS
+111,6F,???,???,???,1,6,IMP
+112,70,BVS,Relative,Branch if Overflow Set,2,2,REL
+113,71,ADC,(Indirect);Y,Add with Carry,2,5,IZY
+114,72,???,???,???,1,2,IMP
+115,73,???,???,???,1,8,IMP
+116,74,???,???,???,1,4,IMP
+117,75,ADC,ZeroPage;X,Add with Carry,2,4,ZPX
+118,76,ROR,ZeroPage;X,Rotate Right,2,6,ZPX
+119,77,???,???,???,1,6,IMP
+120,78,SEI,Implied,Set Interrupt Disable,1,2,IMP
+121,79,ADC,Absolute;Y,Add with Carry,3,4,ABY
+122,7A,???,???,???,1,2,IMP
+123,7B,???,???,???,1,7,IMP
+124,7C,???,???,???,1,4,IMP
+125,7D,ADC,Absolute;X,Add with Carry,3,4,ABX
+126,7E,ROR,Absolute;X,Rotate Right,3,7,ABX
+127,7F,???,???,???,1,7,IMP
+128,80,???,???,???,1,2,IMP
+129,81,STA,(Indirect;X),Store Accumulator,2,6,IZX
+130,82,???,???,???,1,2,IMP
+131,83,???,???,???,1,6,IMP
+132,84,STY,ZeroPage,Store Y Register,2,3,ZP0
+133,85,STA,ZeroPage,Store Accumulator,2,3,ZP0
+134,86,STX,ZeroPage,Store X Register,2,3,ZP0
+135,87,???,???,???,1,3,IMP
+136,88,DEY,Implied,Decrement Y Register,1,2,IMP
+137,89,???,???,???,1,2,IMP
+138,8A,TXA,Implied,Transfer X to Accumulator,1,2,IMP
+139,8B,???,???,???,1,2,IMP
+140,8C,STY,Absolute,Store Y Register,3,4,ABS
+141,8D,STA,Absolute,Store Accumulator,3,4,ABS
+142,8E,STX,Absolute,Store X Register,3,4,ABS
+143,8F,???,???,???,1,4,IMP
+144,90,BCC,Relative,Branch if Carry Clear,2,2,REL
+145,91,STA,(Indirect);Y,Store Accumulator,2,6,IZY
+146,92,???,???,???,1,2,IMP
+147,93,???,???,???,1,6,IMP
+148,94,STY,ZeroPage;X,Store Y Register,2,4,ZPX
+149,95,STA,ZeroPage;X,Store Accumulator,2,4,ZPX
+150,96,STX,ZeroPage;Y,Store X Register,2,4,ZPY
+151,97,???,???,???,1,4,IMP
+152,98,TYA,Implied,Transfer Y to Accumulator,1,2,IMP
+153,99,STA,Absolute;Y,Store Accumulator,3,5,ABY
+154,9A,TXS,Implied,Transfer X to Stack Pointer,1,2,IMP
+155,9B,???,???,???,1,5,IMP
+156,9C,???,???,???,1,5,IMP
+157,9D,STA,Absolute;X,Store Accumulator,3,5,ABX
+158,9E,???,???,???,1,5,IMP
+159,9F,???,???,???,1,5,IMP
+160,A0,LDY,Immediate,Load Y Register,2,2,IMM
+161,A1,LDA,(Indirect;X),Load Accumulator,2,6,IZX
+162,A2,LDX,Immediate,Load X Register,2,2,IMM
+163,A3,???,???,???,1,6,IMP
+164,A4,LDY,ZeroPage,Load Y Register,2,3,ZP0
+165,A5,LDA,ZeroPage,Load Accumulator,2,3,ZP0
+166,A6,LDX,ZeroPage,Load X Register,2,3,ZP0
+167,A7,???,???,???,1,3,IMP
+168,A8,TAY,Implied,Transfer Accumulator to Y,1,2,IMP
+169,A9,LDA,Immediate,Load Accumulator,2,2,IMM
+170,AA,TAX,Implied,Transfer Accumulator to X,1,2,IMP
+171,AB,???,???,???,1,2,IMP
+172,AC,LDY,Absolute,Load Y Register,3,4,ABS
+173,AD,LDA,Absolute,Load Accumulator,3,4,ABS
+174,AE,LDX,Absolute,Load X Register,3,4,ABS
+175,AF,???,???,???,1,4,IMP
+176,B0,BCS,Relative,Branch if Carry Set,2,2,REL
+177,B1,LDA,(Indirect);Y,Load Accumulator,2,5,IZY
+178,B2,???,???,???,1,2,IMP
+179,B3,???,???,???,1,5,IMP
+180,B4,LDY,ZeroPage;X,Load Y Register,2,4,ZPX
+181,B5,LDA,ZeroPage;X,Load Accumulator,2,4,ZPX
+182,B6,LDX,ZeroPage;Y,Load X Register,2,4,ZPY
+183,B7,???,???,???,1,4,IMP
+184,B8,CLV,Implied,Clear Overflow Flag,1,2,IMP
+185,B9,LDA,Absolute;Y,Load Accumulator,3,4,ABY
+186,BA,TSX,Implied,Transfer Stack Pointer to X,1,2,IMP
+187,BB,???,???,???,1,4,IMP
+188,BC,LDY,Absolute;X,Load Y Register,3,4,ABX
+189,BD,LDA,Absolute;X,Load Accumulator,3,4,ABX
+190,BE,LDX,Absolute;Y,Load X Register,3,4,ABY
+191,BF,???,???,???,1,4,IMP
+192,C0,CPY,Immediate,Compare Y Register,2,2,IMM
+193,C1,CMP,(Indirect;X),Compare,2,6,IZX
+194,C2,???,???,???,1,2,IMP
+195,C3,???,???,???,1,8,IMP
+196,C4,CPY,ZeroPage,Compare Y Register,2,3,ZP0
+197,C5,CMP,ZeroPage,Compare,2,3,ZP0
+198,C6,DEC,ZeroPage,Decrement Memory,2,5,ZP0
+199,C7,???,???,???,1,5,IMP
+200,C8,INY,Implied,Increment Y Register,1,2,IMP
+201,C9,CMP,Immediate,Compare,2,2,IMM
+202,CA,DEX,Implied,Decrement X Register,1,2,IMP
+203,CB,???,???,???,1,2,IMP
+204,CC,CPY,Absolute,Compare Y Register,3,4,ABS
+205,CD,CMP,Absolute,Compare,3,4,ABS
+206,CE,DEC,Absolute,Decrement Memory,3,6,ABS
+207,CF,???,???,???,1,6,IMP
+208,D0,BNE,Relative,Branch if Not Equal,2,2,REL
+209,D1,CMP,(Indirect);Y,Compare,2,5,IZY
+210,D2,???,???,???,1,2,IMP
+211,D3,???,???,???,1,8,IMP
+212,D4,???,???,???,1,4,IMP
+213,D5,CMP,ZeroPage;X,Compare,2,4,ZPX
+214,D6,DEC,ZeroPage;X,Decrement Memory,2,6,ZPX
+215,D7,???,???,???,1,6,IMP
+216,D8,CLD,Implied,Clear Decimal Mode,1,2,IMP
+217,D9,CMP,Absolute;Y,Compare,3,4,ABY
+218,DA,NOP,???,???,1,2,IMP
+219,DB,???,???,???,1,7,IMP
+220,DC,???,???,???,1,4,IMP
+221,DD,CMP,Absolute;X,Compare,3,4,ABX
+222,DE,DEC,Absolute;X,Decrement Memory,3,7,ABX
+223,DF,???,???,???,1,7,IMP
+224,E0,CPX,Immediate,Compare X Register,2,2,IMM
+225,E1,SBC,(Indirect;X),Subtract with Carry,2,6,IZX
+226,E2,???,???,???,1,2,IMP
+227,E3,???,???,???,1,8,IMP
+228,E4,CPX,ZeroPage,Compare X Register,2,3,ZP0
+229,E5,SBC,ZeroPage,Subtract with Carry,2,3,ZP0
+230,E6,INC,ZeroPage,Increment Memory,2,5,ZP0
+231,E7,???,???,???,1,5,IMP
+232,E8,INX,Implied,Increment X Register,1,2,IMP
+233,E9,SBC,Immediate,Subtract with Carry,2,2,IMM
+234,EA,NOP,Implied,No Operation,1,2,IMP
+235,EB,???,???,???,1,2,IMP
+236,EC,CPX,Absolute,Compare X Register,3,4,ABS
+237,ED,SBC,Absolute,Subtract with Carry,3,4,ABS
+238,EE,INC,Absolute,Increment Memory,3,6,ABS
+239,EF,???,???,???,1,6,IMP
+240,F0,BEQ,Relative,Branch if Equal,2,2,REL
+241,F1,SBC,(Indirect);Y,Subtract with Carry,2,5,IZY
+242,F2,???,???,???,1,2,IMP
+243,F3,???,???,???,1,8,IMP
+244,F4,???,???,???,1,4,IMP
+245,F5,SBC,ZeroPage;X,Subtract with Carry,2,4,ZPX
+246,F6,INC,ZeroPage;X,Increment Memory,2,6,ZPX
+247,F7,???,???,???,1,6,IMP
+248,F8,SED,Implied,Set Decimal Flag,1,2,IMP
+249,F9,SBC,Absolute;Y,Subtract with Carry,3,4,ABY
+250,FA,NOP,???,???,1,2,IMP
+251,FB,???,???,???,1,7,IMP
+252,FC,???,???,???,1,4,IMP
+253,FD,SBC,Absolute;X,Subtract with Carry,3,4,ABX
+254,FE,INC,Absolute;X,Increment Memory,3,7,ABX
+255,FF,???,???,???,1,7,IMP

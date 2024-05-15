@@ -1,0 +1,5 @@
+Opcodes for 6502 came from here
+https://gist.githubusercontent.com/kirbyUK/1a0797e19f54c1e35e67ce7b385b323e/raw/09be210ae303aab57ffc100ecd89be5621ef09b8/6502_instructions.json\
+Clock timings come from here
+https://web.archive.org/web/20220121022728if_/http://archive.6502.org/datasheets/rockwell_r65c00-21_r65c29.pdf
+Instruction Set Operation Code Matrix page 28/33

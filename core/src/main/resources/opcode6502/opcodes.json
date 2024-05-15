@@ -1,0 +1,1059 @@
+[
+  {
+    "opcode": "$00",
+    "name": "BRK",
+    "mode": "Implied",
+    "description": "Force Interrupt",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$01",
+    "name": "ORA",
+    "mode": "(Indirect,X)",
+    "description": "Logical Inclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$05",
+    "name": "ORA",
+    "mode": "ZeroPage",
+    "description": "Logical Inclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$06",
+    "name": "ASL",
+    "mode": "ZeroPage",
+    "description": "Arithmetic Shift Left",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$08",
+    "name": "PHP",
+    "mode": "Implied",
+    "description": "Push Processor Status",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$09",
+    "name": "ORA",
+    "mode": "Immediate",
+    "description": "Logical Inclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$0A",
+    "name": "ASL",
+    "mode": "Accumulator",
+    "description": "Arithmetic Shift Left",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$0D",
+    "name": "ORA",
+    "mode": "Absolute",
+    "description": "Logical Inclusive OR",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$0E",
+    "name": "ASL",
+    "mode": "Absolute",
+    "description": "Arithmetic Shift Left",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$10",
+    "name": "BPL",
+    "mode": "Relative",
+    "description": "Branch if Positive",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$11",
+    "name": "ORA",
+    "mode": "(Indirect),Y",
+    "description": "Logical Inclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$15",
+    "name": "ORA",
+    "mode": "ZeroPage,X",
+    "description": "Logical Inclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$16",
+    "name": "ASL",
+    "mode": "ZeroPage,X",
+    "description": "Arithmetic Shift Left",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$18",
+    "name": "CLC",
+    "mode": "Implied",
+    "description": "Clear Carry Flag",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$19",
+    "name": "ORA",
+    "mode": "Absolute,Y",
+    "description": "Logical Inclusive OR",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$1D",
+    "name": "ORA",
+    "mode": "Absolute,X",
+    "description": "Logical Inclusive OR",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$1E",
+    "name": "ASL",
+    "mode": "Absolute,X",
+    "description": "Arithmetic Shift Left",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$20",
+    "name": "JSR",
+    "mode": "Absolute",
+    "description": "Jump to Subroutine",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$21",
+    "name": "AND",
+    "mode": "(Indirect,X)",
+    "description": "Logical AND",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$24",
+    "name": "BIT",
+    "mode": "ZeroPage",
+    "description": "Bit Test",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$25",
+    "name": "AND",
+    "mode": "ZeroPage",
+    "description": "Logical AND",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$26",
+    "name": "ROL",
+    "mode": "ZeroPage",
+    "description": "Rotate Left",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$28",
+    "name": "PLP",
+    "mode": "Implied",
+    "description": "Pull Processor Status",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$29",
+    "name": "AND",
+    "mode": "Immediate",
+    "description": "Logical AND",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$2A",
+    "name": "ROL",
+    "mode": "Accumulator",
+    "description": "Rotate Left",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$2C",
+    "name": "BIT",
+    "mode": "Absolute",
+    "description": "Bit Test",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$2D",
+    "name": "AND",
+    "mode": "Absolute",
+    "description": "Logical AND",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$2E",
+    "name": "ROL",
+    "mode": "Absolute",
+    "description": "Rotate Left",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$30",
+    "name": "BMI",
+    "mode": "Relative",
+    "description": "Branch if Minus",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$31",
+    "name": "AND",
+    "mode": "(Indirect),Y",
+    "description": "Logical AND",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$35",
+    "name": "AND",
+    "mode": "ZeroPage,X",
+    "description": "Logical AND",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$36",
+    "name": "ROL",
+    "mode": "ZeroPage,X",
+    "description": "Rotate Left",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$38",
+    "name": "SEC",
+    "mode": "Implied",
+    "description": "Set Carry Flag",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$39",
+    "name": "AND",
+    "mode": "Absolute,Y",
+    "description": "Logical AND",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$3D",
+    "name": "AND",
+    "mode": "Absolute,X",
+    "description": "Logical AND",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$3E",
+    "name": "ROL",
+    "mode": "Absolute,X",
+    "description": "Rotate Left",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$40",
+    "name": "RTI",
+    "mode": "Implied",
+    "description": "Return from Interrupt",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$41",
+    "name": "EOR",
+    "mode": "(Indirect,X)",
+    "description": "Exclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$45",
+    "name": "EOR",
+    "mode": "ZeroPage",
+    "description": "Exclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$46",
+    "name": "LSR",
+    "mode": "ZeroPage",
+    "description": "Logical Shift Right",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$48",
+    "name": "PHA",
+    "mode": "Implied",
+    "description": "Push Accumulator",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$49",
+    "name": "EOR",
+    "mode": "Immediate",
+    "description": "Exclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$4A",
+    "name": "LSR",
+    "mode": "Accumulator",
+    "description": "Logical Shift Right",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$4C",
+    "name": "JMP",
+    "mode": "Absolute",
+    "description": "Jump",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$4D",
+    "name": "EOR",
+    "mode": "Absolute",
+    "description": "Exclusive OR",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$4E",
+    "name": "LSR",
+    "mode": "Absolute",
+    "description": "Logical Shift Right",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$50",
+    "name": "BVC",
+    "mode": "Relative",
+    "description": "Branch if Overflow Clear",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$51",
+    "name": "EOR",
+    "mode": "(Indirect),Y",
+    "description": "Exclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$55",
+    "name": "EOR",
+    "mode": "ZeroPage,X",
+    "description": "Exclusive OR",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$56",
+    "name": "LSR",
+    "mode": "ZeroPage,X",
+    "description": "Logical Shift Right",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$58",
+    "name": "CLI",
+    "mode": "Implied",
+    "description": "Clear Interrupt Disable",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$59",
+    "name": "EOR",
+    "mode": "Absolute,Y",
+    "description": "Exclusive OR",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$5D",
+    "name": "EOR",
+    "mode": "Absolute,X",
+    "description": "Exclusive OR",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$5E",
+    "name": "LSR",
+    "mode": "Absolute,X",
+    "description": "Logical Shift Right",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$60",
+    "name": "RTS",
+    "mode": "Implied",
+    "description": "Return from Subroutine",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$61",
+    "name": "ADC",
+    "mode": "(Indirect,X)",
+    "description": "Add with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$65",
+    "name": "ADC",
+    "mode": "ZeroPage",
+    "description": "Add with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$66",
+    "name": "ROR",
+    "mode": "ZeroPage",
+    "description": "Rotate Right",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$68",
+    "name": "PLA",
+    "mode": "Implied",
+    "description": "Pull Accumulator",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$69",
+    "name": "ADC",
+    "mode": "Immediate",
+    "description": "Add with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$6A",
+    "name": "ROR",
+    "mode": "Accumulator",
+    "description": "Rotate Right",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$6C",
+    "name": "JMP",
+    "mode": "Indirect ",
+    "description": "Jump",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$6D",
+    "name": "ADC",
+    "mode": "Absolute",
+    "description": "Add with Carry",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$6E",
+    "name": "ROR",
+    "mode": "Absolute",
+    "description": "Rotate Right",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$70",
+    "name": "BVS",
+    "mode": "Relative",
+    "description": "Branch if Overflow Set",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$71",
+    "name": "ADC",
+    "mode": "(Indirect),Y",
+    "description": "Add with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$75",
+    "name": "ADC",
+    "mode": "ZeroPage,X",
+    "description": "Add with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$76",
+    "name": "ROR",
+    "mode": "ZeroPage,X",
+    "description": "Rotate Right",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$78",
+    "name": "SEI",
+    "mode": "Implied",
+    "description": "Set Interrupt Disable",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$79",
+    "name": "ADC",
+    "mode": "Absolute,Y",
+    "description": "Add with Carry",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$7D",
+    "name": "ADC",
+    "mode": "Absolute,X",
+    "description": "Add with Carry",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$7E",
+    "name": "ROR",
+    "mode": "Absolute,X",
+    "description": "Rotate Right",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$81",
+    "name": "STA",
+    "mode": "(Indirect,X)",
+    "description": "Store Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$84",
+    "name": "STY",
+    "mode": "ZeroPage",
+    "description": "Store Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$85",
+    "name": "STA",
+    "mode": "ZeroPage",
+    "description": "Store Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$86",
+    "name": "STX",
+    "mode": "ZeroPage",
+    "description": "Store X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$88",
+    "name": "DEY",
+    "mode": "Implied",
+    "description": "Decrement Y Register",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$8A",
+    "name": "TXA",
+    "mode": "Implied",
+    "description": "Transfer X to Accumulator",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$8C",
+    "name": "STY",
+    "mode": "Absolute",
+    "description": "Store Y Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$8D",
+    "name": "STA",
+    "mode": "Absolute",
+    "description": "Store Accumulator",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$8E",
+    "name": "STX",
+    "mode": "Absolute",
+    "description": "Store X Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$90",
+    "name": "BCC",
+    "mode": "Relative",
+    "description": "Branch if Carry Clear",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$91",
+    "name": "STA",
+    "mode": "(Indirect),Y",
+    "description": "Store Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$94",
+    "name": "STY",
+    "mode": "ZeroPage,X",
+    "description": "Store Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$95",
+    "name": "STA",
+    "mode": "ZeroPage,X",
+    "description": "Store Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$96",
+    "name": "STX",
+    "mode": "ZeroPage,Y",
+    "description": "Store X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$98",
+    "name": "TYA",
+    "mode": "Implied",
+    "description": "Transfer Y to Accumulator",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$99",
+    "name": "STA",
+    "mode": "Absolute,Y",
+    "description": "Store Accumulator",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$9A",
+    "name": "TXS",
+    "mode": "Implied",
+    "description": "Transfer X to Stack Pointer",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$9D",
+    "name": "STA",
+    "mode": "Absolute,X",
+    "description": "Store Accumulator",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$A0",
+    "name": "LDY",
+    "mode": "Immediate",
+    "description": "Load Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$A1",
+    "name": "LDA",
+    "mode": "(Indirect,X)",
+    "description": "Load Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$A2",
+    "name": "LDX",
+    "mode": "Immediate",
+    "description": "Load X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$A4",
+    "name": "LDY",
+    "mode": "ZeroPage",
+    "description": "Load Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$A5",
+    "name": "LDA",
+    "mode": "ZeroPage",
+    "description": "Load Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$A6",
+    "name": "LDX",
+    "mode": "ZeroPage",
+    "description": "Load X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$A8",
+    "name": "TAY",
+    "mode": "Implied",
+    "description": "Transfer Accumulator to Y",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$A9",
+    "name": "LDA",
+    "mode": "Immediate",
+    "description": "Load Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$AA",
+    "name": "TAX",
+    "mode": "Implied",
+    "description": "Transfer Accumulator to X",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$AC",
+    "name": "LDY",
+    "mode": "Absolute",
+    "description": "Load Y Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$AD",
+    "name": "LDA",
+    "mode": "Absolute",
+    "description": "Load Accumulator",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$AE",
+    "name": "LDX",
+    "mode": "Absolute",
+    "description": "Load X Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$B0",
+    "name": "BCS",
+    "mode": "Relative",
+    "description": "Branch if Carry Set",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$B1",
+    "name": "LDA",
+    "mode": "(Indirect),Y",
+    "description": "Load Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$B4",
+    "name": "LDY",
+    "mode": "ZeroPage,X",
+    "description": "Load Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$B5",
+    "name": "LDA",
+    "mode": "ZeroPage,X",
+    "description": "Load Accumulator",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$B6",
+    "name": "LDX",
+    "mode": "ZeroPage,Y",
+    "description": "Load X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$B8",
+    "name": "CLV",
+    "mode": "Implied",
+    "description": "Clear Overflow Flag",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$B9",
+    "name": "LDA",
+    "mode": "Absolute,Y",
+    "description": "Load Accumulator",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$BA",
+    "name": "TSX",
+    "mode": "Implied",
+    "description": "Transfer Stack Pointer to X",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$BC",
+    "name": "LDY",
+    "mode": "Absolute,X",
+    "description": "Load Y Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$BD",
+    "name": "LDA",
+    "mode": "Absolute,X",
+    "description": "Load Accumulator",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$BE",
+    "name": "LDX",
+    "mode": "Absolute,Y",
+    "description": "Load X Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$C0",
+    "name": "CPY",
+    "mode": "Immediate",
+    "description": "Compare Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$C1",
+    "name": "CMP",
+    "mode": "(Indirect,X)",
+    "description": "Compare",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$C4",
+    "name": "CPY",
+    "mode": "ZeroPage",
+    "description": "Compare Y Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$C5",
+    "name": "CMP",
+    "mode": "ZeroPage",
+    "description": "Compare",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$C6",
+    "name": "DEC",
+    "mode": "ZeroPage",
+    "description": "Decrement Memory",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$C8",
+    "name": "INY",
+    "mode": "Implied",
+    "description": "Increment Y Register",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$C9",
+    "name": "CMP",
+    "mode": "Immediate",
+    "description": "Compare",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$CA",
+    "name": "DEX",
+    "mode": "Implied",
+    "description": "Decrement X Register",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$CC",
+    "name": "CPY",
+    "mode": "Absolute",
+    "description": "Compare Y Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$CD",
+    "name": "CMP",
+    "mode": "Absolute",
+    "description": "Compare",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$CE",
+    "name": "DEC",
+    "mode": "Absolute",
+    "description": "Decrement Memory",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$D0",
+    "name": "BNE",
+    "mode": "Relative",
+    "description": "Branch if Not Equal",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$D1",
+    "name": "CMP",
+    "mode": "(Indirect),Y",
+    "description": "Compare",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$D5",
+    "name": "CMP",
+    "mode": "ZeroPage,X",
+    "description": "Compare",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$D6",
+    "name": "DEC",
+    "mode": "ZeroPage,X",
+    "description": "Decrement Memory",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$D8",
+    "name": "CLD",
+    "mode": "Implied",
+    "description": "Clear Decimal Mode",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$D9",
+    "name": "CMP",
+    "mode": "Absolute,Y",
+    "description": "Compare",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$DD",
+    "name": "CMP",
+    "mode": "Absolute,X",
+    "description": "Compare",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$DE",
+    "name": "DEC",
+    "mode": "Absolute,X",
+    "description": "Decrement Memory",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$E0",
+    "name": "CPX",
+    "mode": "Immediate",
+    "description": "Compare X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$E1",
+    "name": "SBC",
+    "mode": "(Indirect,X)",
+    "description": "Subtract with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$E4",
+    "name": "CPX",
+    "mode": "ZeroPage",
+    "description": "Compare X Register",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$E5",
+    "name": "SBC",
+    "mode": "ZeroPage",
+    "description": "Subtract with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$E6",
+    "name": "INC",
+    "mode": "ZeroPage",
+    "description": "Increment Memory",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$E8",
+    "name": "INX",
+    "mode": "Implied",
+    "description": "Increment X Register",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$E9",
+    "name": "SBC",
+    "mode": "Immediate",
+    "description": "Subtract with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$EA",
+    "name": "NOP",
+    "mode": "Implied",
+    "description": "No Operation",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$EC",
+    "name": "CPX",
+    "mode": "Absolute",
+    "description": "Compare X Register",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$ED",
+    "name": "SBC",
+    "mode": "Absolute",
+    "description": "Subtract with Carry",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$EE",
+    "name": "INC",
+    "mode": "Absolute",
+    "description": "Increment Memory",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$F0",
+    "name": "BEQ",
+    "mode": "Relative",
+    "description": "Branch if Equal",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$F1",
+    "name": "SBC",
+    "mode": "(Indirect),Y",
+    "description": "Subtract with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$F5",
+    "name": "SBC",
+    "mode": "ZeroPage,X",
+    "description": "Subtract with Carry",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$F6",
+    "name": "INC",
+    "mode": "ZeroPage,X",
+    "description": "Increment Memory",
+    "bytes": "2"
+  },
+  {
+    "opcode": "$F8",
+    "name": "SED",
+    "mode": "Implied",
+    "description": "Set Decimal Flag",
+    "bytes": "1"
+  },
+  {
+    "opcode": "$F9",
+    "name": "SBC",
+    "mode": "Absolute,Y",
+    "description": "Subtract with Carry",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$FD",
+    "name": "SBC",
+    "mode": "Absolute,X",
+    "description": "Subtract with Carry",
+    "bytes": "3"
+  },
+  {
+    "opcode": "$FE",
+    "name": "INC",
+    "mode": "Absolute,X",
+    "description": "Increment Memory",
+    "bytes": "3"
+  }
+]

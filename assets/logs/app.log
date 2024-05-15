@@ -1,0 +1,512 @@
+11:29:08.220 [main] INFO  net.lomibao.nes.components.CPU6502 - 0,00,BRK,Implied,Force Interrupt,1,7,IMM
+11:29:08.229 [main] INFO  net.lomibao.nes.components.CPU6502 - 1,01,ORA,(Indirect;X),Logical Inclusive OR,2,6,IZX
+11:29:08.229 [main] INFO  net.lomibao.nes.components.CPU6502 - 2,02,???,???,???,1,2,IMP
+11:29:08.230 [main] INFO  net.lomibao.nes.components.CPU6502 - 3,03,???,???,???,1,8,IMP
+11:29:08.230 [main] INFO  net.lomibao.nes.components.CPU6502 - 4,04,???,???,???,1,3,IMP
+11:29:08.230 [main] INFO  net.lomibao.nes.components.CPU6502 - 5,05,ORA,ZeroPage,Logical Inclusive OR,2,3,ZP0
+11:29:08.230 [main] INFO  net.lomibao.nes.components.CPU6502 - 6,06,ASL,ZeroPage,Arithmetic Shift Left,2,5,ZP0
+11:29:08.231 [main] INFO  net.lomibao.nes.components.CPU6502 - 7,07,???,???,???,1,5,IMP
+11:29:08.231 [main] INFO  net.lomibao.nes.components.CPU6502 - 8,08,PHP,Implied,Push Processor Status,1,3,IMP
+11:29:08.231 [main] INFO  net.lomibao.nes.components.CPU6502 - 9,09,ORA,Immediate,Logical Inclusive OR,2,2,IMM
+11:29:08.232 [main] INFO  net.lomibao.nes.components.CPU6502 - 10,0A,ASL,Accumulator,Arithmetic Shift Left,1,2,IMP
+11:29:08.232 [main] INFO  net.lomibao.nes.components.CPU6502 - 11,0B,???,???,???,1,2,IMP
+11:29:08.232 [main] INFO  net.lomibao.nes.components.CPU6502 - 12,0C,???,???,???,1,4,IMP
+11:29:08.232 [main] INFO  net.lomibao.nes.components.CPU6502 - 13,0D,ORA,Absolute,Logical Inclusive OR,3,4,ABS
+11:29:08.233 [main] INFO  net.lomibao.nes.components.CPU6502 - 14,0E,ASL,Absolute,Arithmetic Shift Left,3,6,ABS
+11:29:08.233 [main] INFO  net.lomibao.nes.components.CPU6502 - 15,0F,???,???,???,1,6,IMP
+11:29:08.233 [main] INFO  net.lomibao.nes.components.CPU6502 - 16,10,BPL,Relative,Branch if Positive,2,2,REL
+11:29:08.233 [main] INFO  net.lomibao.nes.components.CPU6502 - 17,11,ORA,(Indirect);Y,Logical Inclusive OR,2,5,IZY
+11:29:08.233 [main] INFO  net.lomibao.nes.components.CPU6502 - 18,12,???,???,???,1,2,IMP
+11:29:08.234 [main] INFO  net.lomibao.nes.components.CPU6502 - 19,13,???,???,???,1,8,IMP
+11:29:08.234 [main] INFO  net.lomibao.nes.components.CPU6502 - 20,14,???,???,???,1,4,IMP
+11:29:08.234 [main] INFO  net.lomibao.nes.components.CPU6502 - 21,15,ORA,ZeroPage;X,Logical Inclusive OR,2,4,ZPX
+11:29:08.234 [main] INFO  net.lomibao.nes.components.CPU6502 - 22,16,ASL,ZeroPage;X,Arithmetic Shift Left,2,6,ZPX
+11:29:08.234 [main] INFO  net.lomibao.nes.components.CPU6502 - 23,17,???,???,???,1,6,IMP
+11:29:08.235 [main] INFO  net.lomibao.nes.components.CPU6502 - 24,18,CLC,Implied,Clear Carry Flag,1,2,IMP
+11:29:08.235 [main] INFO  net.lomibao.nes.components.CPU6502 - 25,19,ORA,Absolute;Y,Logical Inclusive OR,3,4,ABY
+11:29:08.236 [main] INFO  net.lomibao.nes.components.CPU6502 - 26,1A,???,???,???,1,2,IMP
+11:29:08.236 [main] INFO  net.lomibao.nes.components.CPU6502 - 27,1B,???,???,???,1,7,IMP
+11:29:08.236 [main] INFO  net.lomibao.nes.components.CPU6502 - 28,1C,???,???,???,1,4,IMP
+11:29:08.236 [main] INFO  net.lomibao.nes.components.CPU6502 - 29,1D,ORA,Absolute;X,Logical Inclusive OR,3,4,ABX
+11:29:08.237 [main] INFO  net.lomibao.nes.components.CPU6502 - 30,1E,ASL,Absolute;X,Arithmetic Shift Left,3,7,ABX
+11:29:08.237 [main] INFO  net.lomibao.nes.components.CPU6502 - 31,1F,???,???,???,1,7,IMP
+11:29:08.237 [main] INFO  net.lomibao.nes.components.CPU6502 - 32,20,JSR,Absolute,Jump to Subroutine,3,6,ABS
+11:29:08.237 [main] INFO  net.lomibao.nes.components.CPU6502 - 33,21,AND,(Indirect;X),Logical AND,2,6,IZX
+11:29:08.238 [main] INFO  net.lomibao.nes.components.CPU6502 - 34,22,???,???,???,1,2,IMP
+11:29:08.238 [main] INFO  net.lomibao.nes.components.CPU6502 - 35,23,???,???,???,1,8,IMP
+11:29:08.238 [main] INFO  net.lomibao.nes.components.CPU6502 - 36,24,BIT,ZeroPage,Bit Test,2,3,ZP0
+11:29:08.238 [main] INFO  net.lomibao.nes.components.CPU6502 - 37,25,AND,ZeroPage,Logical AND,2,3,ZP0
+11:29:08.238 [main] INFO  net.lomibao.nes.components.CPU6502 - 38,26,ROL,ZeroPage,Rotate Left,2,5,ZP0
+11:29:08.239 [main] INFO  net.lomibao.nes.components.CPU6502 - 39,27,???,???,???,1,5,IMP
+11:29:08.239 [main] INFO  net.lomibao.nes.components.CPU6502 - 40,28,PLP,Implied,Pull Processor Status,1,4,IMP
+11:29:08.239 [main] INFO  net.lomibao.nes.components.CPU6502 - 41,29,AND,Immediate,Logical AND,2,2,IMM
+11:29:08.239 [main] INFO  net.lomibao.nes.components.CPU6502 - 42,2A,ROL,Accumulator,Rotate Left,1,2,IMP
+11:29:08.239 [main] INFO  net.lomibao.nes.components.CPU6502 - 43,2B,???,???,???,1,2,IMP
+11:29:08.240 [main] INFO  net.lomibao.nes.components.CPU6502 - 44,2C,BIT,Absolute,Bit Test,3,4,ABS
+11:29:08.240 [main] INFO  net.lomibao.nes.components.CPU6502 - 45,2D,AND,Absolute,Logical AND,3,4,ABS
+11:29:08.240 [main] INFO  net.lomibao.nes.components.CPU6502 - 46,2E,ROL,Absolute,Rotate Left,3,6,ABS
+11:29:08.240 [main] INFO  net.lomibao.nes.components.CPU6502 - 47,2F,???,???,???,1,6,IMP
+11:29:08.240 [main] INFO  net.lomibao.nes.components.CPU6502 - 48,30,BMI,Relative,Branch if Minus,2,2,REL
+11:29:08.241 [main] INFO  net.lomibao.nes.components.CPU6502 - 49,31,AND,(Indirect);Y,Logical AND,2,5,IZY
+11:29:08.241 [main] INFO  net.lomibao.nes.components.CPU6502 - 50,32,???,???,???,1,2,IMP
+11:29:08.241 [main] INFO  net.lomibao.nes.components.CPU6502 - 51,33,???,???,???,1,8,IMP
+11:29:08.241 [main] INFO  net.lomibao.nes.components.CPU6502 - 52,34,???,???,???,1,4,IMP
+11:29:08.242 [main] INFO  net.lomibao.nes.components.CPU6502 - 53,35,AND,ZeroPage;X,Logical AND,2,4,ZPX
+11:29:08.242 [main] INFO  net.lomibao.nes.components.CPU6502 - 54,36,ROL,ZeroPage;X,Rotate Left,2,6,ZPX
+11:29:08.242 [main] INFO  net.lomibao.nes.components.CPU6502 - 55,37,???,???,???,1,6,IMP
+11:29:08.242 [main] INFO  net.lomibao.nes.components.CPU6502 - 56,38,SEC,Implied,Set Carry Flag,1,2,IMP
+11:29:08.242 [main] INFO  net.lomibao.nes.components.CPU6502 - 57,39,AND,Absolute;Y,Logical AND,3,4,ABY
+11:29:08.243 [main] INFO  net.lomibao.nes.components.CPU6502 - 58,3A,???,???,???,1,2,IMP
+11:29:08.243 [main] INFO  net.lomibao.nes.components.CPU6502 - 59,3B,???,???,???,1,7,IMP
+11:29:08.243 [main] INFO  net.lomibao.nes.components.CPU6502 - 60,3C,???,???,???,1,4,IMP
+11:29:08.243 [main] INFO  net.lomibao.nes.components.CPU6502 - 61,3D,AND,Absolute;X,Logical AND,3,4,ABX
+11:29:08.243 [main] INFO  net.lomibao.nes.components.CPU6502 - 62,3E,ROL,Absolute;X,Rotate Left,3,7,ABX
+11:29:08.244 [main] INFO  net.lomibao.nes.components.CPU6502 - 63,3F,???,???,???,1,7,IMP
+11:29:08.244 [main] INFO  net.lomibao.nes.components.CPU6502 - 64,40,RTI,Implied,Return from Interrupt,1,6,IMP
+11:29:08.244 [main] INFO  net.lomibao.nes.components.CPU6502 - 65,41,EOR,(Indirect;X),Exclusive OR,2,6,IZX
+11:29:08.244 [main] INFO  net.lomibao.nes.components.CPU6502 - 66,42,???,???,???,1,2,IMP
+11:29:08.245 [main] INFO  net.lomibao.nes.components.CPU6502 - 67,43,???,???,???,1,8,IMP
+11:29:08.245 [main] INFO  net.lomibao.nes.components.CPU6502 - 68,44,???,???,???,1,3,IMP
+11:29:08.245 [main] INFO  net.lomibao.nes.components.CPU6502 - 69,45,EOR,ZeroPage,Exclusive OR,2,3,ZP0
+11:29:08.245 [main] INFO  net.lomibao.nes.components.CPU6502 - 70,46,LSR,ZeroPage,Logical Shift Right,2,5,ZP0
+11:29:08.245 [main] INFO  net.lomibao.nes.components.CPU6502 - 71,47,???,???,???,1,5,IMP
+11:29:08.246 [main] INFO  net.lomibao.nes.components.CPU6502 - 72,48,PHA,Implied,Push Accumulator,1,3,IMP
+11:29:08.246 [main] INFO  net.lomibao.nes.components.CPU6502 - 73,49,EOR,Immediate,Exclusive OR,2,2,IMM
+11:29:08.246 [main] INFO  net.lomibao.nes.components.CPU6502 - 74,4A,LSR,Accumulator,Logical Shift Right,1,2,IMP
+11:29:08.246 [main] INFO  net.lomibao.nes.components.CPU6502 - 75,4B,???,???,???,1,2,IMP
+11:29:08.246 [main] INFO  net.lomibao.nes.components.CPU6502 - 76,4C,JMP,Absolute,Jump,3,3,ABS
+11:29:08.247 [main] INFO  net.lomibao.nes.components.CPU6502 - 77,4D,EOR,Absolute,Exclusive OR,3,4,ABS
+11:29:08.247 [main] INFO  net.lomibao.nes.components.CPU6502 - 78,4E,LSR,Absolute,Logical Shift Right,3,6,ABS
+11:29:08.247 [main] INFO  net.lomibao.nes.components.CPU6502 - 79,4F,???,???,???,1,6,IMP
+11:29:08.247 [main] INFO  net.lomibao.nes.components.CPU6502 - 80,50,BVC,Relative,Branch if Overflow Clear,2,2,REL
+11:29:08.247 [main] INFO  net.lomibao.nes.components.CPU6502 - 81,51,EOR,(Indirect);Y,Exclusive OR,2,5,IZY
+11:29:08.248 [main] INFO  net.lomibao.nes.components.CPU6502 - 82,52,???,???,???,1,2,IMP
+11:29:08.248 [main] INFO  net.lomibao.nes.components.CPU6502 - 83,53,???,???,???,1,8,IMP
+11:29:08.248 [main] INFO  net.lomibao.nes.components.CPU6502 - 84,54,???,???,???,1,4,IMP
+11:29:08.248 [main] INFO  net.lomibao.nes.components.CPU6502 - 85,55,EOR,ZeroPage;X,Exclusive OR,2,4,ZPX
+11:29:08.248 [main] INFO  net.lomibao.nes.components.CPU6502 - 86,56,LSR,ZeroPage;X,Logical Shift Right,2,6,ZPX
+11:29:08.249 [main] INFO  net.lomibao.nes.components.CPU6502 - 87,57,???,???,???,1,6,IMP
+11:29:08.249 [main] INFO  net.lomibao.nes.components.CPU6502 - 88,58,CLI,Implied,Clear Interrupt Disable,1,2,IMP
+11:29:08.249 [main] INFO  net.lomibao.nes.components.CPU6502 - 89,59,EOR,Absolute;Y,Exclusive OR,3,4,ABY
+11:29:08.249 [main] INFO  net.lomibao.nes.components.CPU6502 - 90,5A,???,???,???,1,2,IMP
+11:29:08.249 [main] INFO  net.lomibao.nes.components.CPU6502 - 91,5B,???,???,???,1,7,IMP
+11:29:08.250 [main] INFO  net.lomibao.nes.components.CPU6502 - 92,5C,???,???,???,1,4,IMP
+11:29:08.250 [main] INFO  net.lomibao.nes.components.CPU6502 - 93,5D,EOR,Absolute;X,Exclusive OR,3,4,ABX
+11:29:08.250 [main] INFO  net.lomibao.nes.components.CPU6502 - 94,5E,LSR,Absolute;X,Logical Shift Right,3,7,ABX
+11:29:08.250 [main] INFO  net.lomibao.nes.components.CPU6502 - 95,5F,???,???,???,1,7,IMP
+11:29:08.250 [main] INFO  net.lomibao.nes.components.CPU6502 - 96,60,RTS,Implied,Return from Subroutine,1,6,IMP
+11:29:08.251 [main] INFO  net.lomibao.nes.components.CPU6502 - 97,61,ADC,(Indirect;X),Add with Carry,2,6,IZX
+11:29:08.251 [main] INFO  net.lomibao.nes.components.CPU6502 - 98,62,???,???,???,1,2,IMP
+11:29:08.251 [main] INFO  net.lomibao.nes.components.CPU6502 - 99,63,???,???,???,1,8,IMP
+11:29:08.251 [main] INFO  net.lomibao.nes.components.CPU6502 - 100,64,???,???,???,1,3,IMP
+11:29:08.251 [main] INFO  net.lomibao.nes.components.CPU6502 - 101,65,ADC,ZeroPage,Add with Carry,2,3,ZP0
+11:29:08.252 [main] INFO  net.lomibao.nes.components.CPU6502 - 102,66,ROR,ZeroPage,Rotate Right,2,5,ZP0
+11:29:08.252 [main] INFO  net.lomibao.nes.components.CPU6502 - 103,67,???,???,???,1,5,IMP
+11:29:08.252 [main] INFO  net.lomibao.nes.components.CPU6502 - 104,68,PLA,Implied,Pull Accumulator,1,4,IMP
+11:29:08.252 [main] INFO  net.lomibao.nes.components.CPU6502 - 105,69,ADC,Immediate,Add with Carry,2,2,IMM
+11:29:08.252 [main] INFO  net.lomibao.nes.components.CPU6502 - 106,6A,ROR,Accumulator,Rotate Right,1,2,IMP
+11:29:08.252 [main] INFO  net.lomibao.nes.components.CPU6502 - 107,6B,???,???,???,1,2,IMP
+11:29:08.253 [main] INFO  net.lomibao.nes.components.CPU6502 - 108,6C,JMP,Indirect ,Jump,3,5,IND
+11:29:08.253 [main] INFO  net.lomibao.nes.components.CPU6502 - 109,6D,ADC,Absolute,Add with Carry,3,4,ABS
+11:29:08.253 [main] INFO  net.lomibao.nes.components.CPU6502 - 110,6E,ROR,Absolute,Rotate Right,3,6,ABS
+11:29:08.253 [main] INFO  net.lomibao.nes.components.CPU6502 - 111,6F,???,???,???,1,6,IMP
+11:29:08.253 [main] INFO  net.lomibao.nes.components.CPU6502 - 112,70,BVS,Relative,Branch if Overflow Set,2,2,REL
+11:29:08.253 [main] INFO  net.lomibao.nes.components.CPU6502 - 113,71,ADC,(Indirect);Y,Add with Carry,2,5,IZY
+11:29:08.254 [main] INFO  net.lomibao.nes.components.CPU6502 - 114,72,???,???,???,1,2,IMP
+11:29:08.254 [main] INFO  net.lomibao.nes.components.CPU6502 - 115,73,???,???,???,1,8,IMP
+11:29:08.254 [main] INFO  net.lomibao.nes.components.CPU6502 - 116,74,???,???,???,1,4,IMP
+11:29:08.254 [main] INFO  net.lomibao.nes.components.CPU6502 - 117,75,ADC,ZeroPage;X,Add with Carry,2,4,ZPX
+11:29:08.255 [main] INFO  net.lomibao.nes.components.CPU6502 - 118,76,ROR,ZeroPage;X,Rotate Right,2,6,ZPX
+11:29:08.255 [main] INFO  net.lomibao.nes.components.CPU6502 - 119,77,???,???,???,1,6,IMP
+11:29:08.255 [main] INFO  net.lomibao.nes.components.CPU6502 - 120,78,SEI,Implied,Set Interrupt Disable,1,2,IMP
+11:29:08.255 [main] INFO  net.lomibao.nes.components.CPU6502 - 121,79,ADC,Absolute;Y,Add with Carry,3,4,ABY
+11:29:08.256 [main] INFO  net.lomibao.nes.components.CPU6502 - 122,7A,???,???,???,1,2,IMP
+11:29:08.256 [main] INFO  net.lomibao.nes.components.CPU6502 - 123,7B,???,???,???,1,7,IMP
+11:29:08.256 [main] INFO  net.lomibao.nes.components.CPU6502 - 124,7C,???,???,???,1,4,IMP
+11:29:08.256 [main] INFO  net.lomibao.nes.components.CPU6502 - 125,7D,ADC,Absolute;X,Add with Carry,3,4,ABX
+11:29:08.257 [main] INFO  net.lomibao.nes.components.CPU6502 - 126,7E,ROR,Absolute;X,Rotate Right,3,7,ABX
+11:29:08.258 [main] INFO  net.lomibao.nes.components.CPU6502 - 127,7F,???,???,???,1,7,IMP
+11:29:08.258 [main] INFO  net.lomibao.nes.components.CPU6502 - 128,80,???,???,???,1,2,IMP
+11:29:08.258 [main] INFO  net.lomibao.nes.components.CPU6502 - 129,81,STA,(Indirect;X),Store Accumulator,2,6,IZX
+11:29:08.258 [main] INFO  net.lomibao.nes.components.CPU6502 - 130,82,???,???,???,1,2,IMP
+11:29:08.259 [main] INFO  net.lomibao.nes.components.CPU6502 - 131,83,???,???,???,1,6,IMP
+11:29:08.259 [main] INFO  net.lomibao.nes.components.CPU6502 - 132,84,STY,ZeroPage,Store Y Register,2,3,ZP0
+11:29:08.259 [main] INFO  net.lomibao.nes.components.CPU6502 - 133,85,STA,ZeroPage,Store Accumulator,2,3,ZP0
+11:29:08.259 [main] INFO  net.lomibao.nes.components.CPU6502 - 134,86,STX,ZeroPage,Store X Register,2,3,ZP0
+11:29:08.259 [main] INFO  net.lomibao.nes.components.CPU6502 - 135,87,???,???,???,1,3,IMP
+11:29:08.259 [main] INFO  net.lomibao.nes.components.CPU6502 - 136,88,DEY,Implied,Decrement Y Register,1,2,IMP
+11:29:08.260 [main] INFO  net.lomibao.nes.components.CPU6502 - 137,89,???,???,???,1,2,IMP
+11:29:08.260 [main] INFO  net.lomibao.nes.components.CPU6502 - 138,8A,TXA,Implied,Transfer X to Accumulator,1,2,IMP
+11:29:08.260 [main] INFO  net.lomibao.nes.components.CPU6502 - 139,8B,???,???,???,1,2,IMP
+11:29:08.260 [main] INFO  net.lomibao.nes.components.CPU6502 - 140,8C,STY,Absolute,Store Y Register,3,4,ABS
+11:29:08.260 [main] INFO  net.lomibao.nes.components.CPU6502 - 141,8D,STA,Absolute,Store Accumulator,3,4,ABS
+11:29:08.261 [main] INFO  net.lomibao.nes.components.CPU6502 - 142,8E,STX,Absolute,Store X Register,3,4,ABS
+11:29:08.261 [main] INFO  net.lomibao.nes.components.CPU6502 - 143,8F,???,???,???,1,4,IMP
+11:29:08.261 [main] INFO  net.lomibao.nes.components.CPU6502 - 144,90,BCC,Relative,Branch if Carry Clear,2,2,REL
+11:29:08.261 [main] INFO  net.lomibao.nes.components.CPU6502 - 145,91,STA,(Indirect);Y,Store Accumulator,2,6,IZY
+11:29:08.261 [main] INFO  net.lomibao.nes.components.CPU6502 - 146,92,???,???,???,1,2,IMP
+11:29:08.261 [main] INFO  net.lomibao.nes.components.CPU6502 - 147,93,???,???,???,1,6,IMP
+11:29:08.262 [main] INFO  net.lomibao.nes.components.CPU6502 - 148,94,STY,ZeroPage;X,Store Y Register,2,4,ZPX
+11:29:08.262 [main] INFO  net.lomibao.nes.components.CPU6502 - 149,95,STA,ZeroPage;X,Store Accumulator,2,4,ZPX
+11:29:08.262 [main] INFO  net.lomibao.nes.components.CPU6502 - 150,96,STX,ZeroPage;Y,Store X Register,2,4,ZPY
+11:29:08.262 [main] INFO  net.lomibao.nes.components.CPU6502 - 151,97,???,???,???,1,4,IMP
+11:29:08.262 [main] INFO  net.lomibao.nes.components.CPU6502 - 152,98,TYA,Implied,Transfer Y to Accumulator,1,2,IMP
+11:29:08.263 [main] INFO  net.lomibao.nes.components.CPU6502 - 153,99,STA,Absolute;Y,Store Accumulator,3,5,ABY
+11:29:08.263 [main] INFO  net.lomibao.nes.components.CPU6502 - 154,9A,TXS,Implied,Transfer X to Stack Pointer,1,2,IMP
+11:29:08.263 [main] INFO  net.lomibao.nes.components.CPU6502 - 155,9B,???,???,???,1,5,IMP
+11:29:08.263 [main] INFO  net.lomibao.nes.components.CPU6502 - 156,9C,???,???,???,1,5,IMP
+11:29:08.263 [main] INFO  net.lomibao.nes.components.CPU6502 - 157,9D,STA,Absolute;X,Store Accumulator,3,5,ABX
+11:29:08.263 [main] INFO  net.lomibao.nes.components.CPU6502 - 158,9E,???,???,???,1,5,IMP
+11:29:08.264 [main] INFO  net.lomibao.nes.components.CPU6502 - 159,9F,???,???,???,1,5,IMP
+11:29:08.264 [main] INFO  net.lomibao.nes.components.CPU6502 - 160,A0,LDY,Immediate,Load Y Register,2,2,IMM
+11:29:08.264 [main] INFO  net.lomibao.nes.components.CPU6502 - 161,A1,LDA,(Indirect;X),Load Accumulator,2,6,IZX
+11:29:08.264 [main] INFO  net.lomibao.nes.components.CPU6502 - 162,A2,LDX,Immediate,Load X Register,2,2,IMM
+11:29:08.264 [main] INFO  net.lomibao.nes.components.CPU6502 - 163,A3,???,???,???,1,6,IMP
+11:29:08.265 [main] INFO  net.lomibao.nes.components.CPU6502 - 164,A4,LDY,ZeroPage,Load Y Register,2,3,ZP0
+11:29:08.265 [main] INFO  net.lomibao.nes.components.CPU6502 - 165,A5,LDA,ZeroPage,Load Accumulator,2,3,ZP0
+11:29:08.265 [main] INFO  net.lomibao.nes.components.CPU6502 - 166,A6,LDX,ZeroPage,Load X Register,2,3,ZP0
+11:29:08.265 [main] INFO  net.lomibao.nes.components.CPU6502 - 167,A7,???,???,???,1,3,IMP
+11:29:08.265 [main] INFO  net.lomibao.nes.components.CPU6502 - 168,A8,TAY,Implied,Transfer Accumulator to Y,1,2,IMP
+11:29:08.266 [main] INFO  net.lomibao.nes.components.CPU6502 - 169,A9,LDA,Immediate,Load Accumulator,2,2,IMM
+11:29:08.266 [main] INFO  net.lomibao.nes.components.CPU6502 - 170,AA,TAX,Implied,Transfer Accumulator to X,1,2,IMP
+11:29:08.266 [main] INFO  net.lomibao.nes.components.CPU6502 - 171,AB,???,???,???,1,2,IMP
+11:29:08.266 [main] INFO  net.lomibao.nes.components.CPU6502 - 172,AC,LDY,Absolute,Load Y Register,3,4,ABS
+11:29:08.266 [main] INFO  net.lomibao.nes.components.CPU6502 - 173,AD,LDA,Absolute,Load Accumulator,3,4,ABS
+11:29:08.266 [main] INFO  net.lomibao.nes.components.CPU6502 - 174,AE,LDX,Absolute,Load X Register,3,4,ABS
+11:29:08.267 [main] INFO  net.lomibao.nes.components.CPU6502 - 175,AF,???,???,???,1,4,IMP
+11:29:08.267 [main] INFO  net.lomibao.nes.components.CPU6502 - 176,B0,BCS,Relative,Branch if Carry Set,2,2,REL
+11:29:08.267 [main] INFO  net.lomibao.nes.components.CPU6502 - 177,B1,LDA,(Indirect);Y,Load Accumulator,2,5,IZY
+11:29:08.267 [main] INFO  net.lomibao.nes.components.CPU6502 - 178,B2,???,???,???,1,2,IMP
+11:29:08.267 [main] INFO  net.lomibao.nes.components.CPU6502 - 179,B3,???,???,???,1,5,IMP
+11:29:08.267 [main] INFO  net.lomibao.nes.components.CPU6502 - 180,B4,LDY,ZeroPage;X,Load Y Register,2,4,ZPX
+11:29:08.268 [main] INFO  net.lomibao.nes.components.CPU6502 - 181,B5,LDA,ZeroPage;X,Load Accumulator,2,4,ZPX
+11:29:08.268 [main] INFO  net.lomibao.nes.components.CPU6502 - 182,B6,LDX,ZeroPage;Y,Load X Register,2,4,ZPY
+11:29:08.268 [main] INFO  net.lomibao.nes.components.CPU6502 - 183,B7,???,???,???,1,4,IMP
+11:29:08.268 [main] INFO  net.lomibao.nes.components.CPU6502 - 184,B8,CLV,Implied,Clear Overflow Flag,1,2,IMP
+11:29:08.268 [main] INFO  net.lomibao.nes.components.CPU6502 - 185,B9,LDA,Absolute;Y,Load Accumulator,3,4,ABY
+11:29:08.269 [main] INFO  net.lomibao.nes.components.CPU6502 - 186,BA,TSX,Implied,Transfer Stack Pointer to X,1,2,IMP
+11:29:08.269 [main] INFO  net.lomibao.nes.components.CPU6502 - 187,BB,???,???,???,1,4,IMP
+11:29:08.269 [main] INFO  net.lomibao.nes.components.CPU6502 - 188,BC,LDY,Absolute;X,Load Y Register,3,4,ABX
+11:29:08.269 [main] INFO  net.lomibao.nes.components.CPU6502 - 189,BD,LDA,Absolute;X,Load Accumulator,3,4,ABX
+11:29:08.269 [main] INFO  net.lomibao.nes.components.CPU6502 - 190,BE,LDX,Absolute;Y,Load X Register,3,4,ABY
+11:29:08.269 [main] INFO  net.lomibao.nes.components.CPU6502 - 191,BF,???,???,???,1,4,IMP
+11:29:08.270 [main] INFO  net.lomibao.nes.components.CPU6502 - 192,C0,CPY,Immediate,Compare Y Register,2,2,IMM
+11:29:08.270 [main] INFO  net.lomibao.nes.components.CPU6502 - 193,C1,CMP,(Indirect;X),Compare,2,6,IZX
+11:29:08.270 [main] INFO  net.lomibao.nes.components.CPU6502 - 194,C2,???,???,???,1,2,IMP
+11:29:08.270 [main] INFO  net.lomibao.nes.components.CPU6502 - 195,C3,???,???,???,1,8,IMP
+11:29:08.270 [main] INFO  net.lomibao.nes.components.CPU6502 - 196,C4,CPY,ZeroPage,Compare Y Register,2,3,ZP0
+11:29:08.270 [main] INFO  net.lomibao.nes.components.CPU6502 - 197,C5,CMP,ZeroPage,Compare,2,3,ZP0
+11:29:08.271 [main] INFO  net.lomibao.nes.components.CPU6502 - 198,C6,DEC,ZeroPage,Decrement Memory,2,5,ZP0
+11:29:08.271 [main] INFO  net.lomibao.nes.components.CPU6502 - 199,C7,???,???,???,1,5,IMP
+11:29:08.271 [main] INFO  net.lomibao.nes.components.CPU6502 - 200,C8,INY,Implied,Increment Y Register,1,2,IMP
+11:29:08.271 [main] INFO  net.lomibao.nes.components.CPU6502 - 201,C9,CMP,Immediate,Compare,2,2,IMM
+11:29:08.271 [main] INFO  net.lomibao.nes.components.CPU6502 - 202,CA,DEX,Implied,Decrement X Register,1,2,IMP
+11:29:08.271 [main] INFO  net.lomibao.nes.components.CPU6502 - 203,CB,???,???,???,1,2,IMP
+11:29:08.272 [main] INFO  net.lomibao.nes.components.CPU6502 - 204,CC,CPY,Absolute,Compare Y Register,3,4,ABS
+11:29:08.272 [main] INFO  net.lomibao.nes.components.CPU6502 - 205,CD,CMP,Absolute,Compare,3,4,ABS
+11:29:08.272 [main] INFO  net.lomibao.nes.components.CPU6502 - 206,CE,DEC,Absolute,Decrement Memory,3,6,ABS
+11:29:08.272 [main] INFO  net.lomibao.nes.components.CPU6502 - 207,CF,???,???,???,1,6,IMP
+11:29:08.272 [main] INFO  net.lomibao.nes.components.CPU6502 - 208,D0,BNE,Relative,Branch if Not Equal,2,2,REL
+11:29:08.273 [main] INFO  net.lomibao.nes.components.CPU6502 - 209,D1,CMP,(Indirect);Y,Compare,2,5,IZY
+11:29:08.273 [main] INFO  net.lomibao.nes.components.CPU6502 - 210,D2,???,???,???,1,2,IMP
+11:29:08.273 [main] INFO  net.lomibao.nes.components.CPU6502 - 211,D3,???,???,???,1,8,IMP
+11:29:08.273 [main] INFO  net.lomibao.nes.components.CPU6502 - 212,D4,???,???,???,1,4,IMP
+11:29:08.273 [main] INFO  net.lomibao.nes.components.CPU6502 - 213,D5,CMP,ZeroPage;X,Compare,2,4,ZPX
+11:29:08.273 [main] INFO  net.lomibao.nes.components.CPU6502 - 214,D6,DEC,ZeroPage;X,Decrement Memory,2,6,ZPX
+11:29:08.274 [main] INFO  net.lomibao.nes.components.CPU6502 - 215,D7,???,???,???,1,6,IMP
+11:29:08.274 [main] INFO  net.lomibao.nes.components.CPU6502 - 216,D8,CLD,Implied,Clear Decimal Mode,1,2,IMP
+11:29:08.274 [main] INFO  net.lomibao.nes.components.CPU6502 - 217,D9,CMP,Absolute;Y,Compare,3,4,ABY
+11:29:08.274 [main] INFO  net.lomibao.nes.components.CPU6502 - 218,DA,NOP,???,???,1,2,IMP
+11:29:08.274 [main] INFO  net.lomibao.nes.components.CPU6502 - 219,DB,???,???,???,1,7,IMP
+11:29:08.274 [main] INFO  net.lomibao.nes.components.CPU6502 - 220,DC,???,???,???,1,4,IMP
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 221,DD,CMP,Absolute;X,Compare,3,4,ABX
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 222,DE,DEC,Absolute;X,Decrement Memory,3,7,ABX
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 223,DF,???,???,???,1,7,IMP
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 224,E0,CPX,Immediate,Compare X Register,2,2,IMM
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 225,E1,SBC,(Indirect;X),Subtract with Carry,2,6,IZX
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 226,E2,???,???,???,1,2,IMP
+11:29:08.275 [main] INFO  net.lomibao.nes.components.CPU6502 - 227,E3,???,???,???,1,8,IMP
+11:29:08.276 [main] INFO  net.lomibao.nes.components.CPU6502 - 228,E4,CPX,ZeroPage,Compare X Register,2,3,ZP0
+11:29:08.276 [main] INFO  net.lomibao.nes.components.CPU6502 - 229,E5,SBC,ZeroPage,Subtract with Carry,2,3,ZP0
+11:29:08.276 [main] INFO  net.lomibao.nes.components.CPU6502 - 230,E6,INC,ZeroPage,Increment Memory,2,5,ZP0
+11:29:08.276 [main] INFO  net.lomibao.nes.components.CPU6502 - 231,E7,???,???,???,1,5,IMP
+11:29:08.276 [main] INFO  net.lomibao.nes.components.CPU6502 - 232,E8,INX,Implied,Increment X Register,1,2,IMP
+11:29:08.276 [main] INFO  net.lomibao.nes.components.CPU6502 - 233,E9,SBC,Immediate,Subtract with Carry,2,2,IMM
+11:29:08.277 [main] INFO  net.lomibao.nes.components.CPU6502 - 234,EA,NOP,Implied,No Operation,1,2,IMP
+11:29:08.277 [main] INFO  net.lomibao.nes.components.CPU6502 - 235,EB,???,???,???,1,2,IMP
+11:29:08.277 [main] INFO  net.lomibao.nes.components.CPU6502 - 236,EC,CPX,Absolute,Compare X Register,3,4,ABS
+11:29:08.277 [main] INFO  net.lomibao.nes.components.CPU6502 - 237,ED,SBC,Absolute,Subtract with Carry,3,4,ABS
+11:29:08.277 [main] INFO  net.lomibao.nes.components.CPU6502 - 238,EE,INC,Absolute,Increment Memory,3,6,ABS
+11:29:08.277 [main] INFO  net.lomibao.nes.components.CPU6502 - 239,EF,???,???,???,1,6,IMP
+11:29:08.278 [main] INFO  net.lomibao.nes.components.CPU6502 - 240,F0,BEQ,Relative,Branch if Equal,2,2,REL
+11:29:08.278 [main] INFO  net.lomibao.nes.components.CPU6502 - 241,F1,SBC,(Indirect);Y,Subtract with Carry,2,5,IZY
+11:29:08.278 [main] INFO  net.lomibao.nes.components.CPU6502 - 242,F2,???,???,???,1,2,IMP
+11:29:08.278 [main] INFO  net.lomibao.nes.components.CPU6502 - 243,F3,???,???,???,1,8,IMP
+11:29:08.278 [main] INFO  net.lomibao.nes.components.CPU6502 - 244,F4,???,???,???,1,4,IMP
+11:29:08.278 [main] INFO  net.lomibao.nes.components.CPU6502 - 245,F5,SBC,ZeroPage;X,Subtract with Carry,2,4,ZPX
+11:29:08.279 [main] INFO  net.lomibao.nes.components.CPU6502 - 246,F6,INC,ZeroPage;X,Increment Memory,2,6,ZPX
+11:29:08.279 [main] INFO  net.lomibao.nes.components.CPU6502 - 247,F7,???,???,???,1,6,IMP
+11:29:08.279 [main] INFO  net.lomibao.nes.components.CPU6502 - 248,F8,SED,Implied,Set Decimal Flag,1,2,IMP
+11:29:08.279 [main] INFO  net.lomibao.nes.components.CPU6502 - 249,F9,SBC,Absolute;Y,Subtract with Carry,3,4,ABY
+11:29:08.279 [main] INFO  net.lomibao.nes.components.CPU6502 - 250,FA,NOP,???,???,1,2,IMP
+11:29:08.279 [main] INFO  net.lomibao.nes.components.CPU6502 - 251,FB,???,???,???,1,7,IMP
+11:29:08.280 [main] INFO  net.lomibao.nes.components.CPU6502 - 252,FC,???,???,???,1,4,IMP
+11:29:08.280 [main] INFO  net.lomibao.nes.components.CPU6502 - 253,FD,SBC,Absolute;X,Subtract with Carry,3,4,ABX
+11:29:08.280 [main] INFO  net.lomibao.nes.components.CPU6502 - 254,FE,INC,Absolute;X,Increment Memory,3,7,ABX
+11:29:08.280 [main] INFO  net.lomibao.nes.components.CPU6502 - 255,FF,???,???,???,1,7,IMP
+11:29:08.286 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=0, hexOpcode='00', opcodeName='BRK', addressingModeDescription='Implied', description='Force Interrupt', byteCount=1, clocks=7, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.287 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=1, hexOpcode='01', opcodeName='ORA', addressingModeDescription='(Indirect;X)', description='Logical Inclusive OR', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.287 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=2, hexOpcode='02', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.287 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=3, hexOpcode='03', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.288 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=4, hexOpcode='04', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.288 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=5, hexOpcode='05', opcodeName='ORA', addressingModeDescription='ZeroPage', description='Logical Inclusive OR', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.288 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=6, hexOpcode='06', opcodeName='ASL', addressingModeDescription='ZeroPage', description='Arithmetic Shift Left', byteCount=2, clocks=5, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.289 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=7, hexOpcode='07', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.289 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=8, hexOpcode='08', opcodeName='PHP', addressingModeDescription='Implied', description='Push Processor Status', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.289 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=9, hexOpcode='09', opcodeName='ORA', addressingModeDescription='Immediate', description='Logical Inclusive OR', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.289 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=10, hexOpcode='0A', opcodeName='ASL', addressingModeDescription='Accumulator', description='Arithmetic Shift Left', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.290 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=11, hexOpcode='0B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.290 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=12, hexOpcode='0C', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.290 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=13, hexOpcode='0D', opcodeName='ORA', addressingModeDescription='Absolute', description='Logical Inclusive OR', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.290 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=14, hexOpcode='0E', opcodeName='ASL', addressingModeDescription='Absolute', description='Arithmetic Shift Left', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.291 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=15, hexOpcode='0F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.291 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=16, hexOpcode='10', opcodeName='BPL', addressingModeDescription='Relative', description='Branch if Positive', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.291 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=17, hexOpcode='11', opcodeName='ORA', addressingModeDescription='(Indirect);Y', description='Logical Inclusive OR', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.291 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=18, hexOpcode='12', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.291 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=19, hexOpcode='13', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.292 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=20, hexOpcode='14', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.292 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=21, hexOpcode='15', opcodeName='ORA', addressingModeDescription='ZeroPage;X', description='Logical Inclusive OR', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.292 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=22, hexOpcode='16', opcodeName='ASL', addressingModeDescription='ZeroPage;X', description='Arithmetic Shift Left', byteCount=2, clocks=6, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.292 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=23, hexOpcode='17', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.292 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=24, hexOpcode='18', opcodeName='CLC', addressingModeDescription='Implied', description='Clear Carry Flag', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.292 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=25, hexOpcode='19', opcodeName='ORA', addressingModeDescription='Absolute;Y', description='Logical Inclusive OR', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.293 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=26, hexOpcode='1A', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.293 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=27, hexOpcode='1B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.293 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=28, hexOpcode='1C', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.293 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=29, hexOpcode='1D', opcodeName='ORA', addressingModeDescription='Absolute;X', description='Logical Inclusive OR', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.293 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=30, hexOpcode='1E', opcodeName='ASL', addressingModeDescription='Absolute;X', description='Arithmetic Shift Left', byteCount=3, clocks=7, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.293 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=31, hexOpcode='1F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=32, hexOpcode='20', opcodeName='JSR', addressingModeDescription='Absolute', description='Jump to Subroutine', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=33, hexOpcode='21', opcodeName='AND', addressingModeDescription='(Indirect;X)', description='Logical AND', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=34, hexOpcode='22', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=35, hexOpcode='23', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=36, hexOpcode='24', opcodeName='BIT', addressingModeDescription='ZeroPage', description='Bit Test', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=37, hexOpcode='25', opcodeName='AND', addressingModeDescription='ZeroPage', description='Logical AND', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.294 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=38, hexOpcode='26', opcodeName='ROL', addressingModeDescription='ZeroPage', description='Rotate Left', byteCount=2, clocks=5, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.295 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=39, hexOpcode='27', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.295 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=40, hexOpcode='28', opcodeName='PLP', addressingModeDescription='Implied', description='Pull Processor Status', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.295 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=41, hexOpcode='29', opcodeName='AND', addressingModeDescription='Immediate', description='Logical AND', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.295 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=42, hexOpcode='2A', opcodeName='ROL', addressingModeDescription='Accumulator', description='Rotate Left', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.295 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=43, hexOpcode='2B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.295 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=44, hexOpcode='2C', opcodeName='BIT', addressingModeDescription='Absolute', description='Bit Test', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=45, hexOpcode='2D', opcodeName='AND', addressingModeDescription='Absolute', description='Logical AND', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=46, hexOpcode='2E', opcodeName='ROL', addressingModeDescription='Absolute', description='Rotate Left', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=47, hexOpcode='2F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=48, hexOpcode='30', opcodeName='BMI', addressingModeDescription='Relative', description='Branch if Minus', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=49, hexOpcode='31', opcodeName='AND', addressingModeDescription='(Indirect);Y', description='Logical AND', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=50, hexOpcode='32', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.296 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=51, hexOpcode='33', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.297 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=52, hexOpcode='34', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.297 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=53, hexOpcode='35', opcodeName='AND', addressingModeDescription='ZeroPage;X', description='Logical AND', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.297 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=54, hexOpcode='36', opcodeName='ROL', addressingModeDescription='ZeroPage;X', description='Rotate Left', byteCount=2, clocks=6, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.297 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=55, hexOpcode='37', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.297 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=56, hexOpcode='38', opcodeName='SEC', addressingModeDescription='Implied', description='Set Carry Flag', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.297 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=57, hexOpcode='39', opcodeName='AND', addressingModeDescription='Absolute;Y', description='Logical AND', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.298 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=58, hexOpcode='3A', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.298 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=59, hexOpcode='3B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.298 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=60, hexOpcode='3C', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.298 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=61, hexOpcode='3D', opcodeName='AND', addressingModeDescription='Absolute;X', description='Logical AND', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.298 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=62, hexOpcode='3E', opcodeName='ROL', addressingModeDescription='Absolute;X', description='Rotate Left', byteCount=3, clocks=7, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.299 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=63, hexOpcode='3F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.299 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=64, hexOpcode='40', opcodeName='RTI', addressingModeDescription='Implied', description='Return from Interrupt', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.299 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=65, hexOpcode='41', opcodeName='EOR', addressingModeDescription='(Indirect;X)', description='Exclusive OR', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.299 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=66, hexOpcode='42', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.299 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=67, hexOpcode='43', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.300 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=68, hexOpcode='44', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.300 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=69, hexOpcode='45', opcodeName='EOR', addressingModeDescription='ZeroPage', description='Exclusive OR', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.300 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=70, hexOpcode='46', opcodeName='LSR', addressingModeDescription='ZeroPage', description='Logical Shift Right', byteCount=2, clocks=5, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.300 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=71, hexOpcode='47', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.300 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=72, hexOpcode='48', opcodeName='PHA', addressingModeDescription='Implied', description='Push Accumulator', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.301 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=73, hexOpcode='49', opcodeName='EOR', addressingModeDescription='Immediate', description='Exclusive OR', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.301 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=74, hexOpcode='4A', opcodeName='LSR', addressingModeDescription='Accumulator', description='Logical Shift Right', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.301 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=75, hexOpcode='4B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.301 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=76, hexOpcode='4C', opcodeName='JMP', addressingModeDescription='Absolute', description='Jump', byteCount=3, clocks=3, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.301 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=77, hexOpcode='4D', opcodeName='EOR', addressingModeDescription='Absolute', description='Exclusive OR', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.302 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=78, hexOpcode='4E', opcodeName='LSR', addressingModeDescription='Absolute', description='Logical Shift Right', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.302 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=79, hexOpcode='4F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.302 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=80, hexOpcode='50', opcodeName='BVC', addressingModeDescription='Relative', description='Branch if Overflow Clear', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.302 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=81, hexOpcode='51', opcodeName='EOR', addressingModeDescription='(Indirect);Y', description='Exclusive OR', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.302 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=82, hexOpcode='52', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.302 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=83, hexOpcode='53', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.303 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=84, hexOpcode='54', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.303 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=85, hexOpcode='55', opcodeName='EOR', addressingModeDescription='ZeroPage;X', description='Exclusive OR', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.303 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=86, hexOpcode='56', opcodeName='LSR', addressingModeDescription='ZeroPage;X', description='Logical Shift Right', byteCount=2, clocks=6, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.303 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=87, hexOpcode='57', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.303 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=88, hexOpcode='58', opcodeName='CLI', addressingModeDescription='Implied', description='Clear Interrupt Disable', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.304 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=89, hexOpcode='59', opcodeName='EOR', addressingModeDescription='Absolute;Y', description='Exclusive OR', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.304 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=90, hexOpcode='5A', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.304 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=91, hexOpcode='5B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.304 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=92, hexOpcode='5C', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.304 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=93, hexOpcode='5D', opcodeName='EOR', addressingModeDescription='Absolute;X', description='Exclusive OR', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.305 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=94, hexOpcode='5E', opcodeName='LSR', addressingModeDescription='Absolute;X', description='Logical Shift Right', byteCount=3, clocks=7, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.305 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=95, hexOpcode='5F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.305 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=96, hexOpcode='60', opcodeName='RTS', addressingModeDescription='Implied', description='Return from Subroutine', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.305 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=97, hexOpcode='61', opcodeName='ADC', addressingModeDescription='(Indirect;X)', description='Add with Carry', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.306 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=98, hexOpcode='62', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.306 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=99, hexOpcode='63', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.306 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=100, hexOpcode='64', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.306 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=101, hexOpcode='65', opcodeName='ADC', addressingModeDescription='ZeroPage', description='Add with Carry', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.307 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=102, hexOpcode='66', opcodeName='ROR', addressingModeDescription='ZeroPage', description='Rotate Right', byteCount=2, clocks=5, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.307 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=103, hexOpcode='67', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.307 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=104, hexOpcode='68', opcodeName='PLA', addressingModeDescription='Implied', description='Pull Accumulator', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.307 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=105, hexOpcode='69', opcodeName='ADC', addressingModeDescription='Immediate', description='Add with Carry', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.308 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=106, hexOpcode='6A', opcodeName='ROR', addressingModeDescription='Accumulator', description='Rotate Right', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.308 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=107, hexOpcode='6B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.308 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=108, hexOpcode='6C', opcodeName='JMP', addressingModeDescription='Indirect ', description='Jump', byteCount=3, clocks=5, addressingMode='IND', cpu=true, handler=true, addHandler=true}
+11:29:08.308 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=109, hexOpcode='6D', opcodeName='ADC', addressingModeDescription='Absolute', description='Add with Carry', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.309 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=110, hexOpcode='6E', opcodeName='ROR', addressingModeDescription='Absolute', description='Rotate Right', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.309 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=111, hexOpcode='6F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.309 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=112, hexOpcode='70', opcodeName='BVS', addressingModeDescription='Relative', description='Branch if Overflow Set', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.309 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=113, hexOpcode='71', opcodeName='ADC', addressingModeDescription='(Indirect);Y', description='Add with Carry', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.309 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=114, hexOpcode='72', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.309 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=115, hexOpcode='73', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.310 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=116, hexOpcode='74', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.310 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=117, hexOpcode='75', opcodeName='ADC', addressingModeDescription='ZeroPage;X', description='Add with Carry', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.310 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=118, hexOpcode='76', opcodeName='ROR', addressingModeDescription='ZeroPage;X', description='Rotate Right', byteCount=2, clocks=6, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.310 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=119, hexOpcode='77', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.310 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=120, hexOpcode='78', opcodeName='SEI', addressingModeDescription='Implied', description='Set Interrupt Disable', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.311 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=121, hexOpcode='79', opcodeName='ADC', addressingModeDescription='Absolute;Y', description='Add with Carry', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.311 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=122, hexOpcode='7A', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.311 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=123, hexOpcode='7B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.311 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=124, hexOpcode='7C', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.311 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=125, hexOpcode='7D', opcodeName='ADC', addressingModeDescription='Absolute;X', description='Add with Carry', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.312 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=126, hexOpcode='7E', opcodeName='ROR', addressingModeDescription='Absolute;X', description='Rotate Right', byteCount=3, clocks=7, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.312 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=127, hexOpcode='7F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.312 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=128, hexOpcode='80', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.312 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=129, hexOpcode='81', opcodeName='STA', addressingModeDescription='(Indirect;X)', description='Store Accumulator', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.312 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=130, hexOpcode='82', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.313 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=131, hexOpcode='83', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.313 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=132, hexOpcode='84', opcodeName='STY', addressingModeDescription='ZeroPage', description='Store Y Register', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.313 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=133, hexOpcode='85', opcodeName='STA', addressingModeDescription='ZeroPage', description='Store Accumulator', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.313 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=134, hexOpcode='86', opcodeName='STX', addressingModeDescription='ZeroPage', description='Store X Register', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.313 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=135, hexOpcode='87', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.313 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=136, hexOpcode='88', opcodeName='DEY', addressingModeDescription='Implied', description='Decrement Y Register', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.314 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=137, hexOpcode='89', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.314 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=138, hexOpcode='8A', opcodeName='TXA', addressingModeDescription='Implied', description='Transfer X to Accumulator', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.314 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=139, hexOpcode='8B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.314 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=140, hexOpcode='8C', opcodeName='STY', addressingModeDescription='Absolute', description='Store Y Register', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.314 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=141, hexOpcode='8D', opcodeName='STA', addressingModeDescription='Absolute', description='Store Accumulator', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.314 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=142, hexOpcode='8E', opcodeName='STX', addressingModeDescription='Absolute', description='Store X Register', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.315 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=143, hexOpcode='8F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.315 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=144, hexOpcode='90', opcodeName='BCC', addressingModeDescription='Relative', description='Branch if Carry Clear', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.315 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=145, hexOpcode='91', opcodeName='STA', addressingModeDescription='(Indirect);Y', description='Store Accumulator', byteCount=2, clocks=6, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.315 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=146, hexOpcode='92', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.315 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=147, hexOpcode='93', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.316 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=148, hexOpcode='94', opcodeName='STY', addressingModeDescription='ZeroPage;X', description='Store Y Register', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.316 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=149, hexOpcode='95', opcodeName='STA', addressingModeDescription='ZeroPage;X', description='Store Accumulator', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.316 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=150, hexOpcode='96', opcodeName='STX', addressingModeDescription='ZeroPage;Y', description='Store X Register', byteCount=2, clocks=4, addressingMode='ZPY', cpu=true, handler=true, addHandler=true}
+11:29:08.316 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=151, hexOpcode='97', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.316 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=152, hexOpcode='98', opcodeName='TYA', addressingModeDescription='Implied', description='Transfer Y to Accumulator', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.316 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=153, hexOpcode='99', opcodeName='STA', addressingModeDescription='Absolute;Y', description='Store Accumulator', byteCount=3, clocks=5, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.317 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=154, hexOpcode='9A', opcodeName='TXS', addressingModeDescription='Implied', description='Transfer X to Stack Pointer', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.317 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=155, hexOpcode='9B', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.317 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=156, hexOpcode='9C', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.317 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=157, hexOpcode='9D', opcodeName='STA', addressingModeDescription='Absolute;X', description='Store Accumulator', byteCount=3, clocks=5, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.317 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=158, hexOpcode='9E', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.317 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=159, hexOpcode='9F', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=160, hexOpcode='A0', opcodeName='LDY', addressingModeDescription='Immediate', description='Load Y Register', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=161, hexOpcode='A1', opcodeName='LDA', addressingModeDescription='(Indirect;X)', description='Load Accumulator', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=162, hexOpcode='A2', opcodeName='LDX', addressingModeDescription='Immediate', description='Load X Register', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=163, hexOpcode='A3', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=164, hexOpcode='A4', opcodeName='LDY', addressingModeDescription='ZeroPage', description='Load Y Register', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=165, hexOpcode='A5', opcodeName='LDA', addressingModeDescription='ZeroPage', description='Load Accumulator', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.318 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=166, hexOpcode='A6', opcodeName='LDX', addressingModeDescription='ZeroPage', description='Load X Register', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=167, hexOpcode='A7', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=3, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=168, hexOpcode='A8', opcodeName='TAY', addressingModeDescription='Implied', description='Transfer Accumulator to Y', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=169, hexOpcode='A9', opcodeName='LDA', addressingModeDescription='Immediate', description='Load Accumulator', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=170, hexOpcode='AA', opcodeName='TAX', addressingModeDescription='Implied', description='Transfer Accumulator to X', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=171, hexOpcode='AB', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=172, hexOpcode='AC', opcodeName='LDY', addressingModeDescription='Absolute', description='Load Y Register', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=173, hexOpcode='AD', opcodeName='LDA', addressingModeDescription='Absolute', description='Load Accumulator', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=174, hexOpcode='AE', opcodeName='LDX', addressingModeDescription='Absolute', description='Load X Register', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.319 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=175, hexOpcode='AF', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.320 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=176, hexOpcode='B0', opcodeName='BCS', addressingModeDescription='Relative', description='Branch if Carry Set', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.320 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=177, hexOpcode='B1', opcodeName='LDA', addressingModeDescription='(Indirect);Y', description='Load Accumulator', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.320 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=178, hexOpcode='B2', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.320 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=179, hexOpcode='B3', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.320 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=180, hexOpcode='B4', opcodeName='LDY', addressingModeDescription='ZeroPage;X', description='Load Y Register', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.320 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=181, hexOpcode='B5', opcodeName='LDA', addressingModeDescription='ZeroPage;X', description='Load Accumulator', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.321 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=182, hexOpcode='B6', opcodeName='LDX', addressingModeDescription='ZeroPage;Y', description='Load X Register', byteCount=2, clocks=4, addressingMode='ZPY', cpu=true, handler=true, addHandler=true}
+11:29:08.321 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=183, hexOpcode='B7', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.321 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=184, hexOpcode='B8', opcodeName='CLV', addressingModeDescription='Implied', description='Clear Overflow Flag', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.321 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=185, hexOpcode='B9', opcodeName='LDA', addressingModeDescription='Absolute;Y', description='Load Accumulator', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.322 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=186, hexOpcode='BA', opcodeName='TSX', addressingModeDescription='Implied', description='Transfer Stack Pointer to X', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.322 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=187, hexOpcode='BB', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.322 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=188, hexOpcode='BC', opcodeName='LDY', addressingModeDescription='Absolute;X', description='Load Y Register', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.322 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=189, hexOpcode='BD', opcodeName='LDA', addressingModeDescription='Absolute;X', description='Load Accumulator', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.322 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=190, hexOpcode='BE', opcodeName='LDX', addressingModeDescription='Absolute;Y', description='Load X Register', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.322 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=191, hexOpcode='BF', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.323 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=192, hexOpcode='C0', opcodeName='CPY', addressingModeDescription='Immediate', description='Compare Y Register', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.323 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=193, hexOpcode='C1', opcodeName='CMP', addressingModeDescription='(Indirect;X)', description='Compare', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.323 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=194, hexOpcode='C2', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.323 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=195, hexOpcode='C3', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.323 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=196, hexOpcode='C4', opcodeName='CPY', addressingModeDescription='ZeroPage', description='Compare Y Register', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=197, hexOpcode='C5', opcodeName='CMP', addressingModeDescription='ZeroPage', description='Compare', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=198, hexOpcode='C6', opcodeName='DEC', addressingModeDescription='ZeroPage', description='Decrement Memory', byteCount=2, clocks=5, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=199, hexOpcode='C7', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=200, hexOpcode='C8', opcodeName='INY', addressingModeDescription='Implied', description='Increment Y Register', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=201, hexOpcode='C9', opcodeName='CMP', addressingModeDescription='Immediate', description='Compare', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=202, hexOpcode='CA', opcodeName='DEX', addressingModeDescription='Implied', description='Decrement X Register', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.324 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=203, hexOpcode='CB', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.325 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=204, hexOpcode='CC', opcodeName='CPY', addressingModeDescription='Absolute', description='Compare Y Register', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.325 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=205, hexOpcode='CD', opcodeName='CMP', addressingModeDescription='Absolute', description='Compare', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.325 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=206, hexOpcode='CE', opcodeName='DEC', addressingModeDescription='Absolute', description='Decrement Memory', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.325 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=207, hexOpcode='CF', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.325 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=208, hexOpcode='D0', opcodeName='BNE', addressingModeDescription='Relative', description='Branch if Not Equal', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.325 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=209, hexOpcode='D1', opcodeName='CMP', addressingModeDescription='(Indirect);Y', description='Compare', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.326 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=210, hexOpcode='D2', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.326 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=211, hexOpcode='D3', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.326 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=212, hexOpcode='D4', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.326 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=213, hexOpcode='D5', opcodeName='CMP', addressingModeDescription='ZeroPage;X', description='Compare', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.326 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=214, hexOpcode='D6', opcodeName='DEC', addressingModeDescription='ZeroPage;X', description='Decrement Memory', byteCount=2, clocks=6, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.326 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=215, hexOpcode='D7', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.327 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=216, hexOpcode='D8', opcodeName='CLD', addressingModeDescription='Implied', description='Clear Decimal Mode', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.327 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=217, hexOpcode='D9', opcodeName='CMP', addressingModeDescription='Absolute;Y', description='Compare', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.327 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=218, hexOpcode='DA', opcodeName='NOP', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.327 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=219, hexOpcode='DB', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.327 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=220, hexOpcode='DC', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.327 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=221, hexOpcode='DD', opcodeName='CMP', addressingModeDescription='Absolute;X', description='Compare', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=222, hexOpcode='DE', opcodeName='DEC', addressingModeDescription='Absolute;X', description='Decrement Memory', byteCount=3, clocks=7, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=223, hexOpcode='DF', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=224, hexOpcode='E0', opcodeName='CPX', addressingModeDescription='Immediate', description='Compare X Register', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=225, hexOpcode='E1', opcodeName='SBC', addressingModeDescription='(Indirect;X)', description='Subtract with Carry', byteCount=2, clocks=6, addressingMode='IZX', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=226, hexOpcode='E2', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=227, hexOpcode='E3', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.328 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=228, hexOpcode='E4', opcodeName='CPX', addressingModeDescription='ZeroPage', description='Compare X Register', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=229, hexOpcode='E5', opcodeName='SBC', addressingModeDescription='ZeroPage', description='Subtract with Carry', byteCount=2, clocks=3, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=230, hexOpcode='E6', opcodeName='INC', addressingModeDescription='ZeroPage', description='Increment Memory', byteCount=2, clocks=5, addressingMode='ZP0', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=231, hexOpcode='E7', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=5, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=232, hexOpcode='E8', opcodeName='INX', addressingModeDescription='Implied', description='Increment X Register', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=233, hexOpcode='E9', opcodeName='SBC', addressingModeDescription='Immediate', description='Subtract with Carry', byteCount=2, clocks=2, addressingMode='IMM', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=234, hexOpcode='EA', opcodeName='NOP', addressingModeDescription='Implied', description='No Operation', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.329 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=235, hexOpcode='EB', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=236, hexOpcode='EC', opcodeName='CPX', addressingModeDescription='Absolute', description='Compare X Register', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=237, hexOpcode='ED', opcodeName='SBC', addressingModeDescription='Absolute', description='Subtract with Carry', byteCount=3, clocks=4, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=238, hexOpcode='EE', opcodeName='INC', addressingModeDescription='Absolute', description='Increment Memory', byteCount=3, clocks=6, addressingMode='ABS', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=239, hexOpcode='EF', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=240, hexOpcode='F0', opcodeName='BEQ', addressingModeDescription='Relative', description='Branch if Equal', byteCount=2, clocks=2, addressingMode='REL', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=241, hexOpcode='F1', opcodeName='SBC', addressingModeDescription='(Indirect);Y', description='Subtract with Carry', byteCount=2, clocks=5, addressingMode='IZY', cpu=true, handler=true, addHandler=true}
+11:29:08.330 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=242, hexOpcode='F2', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.331 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=243, hexOpcode='F3', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=8, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.331 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=244, hexOpcode='F4', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.331 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=245, hexOpcode='F5', opcodeName='SBC', addressingModeDescription='ZeroPage;X', description='Subtract with Carry', byteCount=2, clocks=4, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.331 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=246, hexOpcode='F6', opcodeName='INC', addressingModeDescription='ZeroPage;X', description='Increment Memory', byteCount=2, clocks=6, addressingMode='ZPX', cpu=true, handler=true, addHandler=true}
+11:29:08.331 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=247, hexOpcode='F7', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=6, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.331 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=248, hexOpcode='F8', opcodeName='SED', addressingModeDescription='Implied', description='Set Decimal Flag', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.332 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=249, hexOpcode='F9', opcodeName='SBC', addressingModeDescription='Absolute;Y', description='Subtract with Carry', byteCount=3, clocks=4, addressingMode='ABY', cpu=true, handler=true, addHandler=true}
+11:29:08.332 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=250, hexOpcode='FA', opcodeName='NOP', addressingModeDescription='???', description='???', byteCount=1, clocks=2, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.332 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=251, hexOpcode='FB', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.332 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=252, hexOpcode='FC', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=4, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
+11:29:08.332 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=253, hexOpcode='FD', opcodeName='SBC', addressingModeDescription='Absolute;X', description='Subtract with Carry', byteCount=3, clocks=4, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.332 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=254, hexOpcode='FE', opcodeName='INC', addressingModeDescription='Absolute;X', description='Increment Memory', byteCount=3, clocks=7, addressingMode='ABX', cpu=true, handler=true, addHandler=true}
+11:29:08.333 [main] INFO  net.lomibao.nes.components.CPU6502 - Instruction{id=255, hexOpcode='FF', opcodeName='XXX', addressingModeDescription='???', description='???', byteCount=1, clocks=7, addressingMode='IMP', cpu=true, handler=true, addHandler=true}
