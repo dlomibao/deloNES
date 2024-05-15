@@ -347,6 +347,15 @@ public class CPU6502  extends CPUBusComponent {
         write(0x0100+stkp,value);
         stkp--;
     }
+    private int popByteOffStack(){
+        stkp++;
+        return (read(0x100+stkp))&0x00FF;
+    }
+    private int popShortOffStack(){
+        int l=popByteOffStack();
+        int h=popByteOffStack();
+        return (h<<8)|l;
+    }
 
 
     /**
@@ -428,7 +437,8 @@ public class CPU6502  extends CPUBusComponent {
      * **/
 
     int ADC(){/*
-    todo complete*/ return 0;}
+    todo complete*/ return 0;
+    }
     /**bitwise and**/
     int AND(){
         fetch();
@@ -709,7 +719,21 @@ public class CPU6502  extends CPUBusComponent {
         setFlag(Flag.Negative,(y&0x80)!=0);
         return 1;
     }
-    int LSR(){/*todo complete*/ return 0;}
+    /**Logical shift right**/
+    int LSR(){
+        fetch();
+        setFlag(Flag.Carry,(getFetched()&0x0001)!=0);
+        temp=getFetched()>>1;
+        setFlag(Flag.Zero,(temp&0x00ff)==0x0);
+        setFlag(Flag.Negative,(temp&0x0080)!=0);
+        if("IMP".equals(instructions[opcode].getAddressingMode())){
+            setA(temp&0x00FF);
+        }else{
+            write(getAddressAbs(),(byte)(temp&0x00FF));
+        }
+        return 0;
+
+    }
     int NOP(){
         switch(opcode){
             case 0x1C:
@@ -743,19 +767,93 @@ public class CPU6502  extends CPUBusComponent {
         setFlag(Flag.U,false);
         return 0;
     }
-    int PLA(){/*todo complete*/ return 0;}
-    int PLP(){/*todo complete*/ return 0;}
-    int ROL(){/*todo complete*/ return 0;}
-    int ROR(){/*todo complete*/ return 0;}
-    int RTI(){/*todo complete*/ return 0;}
-    int RTS(){/*todo complete*/ return 0;}
+    /**pop accumulator off stack**/
+    int PLA(){
+        setA(popByteOffStack());//read from stack
+        setFlag(Flag.Zero,a==0);
+        setFlag(Flag.Negative,(a&0x80)!=0);
+        return 0;
+    }
+    /**pop status off stack**/
+    int PLP(){
+        setStatus((byte)popByteOffStack());
+        setFlag(Flag.U,true);
+        return 0;
+    }
+    /** rotate left*/
+    int ROL(){
+        fetch();
+        temp=(getFetched()<<1)|(getFlag(Flag.Carry)?0x1:0x0);
+        setFlag(Flag.Carry,(temp&0xFF00)!=0);
+        setFlag(Flag.Zero,(temp&0x00ff)==0x0);
+        setFlag(Flag.Negative,(temp&0x0080)!=0);
+        if("IMP".equals(instructions[opcode].getAddressingMode())){
+            setA(temp&0x00FF);
+        }else{
+            write(getAddressAbs(),(byte)(temp&0x00FF));
+        }
+        return 0;
+    }
+    /**rotate right**/
+    int ROR(){
+        fetch();
+        temp=((getFlag(Flag.Carry)?0x01:0x00)<<7)|(getFetched()>>1);
+        setFlag(Flag.Carry,(getFetched()&0x01)!=0);
+        setFlag(Flag.Zero,(temp&0x00ff)==0x0);
+        setFlag(Flag.Negative,(temp&0x0080)!=0);
+        if("IMP".equals(instructions[opcode].getAddressingMode())){
+            setA(temp&0x00FF);
+        }else{
+            write(getAddressAbs(),(byte)(temp&0x00FF));
+        }
+        return 0;
+    }
+    /**return from interrupt**/
+    int RTI(){
+        setStatus((byte)popByteOffStack());
+        status&=~Flag.Break.mask;
+        status &= ~Flag.U.mask;
+        setPc(popShortOffStack());
+        return 0;
+    }
+    /**return from subroutine**/
+    int RTS(){
+        temp=popShortOffStack();
+        temp++;
+        setPc(temp);
+        return 0;
+    }
     int SBC(){/*todo complete*/ return 0;}
-    int SEC(){/*todo complete*/ return 0;}
-    int SED(){/*todo complete*/ return 0;}
-    int SEI(){/*todo complete*/ return 0;}
-    int STA(){/*todo complete*/ return 0;}
-    int STX(){/*todo complete*/ return 0;}
-    int STY(){/*todo complete*/ return 0;}
+    /**set carry flag**/
+    int SEC(){
+        setFlag(Flag.Carry,true);
+        return 0;
+    }
+    /** set decimal flag**/
+    int SED(){
+        setFlag(Flag.Decimal,true);
+        return 0;
+    }
+    /**set interrupt flag/enable interrupts**/
+    int SEI(){
+        setFlag(Flag.InterruptDisable,true);
+        return 0;
+    }
+    /**store accumulator at address**/
+    int STA(){
+        write(getAddressAbs(),(byte)getA());
+        return 0;
+    }
+    /**store x register at address**/
+    int STX(){
+        write(getAddressAbs(),(byte)getX());
+        return 0;
+    }
+    /** store y register at address**/
+    int STY(){
+        write(getAddressAbs(),(byte)getY());
+        return 0;
+    }
     int TAX(){/*todo complete*/ return 0;}
     int TAY(){/*todo complete*/ return 0;}
     int TSX(){/*todo complete*/ return 0;}
