@@ -436,8 +436,19 @@ public class CPU6502  extends CPUBusComponent {
      *
      * **/
 
-    int ADC(){/*
-    todo complete*/ return 0;
+    /** add with carry in**/
+    int ADC(){
+        fetch();
+        temp=getA()+getFetched()+(getFlag(Flag.Carry)?0x01:0x00);
+        setFlag(Flag.Carry,temp>255);
+        setFlag(Flag.Zero,(temp&0x00FF)==0);
+
+        //fancy logic see ADC() in https://github.com/OneLoneCoder/olcNES/blob/master/Part%232%20-%20CPU/olc6502.cpp
+        int over=(~(a ^ fetched) & (a ^ temp)) & 0x0080;
+        setFlag(Flag.VOverflow,over!=0);
+        setFlag(Flag.Negative,(temp&0x80)!=0);
+        setA(temp&0x00FF);
+        return 1;//has potential to require additional clocks
     }
     /**bitwise and**/
     int AND(){
@@ -823,7 +834,18 @@ public class CPU6502  extends CPUBusComponent {
         setPc(temp);
         return 0;
     }
-    int SBC(){/*todo complete*/ return 0;}
+    /**subtraction with borrow in**/
+    int SBC(){
+        fetch();
+        int value=getFetched()&0x00FF;
+        temp=getA()+value+(getFlag(Flag.Carry)?0x01:0x00);
+        setFlag(Flag.Carry,(temp&0xFF00)!=0);
+        setFlag(Flag.Zero,(temp&0x00FF)==0);
+        setFlag(Flag.VOverflow,((temp^a)&(temp^value)&0x0080)!=0);
+        setFlag(Flag.Negative,(temp&0x0080)!=0);
+        setA(temp&0x00FF);
+        return 1;
+    }
     /**set carry flag**/
     int SEC(){
         setFlag(Flag.Carry,true);
@@ -854,15 +876,46 @@ public class CPU6502  extends CPUBusComponent {
         write(getAddressAbs(),(byte)getY());
         return 0;
     }
-    int TAX(){/*todo complete*/ return 0;}
-    int TAY(){/*todo complete*/ return 0;}
-    int TSX(){/*todo complete*/ return 0;}
-    int TXA(){/*todo complete*/ return 0;}
+    /**transfer acc to x register**/
+    int TAX(){
+        setX(getA());
+        setFlag(Flag.Zero,x==0);
+        setFlag(Flag.Negative,(x&0x80)!=0);
+        return 0;
+    }
+    /**transfer acc to  y register**/
+    int TAY(){
+        setY(getA());
+        setFlag(Flag.Zero,y==0);
+        setFlag(Flag.Negative,(y&0x80)!=0);
+        return 0;
+    }
+    /**transfer stack pointer to x**/
+    int TSX(){
+        setX(getStkp());
+        setFlag(Flag.Zero,x==0);
+        setFlag(Flag.Negative,(x&0x80)!=0);
+        return 0;
+    }
+    /**transfer x register to accumulator**/
+    int TXA(){
+        setA(getX());
+        setFlag(Flag.Zero,a==0);
+        setFlag(Flag.Negative,(a&0x80)!=0);
+        return 0;
+    }
+    /**transfer x to stack pointer**/
     int TXS(){
         setStkp(getX());
         return 0;
     }
-    int TYA(){/*todo complete*/ return 0;}
+    /**transfer y register to acc**/
+    int TYA(){
+        setA(getY());
+        setFlag(Flag.Zero,a==0);
+        setFlag(Flag.Negative,(a&0x80)!=0);
+        return 0;
+    }
     public int XXX(){
         log.info("XXX called");
         return 0;
