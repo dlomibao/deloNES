@@ -9,12 +9,13 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.utils.ScreenUtils;
+import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.components.APU;
 import net.lomibao.nes.components.Bus;
 import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.Ram;
-
+@Log4j2
 public class NesEmulator extends ApplicationAdapter {
     SpriteBatch batch;
     Texture img;
@@ -29,7 +30,7 @@ public class NesEmulator extends ApplicationAdapter {
                 .ppu(new PPU())
                 .build()
                 .connect();
-        System.out.println(bus);
+        log.info(bus);
 
     }
 
