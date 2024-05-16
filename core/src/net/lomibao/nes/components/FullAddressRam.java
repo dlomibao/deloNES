@@ -15,7 +15,7 @@ public class FullAddressRam extends CPUBusComponent {
         byteArray=new byte[MEMORY_SIZE];
     }
     @Override
-    public void write(int address,byte value){
+    public void cpuBusWrite(int address, byte value){
         int index=getIndex(address);
         byteArray[index]=value;
     }
@@ -27,7 +27,7 @@ public class FullAddressRam extends CPUBusComponent {
      * @return
      */
     @Override
-    public int read(int address,boolean readOnly){
+    public int cpuBusRead(int address, boolean readOnly){
         int index=getIndex(address);
         if(index==-1){
             return 0;
@@ -42,22 +42,22 @@ public class FullAddressRam extends CPUBusComponent {
         return (address-ADDRESS_RANGE_START)%MEMORY_SIZE;
     }
     @Override
-    public int read(int address){
-        return read(address,false);
+    public int cpuBusRead(int address){
+        return cpuBusRead(address,false);
     }
 
     @Override
-    public int getStartAddress(){
+    public int getCPUBusStartAddress(){
         return ADDRESS_RANGE_START;
     }
     @Override
-    public int getEndAddress(){
+    public int getCPUBusEndAddress(){
         return (ADDRESS_RANGE_START+ADDRESS_RANGE_SIZE);
     }
 
     public void writeRange(int address,byte[] bytes){
         for(int i=0;i<bytes.length;i++){
-            write(address+i,bytes[i]);
+            cpuBusWrite(address+i,bytes[i]);
         }
     }
     public byte[] getByteArray(){

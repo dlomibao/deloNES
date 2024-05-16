@@ -7,14 +7,14 @@ a Java and LibGDX NES Emulator POC
 - setup base project
 - got libgdx running
 - got text to display on screen
-- setup basic bus class
+- setup basic cpuBus class
 - setup basic cpu class
 - converted instruction timings and data into csv
 - setup registers
 ### 5-10-2024
 - loaded instructions into cpu from csv
 ### 5-12-2024
-- setup Ram and basic bus read/write interaction
+- setup Ram and basic cpuBus read/write interaction
 ### 5-13-2024
 - finished code for cpu addressing modes
 ### 5-14-2024
@@ -33,3 +33,5 @@ a Java and LibGDX NES Emulator POC
 16:13:12.105 [main] INFO  net.lomibao.nes.NesEmulator - A2 0A 8E 00 00 A2 03 8E 01 00 AC 00 00 A9 00 18 //the program code 
 6D 01 00 88 D0 FA 8D 02 00 EA EA EA 00 00 00 00 
 ```
+### 5-16-2024
+- added basic mapper interface, started work n loading the cartridge

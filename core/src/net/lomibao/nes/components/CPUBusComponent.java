@@ -1,12 +1,10 @@
 package net.lomibao.nes.components;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
 public abstract class CPUBusComponent {
-    private Bus bus;
+    private CPUBus cpuBus;
 
-    public void write(int address, byte value) {
-        bus.write(address,value);
+    public void cpuBusWrite(int address, byte value) {
+        cpuBus.write(address,value);
     }
 
         /**
@@ -15,29 +13,25 @@ public abstract class CPUBusComponent {
      * @param readOnly
      * @return
      */
-    public int read(int address,boolean readOnly){
-        return bus.read(address);
+    public int cpuBusRead(int address, boolean readOnly){
+        return cpuBus.read(address);
     }
-    public int read(int address){
-        return read(address,false);
-    }
-
-    public void connectBus(Bus bus){
-        this.bus=bus;
-
-    }
-    public Bus getBus(){
-        return bus;
+    public int cpuBusRead(int address){
+        return cpuBusRead(address,false);
     }
 
-    public int getStartAddress(){
-        throw new NotImplementedException();
+    public void connectCpuBus(CPUBus cpuBus){
+        this.cpuBus = cpuBus;
+
+    }
+    public CPUBus getBus(){
+        return cpuBus;
     }
 
-    public int getEndAddress(){
-        throw new NotImplementedException();
-    }
-    public boolean inRange(int address){
-        return address>=getStartAddress() && address<getEndAddress();
+    abstract public int getCPUBusStartAddress();
+
+    abstract public int getCPUBusEndAddress();
+    public boolean inCPUBusRange(int address){
+        return address>= getCPUBusStartAddress() && address< getCPUBusEndAddress();
     }
 }

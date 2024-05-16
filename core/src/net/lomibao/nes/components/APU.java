@@ -24,16 +24,16 @@ public class APU  extends CPUBusComponent {
     }
 
     @Override
-    public int getStartAddress() {
+    public int getCPUBusStartAddress() {
         return START_ADDRESS;
     }
     @Override
-    public int getEndAddress(){
+    public int getCPUBusEndAddress(){
         return END_ADDRESS;
     }
 
     @Override
-    public void write(int address,byte value){
+    public void cpuBusWrite(int address, byte value){
         int index=getIndex(address);
         registers[index]=value;
     }
@@ -45,7 +45,7 @@ public class APU  extends CPUBusComponent {
      * @return
      */
     @Override
-    public int read(int address,boolean readOnly){
+    public int cpuBusRead(int address, boolean readOnly){
         int index=getIndex(address);
         if(index==-1){
             return 0;
@@ -58,6 +58,6 @@ public class APU  extends CPUBusComponent {
             log.error("attempting to read memory out of range {}. valid range [{},{}]",address,START_ADDRESS,END_ADDRESS);
             return -1;
         }
-        return address%REGISTER_SIZE;
+        return (address-START_ADDRESS)%REGISTER_SIZE;
     }
 }

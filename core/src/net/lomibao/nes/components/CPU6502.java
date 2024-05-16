@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -22,15 +21,15 @@ import java.util.Scanner;
 public class CPU6502  extends CPUBusComponent {
 
     private int readShortFromPCAddress(){
-        int low=read(pc);
+        int low= cpuBusRead(pc);
         pc++;
-        int high=read(pc);
+        int high= cpuBusRead(pc);
         pc++;
         return ((high<<8)|low)&0xFFFF;
     }
     private int readShortFromAddress(int address){
         address&=0xFFFF;
-        return read(address)|(read(address+1)<<8);
+        return cpuBusRead(address)|(cpuBusRead(address+1)<<8);
     }
     public int getA() {
         return a & 0xFF;
@@ -118,6 +117,8 @@ public class CPU6502  extends CPUBusComponent {
     private int pc     = 0x0000;//program counter (16bit)
     @Builder.Default
     private byte  status = 0x00;//status flags (8bits)
+
+
     /*
     7  bit  0
     ---- ----
@@ -160,6 +161,19 @@ public class CPU6502  extends CPUBusComponent {
             status &= ~flag.mask;
         }
     }
+
+    @Override
+    public int getCPUBusStartAddress() {
+        //CPU doesn't have its own addresses
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int getCPUBusEndAddress() {
+        //CPU doesn't have its own addresses
+        return Integer.MAX_VALUE;
+    }
+
     /*helper method for casting*/
 //    public static short sVal(int val){
 //        return (short)val;
@@ -326,30 +340,31 @@ public class CPU6502  extends CPUBusComponent {
         //reset takes some time
         cycles =8;
 
+
     }
 
     /*takes an address, reads in the low byte and high byte and sets the pc*/
     private int getProgramCounterAtAddress(int address) {
         addressAbs=address;
-        int low=read(addressAbs);
-        int high=read(addressAbs+1);
+        int low= cpuBusRead(addressAbs);
+        int high= cpuBusRead(addressAbs+1);
         //set program counter
         return (high<<8)|low;
     }
     private void writeShortToStack(int value){
         value&=0xFFFF;//mask to 16b
-        write((0x0100+stkp),(byte)((value>>8) & 0x00FF));//stack starts at 0100
+        cpuBusWrite((0x0100+stkp),(byte)((value>>8) & 0x00FF));//stack starts at 0100
         stkp--;
-        write((0x0100+stkp),(byte)(value & 0x00FF));
+        cpuBusWrite((0x0100+stkp),(byte)(value & 0x00FF));
         stkp--;
     }
     private void writeByteToStack(byte value){
-        write(0x0100+stkp,value);
+        cpuBusWrite(0x0100+stkp,value);
         stkp--;
     }
     private int popByteOffStack(){
         stkp++;
-        return (read(0x100+stkp))&0x00FF;
+        return (cpuBusRead(0x100+stkp))&0x00FF;
     }
     private int popShortOffStack(){
         int l=popByteOffStack();
@@ -367,7 +382,7 @@ public class CPU6502  extends CPUBusComponent {
             setFlag(Flag.Break,false);
             setFlag(Flag.U,true);
             setFlag(Flag.InterruptDisable,true);
-            write((0x0100+getStkp()),status);//write status flags
+            cpuBusWrite((0x0100+getStkp()),status);//write status flags
             stkp--;
             addressAbs=0xFFFE;
             pc=getProgramCounterAtAddress(addressAbs);
@@ -400,7 +415,7 @@ public class CPU6502  extends CPUBusComponent {
 
         //handle new instruction
         if(cycles==0){
-            opcode=read(pc);
+            opcode= cpuBusRead(pc);
             log.trace("pc={}",()->pc);
 
             setFlag(Flag.U,true);//just to be sure
@@ -468,7 +483,7 @@ public class CPU6502  extends CPUBusComponent {
         if(instructions[opcode].getAddressingMode()=="IMP"){
             setA(temp&0x00FF);
         }else{
-            write(addressAbs,(byte)(temp&0x00FF));
+            cpuBusWrite(addressAbs,(byte)(temp&0x00FF));
         }
         return 0;
     }
@@ -645,7 +660,7 @@ public class CPU6502  extends CPUBusComponent {
     int DEC(){
         fetch();
         temp=getFetched()-1;
-        write(getAddressAbs(),(byte)(temp&0x00FF));
+        cpuBusWrite(getAddressAbs(),(byte)(temp&0x00FF));
         setFlag(Flag.Zero,(temp&0x00ff)==0x0);
         setFlag(Flag.Negative,(temp&0x0080)!=0);
         return 0;
@@ -675,7 +690,7 @@ public class CPU6502  extends CPUBusComponent {
     int INC(){
         fetch();
         temp=fetched+1;
-        write(getAddressAbs(),(byte)(temp&0x00FF));
+        cpuBusWrite(getAddressAbs(),(byte)(temp&0x00FF));
         setFlag(Flag.Zero,(temp&0x00ff)==0x0);
         setFlag(Flag.Negative,(temp&0x0080)!=0);
         return 0;
@@ -740,7 +755,7 @@ public class CPU6502  extends CPUBusComponent {
         if("IMP".equals(instructions[opcode].getAddressingMode())){
             setA(temp&0x00FF);
         }else{
-            write(getAddressAbs(),(byte)(temp&0x00FF));
+            cpuBusWrite(getAddressAbs(),(byte)(temp&0x00FF));
         }
         return 0;
 
@@ -801,7 +816,7 @@ public class CPU6502  extends CPUBusComponent {
         if("IMP".equals(instructions[opcode].getAddressingMode())){
             setA(temp&0x00FF);
         }else{
-            write(getAddressAbs(),(byte)(temp&0x00FF));
+            cpuBusWrite(getAddressAbs(),(byte)(temp&0x00FF));
         }
         return 0;
     }
@@ -815,7 +830,7 @@ public class CPU6502  extends CPUBusComponent {
         if("IMP".equals(instructions[opcode].getAddressingMode())){
             setA(temp&0x00FF);
         }else{
-            write(getAddressAbs(),(byte)(temp&0x00FF));
+            cpuBusWrite(getAddressAbs(),(byte)(temp&0x00FF));
         }
         return 0;
     }
@@ -863,17 +878,17 @@ public class CPU6502  extends CPUBusComponent {
     }
     /**store accumulator at address**/
     int STA(){
-        write(getAddressAbs(),(byte)getA());
+        cpuBusWrite(getAddressAbs(),(byte)getA());
         return 0;
     }
     /**store x register at address**/
     int STX(){
-        write(getAddressAbs(),(byte)getX());
+        cpuBusWrite(getAddressAbs(),(byte)getX());
         return 0;
     }
     /** store y register at address**/
     int STY(){
-        write(getAddressAbs(),(byte)getY());
+        cpuBusWrite(getAddressAbs(),(byte)getY());
         return 0;
     }
     /**transfer acc to x register**/
@@ -937,25 +952,25 @@ public class CPU6502  extends CPUBusComponent {
         return 0;
     }
     public int ZP0(){
-        addressAbs=read(pc);
+        addressAbs= cpuBusRead(pc);
         setPc(pc+1);
         addressAbs&=0x00FF;
         return 0;
     }
     public int ZPX(){
-        addressAbs=read(pc)+getX();
+        addressAbs= cpuBusRead(pc)+getX();
         setPc(pc+1);
         addressAbs&=0x00FF;
         return 0;
     }
     public int ZPY(){
-        addressAbs=read(pc)+getY();
+        addressAbs= cpuBusRead(pc)+getY();
         setPc(pc+1);
         addressAbs&=0x00FF;
         return 0;
     }
     public int REL(){
-        addressRel=read(pc);
+        addressRel= cpuBusRead(pc);
         setPc(pc+1);
         if((addressRel&0x80)>0){//handle negative offset
             addressRel|=0xFF00;
@@ -988,15 +1003,15 @@ public class CPU6502  extends CPUBusComponent {
     }
     /*indirect addressing. gets the actual address from the supplied address, hardware bug on page boundary*/
     public int IND(){
-        int ptrLow=read(pc);
+        int ptrLow= cpuBusRead(pc);
         pc++;
-        int ptrHigh=read(pc);
+        int ptrHigh= cpuBusRead(pc);
         pc++;
         int ptr=(ptrHigh<<8)|ptrLow;
         if(ptrLow==0x00FF){//simulatepage boundary hardware bug
-            setAddressAbs((read(ptr&0xFF00)<<8)|read(ptr));
+            setAddressAbs((cpuBusRead(ptr&0xFF00)<<8)| cpuBusRead(ptr));
         }else{
-            setAddressAbs((read(ptr+1)<<8)|read(ptr));
+            setAddressAbs((cpuBusRead(ptr+1)<<8)| cpuBusRead(ptr));
         }
         return 0;
 
@@ -1006,19 +1021,19 @@ public class CPU6502  extends CPUBusComponent {
     supplied 8 bit address is offset by x register and then the 16bit address is read from that
      */
     public int IZX(){
-        int t = read(pc);
+        int t = cpuBusRead(pc);
         pc++;
-        int low=read((t+getX())&0x00FF);
-        int high=read((t+getX()+1)&0x00FF);
+        int low= cpuBusRead((t+getX())&0x00FF);
+        int high= cpuBusRead((t+getX()+1)&0x00FF);
         setAddressAbs((high<<8)|low);
         return 0;
     }
     /*offset by y. if page changes, extra clock needed*/
     public int IZY(){
-        int t = read(pc);
+        int t = cpuBusRead(pc);
         pc++;
-        int low=read((t)&0x00FF);
-        int high=read((t+1)&0x00FF);
+        int low= cpuBusRead((t)&0x00FF);
+        int high= cpuBusRead((t+1)&0x00FF);
         setAddressAbs(((high<<8)|low)+getY());
         if((addressAbs&0xFF00)!=(high<<8)){
             return 1;
@@ -1032,7 +1047,7 @@ public class CPU6502  extends CPUBusComponent {
     //helper function
     private int fetch(){
         if(!("IMP".equals(instructions[opcode].addressingMode))){
-            fetched=read(addressAbs);
+            fetched= cpuBusRead(addressAbs);
         }
         return fetched;
     }

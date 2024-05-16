@@ -8,42 +8,47 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
-import com.badlogic.gdx.utils.ScreenUtils;
 import lombok.extern.log4j.Log4j2;
-import net.lomibao.nes.components.APU;
-import net.lomibao.nes.components.Bus;
+import net.lomibao.nes.components.CPUBus;
 import net.lomibao.nes.components.CPU6502;
+import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.FullAddressRam;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.Ram;
+
+import java.io.File;
+import java.net.URISyntaxException;
+
 @Log4j2
 public class NesEmulator extends ApplicationAdapter {
-    public static final boolean ENABLE_TEST_RAM=true;
+    public static final boolean ENABLE_TEST_RAM=false;//test ram covers the whole address range and gets top priority if enabled
+    public static final boolean ENABLE_TEST_CARTRIDGE=true;
     SpriteBatch batch;
     Texture img;
 	BitmapFont font;
 
-    Bus bus;
+    CPUBus cpuBus;
 
     public void setup(){
-        bus=Bus.builder()
+        cpuBus = CPUBus.builder()
                 .cpu(new CPU6502())
                 .testRam(ENABLE_TEST_RAM?new FullAddressRam():null)//test ram covers full address range and gets top priority for reading/writing to an address
                 .ram(new Ram())
                 .ppu(new PPU())
                 .build()
                 .connect();
-        log.info(bus);
+
+        log.info(cpuBus);
 
     }
     public void loadTestProgram(){
         String testProgram="A2 0A 8E 00 00 A2 03 8E 01 00 AC 00 00 A9 00 18 6D 01 00 88 D0 FA 8D 02 00 EA EA EA";//multiplies 3*10
-        FullAddressRam testRam=bus.getTestRam();
+        FullAddressRam testRam= cpuBus.getTestRam();
         testRam.writeRange(0x8000,hexStringtoByteArray(testProgram));//write to address 8000
         //reset vector
-        testRam.write(0xFFFC, (byte) 0x00);
-        testRam.write(0xFFFD, (byte) 0x80);
-        CPU6502 cpu=bus.getCpu();
+        testRam.cpuBusWrite(0xFFFC, (byte) 0x00);
+        testRam.cpuBusWrite(0xFFFD, (byte) 0x80);
+        CPU6502 cpu= cpuBus.getCpu();
         cpu.reset();
         StringBuilder sb=new StringBuilder();
         for(int i=0;i<127;i++){
@@ -74,7 +79,16 @@ public class NesEmulator extends ApplicationAdapter {
     @Override
     public void create() {
         setup();
-        loadTestProgram();
+        if(ENABLE_TEST_RAM) {
+            loadTestProgram();
+        }
+        if(ENABLE_TEST_CARTRIDGE){
+            try {
+                cpuBus.setCartridge(new Cartridge(this.getClass().getResourceAsStream("/nestest.nes"),"nestest.nes"));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
 
 
 

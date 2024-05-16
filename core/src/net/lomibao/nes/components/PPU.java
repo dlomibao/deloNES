@@ -5,9 +5,9 @@ import lombok.extern.log4j.Log4j2;
 //Picture Processing Unit
 @Log4j2
 public class PPU  extends CPUBusComponent {
-    public int START_ADDRESS=0x2000;
+    public int CPUBUS_START_ADDRESS =0x2000;
     public int REGISTER_SIZE=8;
-    public int END_ADDRESS=0x4000;//exclusive
+    public int CPUBUS_END_ADDRESS =0x4000;//exclusive
 
     public byte[] registers;
     public PPU(){
@@ -15,17 +15,17 @@ public class PPU  extends CPUBusComponent {
     }
 
     @Override
-    public int getStartAddress() {
-        return START_ADDRESS;
+    public int getCPUBusStartAddress() {
+        return CPUBUS_START_ADDRESS;
     }
     @Override
-    public int getEndAddress(){
-        return  END_ADDRESS;
+    public int getCPUBusEndAddress(){
+        return CPUBUS_END_ADDRESS;
     }
 
     @Override
-    public void write(int address,byte value){
-        int index=getIndex(address);
+    public void cpuBusWrite(int address, byte value){
+        int index= getCPUBusIndex(address);
         registers[index]=value;
     }
 
@@ -36,19 +36,23 @@ public class PPU  extends CPUBusComponent {
      * @return
      */
     @Override
-    public int read(int address,boolean readOnly){
-        int index=getIndex(address);
+    public int cpuBusRead(int address, boolean readOnly){
+        int index= getCPUBusIndex(address);
         if(index==-1){
             return 0;
         }
         return Byte.toUnsignedInt(registers[index]);
     }
 
-    private int getIndex(int address){
-        if(address<START_ADDRESS && address>=END_ADDRESS){
-            log.error("attempting to read memory out of range {}. valid range [{},{}]",address,START_ADDRESS,END_ADDRESS);
+    private int getCPUBusIndex(int address){
+        if(address< CPUBUS_START_ADDRESS && address>= CPUBUS_END_ADDRESS){
+            log.error("attempting to read memory out of range {}. valid range [{},{}]",address, CPUBUS_START_ADDRESS, CPUBUS_END_ADDRESS);
             return -1;
         }
         return address%REGISTER_SIZE;
+    }
+
+    public void clock() {
+        //todo complete
     }
 }
