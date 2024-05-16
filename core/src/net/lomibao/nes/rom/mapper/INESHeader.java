@@ -3,7 +3,7 @@ package net.lomibao.nes.rom.mapper;
 public class INESHeader {
     byte[] headerBytes=new byte[16];//16 byte header
     public INESHeader(byte[] headerBytes){
-        headerBytes=headerBytes;
+        this.headerBytes=headerBytes;
     }
 
     public byte[] getHeaderBytes() {

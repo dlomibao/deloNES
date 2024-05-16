@@ -1,5 +1,6 @@
 package net.lomibao.nes.components;
 
+import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.rom.mapper.INESHeader;
 
@@ -20,7 +21,8 @@ public class Cartridge extends CPUBusComponent {
     byte[] data=null;
     String fileName;
     INESHeader header;
-    public Cartridge(InputStream inputStream,String name){
+    @SneakyThrows
+    public Cartridge(InputStream inputStream, String name){
         fileName=name;
         try {
             data=toByteArray(inputStream);
@@ -29,6 +31,7 @@ public class Cartridge extends CPUBusComponent {
             throw new RuntimeException(e);
         }
         header=new INESHeader(Arrays.copyOfRange(data,0,16));
+        log.info("bytes[0:4]="+new String(Arrays.copyOfRange(header.getHeaderBytes(),0,4),"UTF-8"));
         log.info("PRG ROM Size: " + header.getPRGROMSize() + " x 16 KB");
         log.info("CHR ROM Size: " + header.getCHRROMSize() + " x 8 KB");
         log.info("Horizontal Mirroring: " + header.isHorizontalMirroring());
