@@ -3,6 +3,7 @@ package net.lomibao.nes.components;
 import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.rom.mapper.INESHeader;
+import net.lomibao.nes.rom.mapper.Mapper;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -21,6 +22,16 @@ public class Cartridge extends CPUBusComponent {
     byte[] data=null;
     String fileName;
     INESHeader header;
+    private boolean bImageValid=false;
+    private int nPRGBanks=0;
+    private int nCHRBanks=0;
+    private Mapper mapper=null;
+    private byte[] vPRGMemory;
+    private byte[] vCHRMemory;
+
+
+
+
     @SneakyThrows
     public Cartridge(InputStream inputStream, String name){
         fileName=name;
@@ -45,6 +56,10 @@ public class Cartridge extends CPUBusComponent {
         log.info("PRG RAM Size: " + header.getPRGRAMSize() + " x 8 KB");
         log.info("PAL: " + header.isPAL());
         log.info("PRG RAM Present: " + header.hasPRGRAMPresent());
+
+
+
+
     }
     public static byte[] toByteArray(InputStream inputStream) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -55,35 +70,7 @@ public class Cartridge extends CPUBusComponent {
         }
         return buffer.toByteArray();
     }
-    public Cartridge(File file){
-        this.fileName=file.getName();
-        this.data=new byte[(int)file.length()];
-        try(BufferedInputStream is=new BufferedInputStream(new FileInputStream(file))){
-            int size=is.read(data);
-            log.info("loaded {}. read {} bytes",fileName,size);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        header=new INESHeader(Arrays.copyOfRange(data,0,16));
-        log.info("PRG ROM Size: " + header.getPRGROMSize() + " x 16 KB");
-        log.info("CHR ROM Size: " + header.getCHRROMSize() + " x 8 KB");
-        log.info("Horizontal Mirroring: " + header.isHorizontalMirroring());
-        log.info("Battery Backed RAM: " + header.hasBatteryBackedRAM());
-        log.info("Trainer: " + header.hasTrainer());
-        log.info("Four Screen VRAM: " + header.isFourScreenVRAM());
-        log.info("Mapper Number: " + header.getMapperNumber());
-        log.info("VS Unisystem: " + header.isVSUnisystem());
-        log.info("PlayChoice-10: " + header.isPlayChoice10());
-        log.info("NES 2.0 Format: " + header.isNES2Format());
-        log.info("PRG RAM Size: " + header.getPRGRAMSize() + " x 8 KB");
-        log.info("PAL: " + header.isPAL());
-        log.info("PRG RAM Present: " + header.hasPRGRAMPresent());
-    }
-    public Cartridge(String fileName){
-        this(new File(fileName));
 
-        
-    }
 
 
 
