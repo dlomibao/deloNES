@@ -35,3 +35,8 @@ a Java and LibGDX NES Emulator POC
 ```
 ### 5-16-2024
 - added basic mapper interface, started work n loading the cartridge
+
+### 5-29-2024
+- cartridge setup work
+### 5-30-2024
+- 

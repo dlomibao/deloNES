@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.rom.mapper.INESHeader;
 import net.lomibao.nes.rom.mapper.Mapper;
+import net.lomibao.nes.rom.mapper.Mapper000;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -29,6 +30,9 @@ public class Cartridge extends CPUBusComponent {
     private byte[] vPRGMemory;
     private byte[] vCHRMemory;
 
+    public static final int HEADER_SIZE=16;
+    public static final int TRAINER_SIZE=512;
+
 
 
 
@@ -41,7 +45,7 @@ public class Cartridge extends CPUBusComponent {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        header=new INESHeader(Arrays.copyOfRange(data,0,16));
+        header=new INESHeader(Arrays.copyOfRange(data,0,HEADER_SIZE));
         log.info("bytes[0:4]="+new String(Arrays.copyOfRange(header.getHeaderBytes(),0,4),"UTF-8"));
         log.info("PRG ROM Size: " + header.getPRGROMSize() + " x 16 KB");
         log.info("CHR ROM Size: " + header.getCHRROMSize() + " x 8 KB");
@@ -56,8 +60,43 @@ public class Cartridge extends CPUBusComponent {
         log.info("PRG RAM Size: " + header.getPRGRAMSize() + " x 8 KB");
         log.info("PAL: " + header.isPAL());
         log.info("PRG RAM Present: " + header.hasPRGRAMPresent());
+        int offset=HEADER_SIZE;
+        if(header.hasTrainer()){
+            //skip trainer section for now
+            offset+=TRAINER_SIZE;
+        }
 
+        int fileType=(header.getFlags7() & 0x0C) == 0x08 ? 2 : 1;
 
+        if(fileType==1){
+            nPRGBanks=header.getSizeOfPRGRom();
+            int vPRGSize=nPRGBanks*16384;
+            vPRGMemory=Arrays.copyOfRange(data,offset,offset+vPRGSize);
+            offset+=vPRGSize;
+            int nCHRBanks=header.getCHRROMSize();
+            int vCHRSize=nCHRBanks==0?8192:nCHRBanks*8192;
+            vCHRMemory=Arrays.copyOfRange(data,offset,offset+vCHRSize);
+        }else if(fileType==2){
+            //Todo complete
+
+        }
+
+        int mapperType=header.getMapperNumber();
+        switch (mapperType){
+            case 0:
+                mapper=new Mapper000();
+                break;
+            case 1:
+                break;
+            case 2:
+                break;
+            case 3:
+                break;
+            case 4:
+                break;
+            case 66:
+                break;
+        }
 
 
     }
