@@ -4,12 +4,15 @@ import lombok.extern.log4j.Log4j2;
 
 //Picture Processing Unit
 @Log4j2
-public class PPU  extends CPUBusComponent {
+public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public int CPUBUS_START_ADDRESS =0x2000;
     public int REGISTER_SIZE=8;
     public int CPUBUS_END_ADDRESS =0x4000;//exclusive
 
     public byte[] registers;
+    public PPUBus ppuBus;
+
+
     public PPU(){
         registers=new byte[REGISTER_SIZE];
     }
@@ -54,5 +57,25 @@ public class PPU  extends CPUBusComponent {
 
     public void clock() {
         //todo complete
+    }
+
+    @Override
+    public void connectPPUBus(PPUBus ppuBus) {
+        this.ppuBus=ppuBus;
+    }
+
+    @Override
+    public PPUBus getPPUBus() {
+        return ppuBus;
+    }
+
+    @Override
+    public int getPPUBusStartAddress() {
+        return 0;
+    }
+
+    @Override
+    public int getPPUBusEndAddress() {
+        return 0;
     }
 }

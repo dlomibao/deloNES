@@ -15,6 +15,7 @@ import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.FullAddressRam;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.Ram;
+import net.lomibao.nes.components.ppu.ColorPalette;
 
 import java.io.File;
 import java.net.URISyntaxException;
@@ -39,6 +40,7 @@ public class NesEmulator extends ApplicationAdapter {
                 .connect();
 
         log.info(cpuBus);
+        ColorPalette colorPalette=new ColorPalette(this.getClass().getResourceAsStream("/palettes/ntscpalette.pal"),"ntscpalette.pal");
 
     }
     public void loadTestProgram(){
