@@ -38,5 +38,6 @@ a Java and LibGDX NES Emulator POC
 
 ### 5-29-2024
 - cartridge setup work
-### 5-30-2024
-- 
+### 6-2-2024
+- ppu work
+- load color palettes
