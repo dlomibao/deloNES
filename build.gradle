@@ -81,5 +81,15 @@ project(":core") {
 
     test {
         useJUnitPlatform()
+        testLogging {
+            events "passed", "skipped", "failed", "standardOut", "standardError"
+            showStandardStreams = true
+            exceptionFormat = "full"
+        }
+        afterSuite { desc, result ->
+            if (desc.parent == null) {
+                logger.lifecycle("\nTest results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped)")
+            }
+        }
     }
 }

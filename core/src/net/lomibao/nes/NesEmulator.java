@@ -47,31 +47,6 @@ public class NesEmulator extends ApplicationAdapter {
 
     }
 
-    public void loadTestProgram() {
-        String testProgram = "A2 0A 8E 00 00 A2 03 8E 01 00 AC 00 00 A9 00 18 6D 01 00 88 D0 FA 8D 02 00 EA EA EA";// multiplies
-                                                                                                                   // 3*10
-        FullAddressRam testRam = cpuBus.getTestRam();
-        testRam.writeRange(0x8000, hexStringtoByteArray(testProgram));// write to address 8000
-        // reset vector
-        testRam.cpuBusWrite(0xFFFC, (byte) 0x00);
-        testRam.cpuBusWrite(0xFFFD, (byte) 0x80);
-        CPU6502 cpu = cpuBus.getCpu();
-        cpu.reset();
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 127; i++) {
-            sb.setLength(0);
-            log.info(i);
-            log.info(cpu);
-            log.info("memory 0x0000");
-            log.info(testRam.getHexRange(0, 16, 16));
-            log.info("memory 0x8000");
-            log.info(testRam.getHexRange(0x8000, 32, 16));
-            log.info("\n");
-            cpu.clock();
-        }
-
-    }
-
     public static byte[] hexStringtoByteArray(String hexString) {
         String[] hexVals = hexString.split(" ");
         byte[] byteArray = new byte[hexVals.length];
@@ -84,9 +59,6 @@ public class NesEmulator extends ApplicationAdapter {
     @Override
     public void create() {
         setup();
-        if (ENABLE_TEST_RAM) {
-            loadTestProgram();
-        }
         if (ENABLE_TEST_CARTRIDGE) {
             try {
                 cpuBus.setCartridge(new Cartridge(this.getClass().getResourceAsStream("/nestest.nes"), "nestest.nes"));

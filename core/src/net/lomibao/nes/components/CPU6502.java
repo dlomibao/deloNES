@@ -306,7 +306,7 @@ public class CPU6502 extends CPUBusComponent {
         scanner.nextLine();
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
-            log.info("{}", () -> line);
+            log.trace("{}", () -> line);
             String[] s = line.split(",");
             Instruction instruction = Instruction.builder()
                     .cpu(this)
@@ -904,7 +904,10 @@ public class CPU6502 extends CPUBusComponent {
     /** subtraction with borrow in **/
     int SBC() {
         fetch();
-        int value = getFetched() & 0x00FF;
+        // Invert the bits of the fetched value for subtraction
+        int value = getFetched() ^ 0x00FF;
+
+        // Add the inverted value, identical to ADC logic
         temp = getA() + value + (getFlag(Flag.Carry) ? 0x01 : 0x00);
         setFlag(Flag.Carry, (temp & 0xFF00) != 0);
         setFlag(Flag.Zero, (temp & 0x00FF) == 0);

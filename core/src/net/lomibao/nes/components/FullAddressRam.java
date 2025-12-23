@@ -72,6 +72,10 @@ public class FullAddressRam extends CPUBusComponent {
         return byteArray;
     }
 
+    public void setByteArray(byte[] byteArray) {
+        this.byteArray = byteArray;
+    }
+
     public String getHexRange(int startAddress, int size, int lineSize) {
         StringBuilder sb = new StringBuilder();
         for (int i = startAddress; i < startAddress + size; i++) {
