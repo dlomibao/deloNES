@@ -327,6 +327,10 @@ public class CPU6502 extends CPUBusComponent {
         }
     }
 
+    public Instruction getInstruction(int opcode) {
+        return instructions[opcode];
+    }
+
     /**
      * reset interrupt - forces cpu into known state, hard wired in the CPU
      */
@@ -495,7 +499,7 @@ public class CPU6502 extends CPUBusComponent {
         setFlag(Flag.Carry, (temp & 0xFF00) > 0);
         setFlag(Flag.Zero, (temp & 0x00FF) == 0x0);
         setFlag(Flag.Negative, (temp & 0x80) != 0);
-        if (instructions[opcode].getAddressingMode() == "IMP") {
+        if ("IMP".equals(instructions[opcode].getAddressingMode())) {
             setA(temp & 0x00FF);
         } else {
             cpuBusWrite(addressAbs, (byte) (temp & 0x00FF));
