@@ -1,9 +1,6 @@
 # deloNES
 a Java and LibGDX NES Emulator POC
 
-Here’s the **Devlog ordered by date (descending)**, newest first. Content is unchanged—only reordered.
-
----
 
 ## Devlog
 
