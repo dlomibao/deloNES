@@ -372,20 +372,20 @@ public class CPU6502 {
 
     private void writeShortToStack(int value) {
         value &= 0xFFFF;// mask to 16b
-        cpuBusWrite((0x0100 + stkp), (byte) ((value >> 8) & 0x00FF));// stack starts at 0100
+        cpuBusWrite((0x0100 + (stkp & 0xFF)), (byte) ((value >> 8) & 0x00FF));// stack starts at 0100
         stkp--;
-        cpuBusWrite((0x0100 + stkp), (byte) (value & 0x00FF));
+        cpuBusWrite((0x0100 + (stkp & 0xFF)), (byte) (value & 0x00FF));
         stkp--;
     }
 
     private void writeByteToStack(byte value) {
-        cpuBusWrite(0x0100 + stkp, value);
+        cpuBusWrite(0x0100 + (stkp & 0xFF), value);
         stkp--;
     }
 
     private int popByteOffStack() {
         stkp++;
-        return (cpuBusRead(0x100 + stkp)) & 0x00FF;
+        return (cpuBusRead(0x100 + (stkp & 0xFF))) & 0x00FF;
     }
 
     private int popShortOffStack() {
@@ -771,6 +771,14 @@ public class CPU6502 {
 
     /** jump to sub routine **/
     int JSR() {
+        // In 6502, JSR pushes the address of the last byte of the JSR instruction (opcode + 2)
+        // which is the same as PC - 1 where PC is at the start of the next instruction
+        // At this point, PC has been incremented past the opcode by clock()
+        // and ABS() has consumed the 2 address bytes, so PC = next_instruction_address
+        // Therefore, we need to push PC + 2 - 3 = PC - 1
+        // But actually, let's think: if opcode was at C600, PC is now at C603
+        // We want to push C602 (the high byte of the operand)
+        // So we push PC - 1
         setPc(getPc() - 1);
         writeShortToStack(getPc());
         setPc(getAddressAbs());
