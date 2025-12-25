@@ -36,6 +36,23 @@ public class OpcodesTest {
             cpu.clock();
         }
     }
+    
+    private void runWithSetup(String hexSubroutine, Runnable setupMemory) {
+        runWithSetup(hexSubroutine, setupMemory, 50);
+    }
+    
+    private void runWithSetup(String hexSubroutine, Runnable setupMemory, int maxCycles) {
+        ram.setByteArray(new byte[ram.MEMORY_SIZE]);
+        setupMemory.run(); // Setup test data after memory clear
+        byte[] program = hexToBytes(hexSubroutine);
+        ram.writeRange(0x8000, program);
+        ram.cpuBusWrite(0xFFFC, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFD, (byte) 0x80);
+        cpu.reset();
+        for (int i = 0; i < maxCycles; i++) {
+            cpu.clock();
+        }
+    }
 
     private byte[] hexToBytes(String hex) {
         String[] parts = hex.split(" ");
@@ -591,5 +608,204 @@ public class OpcodesTest {
         // Verify BCC did NOT branch (A should have been loaded with 1, then stored)
         assertEquals(1, ram.cpuBusRead(0x00), 
                      "BCC should NOT branch when Carry is SET. Got P=" + (cpu.getStatus() & 0xFF));
+    }
+
+    // ============================================================================
+    // Tests for Sign Extension Bug Fix (Issue at nestest line 1300)
+    // These tests ensure that byte values >= 0x80 are treated as unsigned
+    // ============================================================================
+
+    @Test
+    void test_MemoryRead_UnsignedValues() {
+        // Test that reading values >= 0x80 returns unsigned values, not sign-extended
+        ram.cpuBusWrite(0x0010, (byte) 0x80);
+        ram.cpuBusWrite(0x0011, (byte) 0xFF);
+        ram.cpuBusWrite(0x0012, (byte) 0x7F);
+        ram.cpuBusWrite(0x0013, (byte) 0x00);
+        
+        assertEquals(0x80, ram.cpuBusRead(0x0010), "0x80 should be read as 128, not -128");
+        assertEquals(0xFF, ram.cpuBusRead(0x0011), "0xFF should be read as 255, not -1");
+        assertEquals(0x7F, ram.cpuBusRead(0x0012), "0x7F should be read as 127");
+        assertEquals(0x00, ram.cpuBusRead(0x0013), "0x00 should be read as 0");
+    }
+
+    @Test
+    void test_ADC_WithHighBitValue_SetsCarry() {
+        // This is the exact scenario from nestest line 1294 that failed
+        // A=0x7F, Memory[0x0010]=0x80, Carry=1
+        // 0x7F + 0x80 + 1 = 0x100 (result 0x00 with Carry set)
+        
+        runWithSetup("38 A9 7F 65 10 85 00", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80); // Store test data at zero page 0x10
+        });
+        
+        assertEquals(0x00, ram.cpuBusRead(0x00), "Result should be 0x00");
+        assertEquals(0x00, cpu.getA(), "Accumulator should be 0x00");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "Carry flag MUST be set (overflow occurred)");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Zero), "Zero flag should be set");
+    }
+
+    @Test
+    void test_ADC_IndirectX_WithHighBitValue() {
+        // Test ADC with indirect indexed addressing mode (opcode 0x61)
+        // This is the addressing mode used in the failing nestest instruction
+        
+        runWithSetup("A2 00 38 A9 7F 61 80 85 00", () -> {
+            ram.cpuBusWrite(0x0080, (byte) 0x20); // Low byte of address
+            ram.cpuBusWrite(0x0081, (byte) 0x00); // High byte (points to 0x0020)
+            ram.cpuBusWrite(0x0020, (byte) 0x80); // The actual value to add
+        });
+        
+        assertEquals(0x00, ram.cpuBusRead(0x00), "Result should be 0x00");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "Carry must be set when 0x7F + 0x80 + 1 = 0x100");
+    }
+
+    @Test
+    void test_ADC_MultipleHighBitValues() {
+        // Test various combinations with high bit set
+        
+        // Test 1: 0x70 + 0x80 + 0 = 0xF0 (no carry)
+        runWithSetup("18 A9 70 65 10 85 00", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertEquals(0xF0, ram.cpuBusRead(0x00), "0x70 + 0x80 should be 0xF0");
+        assertFalse(cpu.getFlag(CPU6502.Flag.Carry), "Carry should be clear");
+        
+        // Test 2: 0x80 + 0xFF + 0 = 0x17F (carry set, result 0x7F)
+        runWithSetup("18 A9 80 65 11 85 01", () -> {
+            ram.cpuBusWrite(0x0011, (byte) 0xFF);
+        });
+        assertEquals(0x7F, ram.cpuBusRead(0x01), "0x80 + 0xFF should be 0x7F with carry");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "Carry should be set");
+        
+        // Test 3: 0x90 + 0x90 + 0 = 0x120 (carry set, result 0x20)
+        runWithSetup("18 A9 90 65 12 85 02", () -> {
+            ram.cpuBusWrite(0x0012, (byte) 0x90);
+        });
+        assertEquals(0x20, ram.cpuBusRead(0x02), "0x90 + 0x90 should be 0x20 with carry");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "Carry should be set");
+    }
+
+    @Test
+    void test_SBC_WithHighBitValue() {
+        // Test subtraction with borrow
+        runWithSetup("38 A9 FF E5 10 85 00", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertEquals(0x7F, ram.cpuBusRead(0x00), "0xFF - 0x80 should be 0x7F");
+    }
+
+    @Test
+    void test_CMP_WithHighBitValue() {
+        // Test compare with high bit values
+        
+        // Test A >= Memory (should set Carry)
+        runWithSetup("A9 80 C5 10", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "0x80 >= 0x80, Carry should be set");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Zero), "0x80 == 0x80, Zero should be set");
+        
+        // Test A < Memory (should clear Carry)
+        runWithSetup("A9 7F C5 10", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertFalse(cpu.getFlag(CPU6502.Flag.Carry), "0x7F < 0x80, Carry should be clear");
+    }
+
+    @Test
+    void test_LDA_HighBitValue_SetsNegativeFlag() {
+        // Loading values with high bit set should set Negative flag
+        runWithSetup("A5 10", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertEquals(0x80, cpu.getA(), "A should be 0x80");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Negative), "Negative flag should be set for 0x80");
+        
+        runWithSetup("A5 11", () -> {
+            ram.cpuBusWrite(0x0011, (byte) 0xFF);
+        });
+        assertEquals(0xFF, cpu.getA(), "A should be 0xFF");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Negative), "Negative flag should be set for 0xFF");
+    }
+
+    @Test
+    void test_BIT_WithHighBitValue() {
+        // BIT instruction copies bit 7 and bit 6 to N and V flags
+        runWithSetup("24 10", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80); // bit 7 set, bit 6 clear
+        });
+        assertTrue(cpu.getFlag(CPU6502.Flag.Negative), "N flag should be set (bit 7 of memory)");
+        assertFalse(cpu.getFlag(CPU6502.Flag.VOverflow), "V flag should be clear (bit 6 of memory)");
+        
+        runWithSetup("24 11", () -> {
+            ram.cpuBusWrite(0x0011, (byte) 0xC0); // bit 7 and 6 set
+        });
+        assertTrue(cpu.getFlag(CPU6502.Flag.Negative), "N flag should be set (bit 7 of memory)");
+        assertTrue(cpu.getFlag(CPU6502.Flag.VOverflow), "V flag should be set (bit 6 of memory)");
+    }
+
+    @Test
+    void test_AND_OR_EOR_WithHighBitValues() {
+        // Test logical operations with high bit values
+        
+        // AND
+        runWithSetup("A9 FF 25 10 85 00", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertEquals(0x80, ram.cpuBusRead(0x00), "0xFF AND 0x80 should be 0x80");
+        
+        // ORA
+        runWithSetup("A9 0F 05 10 85 01", () -> {
+            ram.cpuBusWrite(0x0010, (byte) 0x80);
+        });
+        assertEquals(0x8F, ram.cpuBusRead(0x01), "0x0F OR 0x80 should be 0x8F");
+        
+        // EOR
+        runWithSetup("A9 FF 45 11 85 02", () -> {
+            ram.cpuBusWrite(0x0011, (byte) 0xFF);
+        });
+        assertEquals(0x00, ram.cpuBusRead(0x02), "0xFF XOR 0xFF should be 0x00");
+    }
+
+    @Test
+    void test_IndirectAddressing_WithHighBitValues() {
+        // Test various indirect addressing modes with high bit pointers
+        
+        runWithSetup("A0 00 B1 80 85 00", () -> {
+            ram.cpuBusWrite(0x0080, (byte) 0x20); // Low byte
+            ram.cpuBusWrite(0x0081, (byte) 0x00); // High byte -> points to 0x0020
+            ram.cpuBusWrite(0x0020, (byte) 0x99); // Actual data
+        });
+        assertEquals(0x99, ram.cpuBusRead(0x00), "Indirect Y addressing should read 0x99");
+    }
+
+    @Test
+    void test_StackOperations_WithHighBitValues() {
+        // Ensure stack operations work correctly with high bit values
+        
+        // PHA with 0x80, 0xFF
+        run("A9 80 48 A9 FF 48 68 85 00 68 85 01"); // LDA #$80, PHA, LDA #$FF, PHA, PLA, STA $00, PLA, STA $01
+        assertEquals(0xFF, ram.cpuBusRead(0x00), "First PLA should get 0xFF");
+        assertEquals(0x80, ram.cpuBusRead(0x01), "Second PLA should get 0x80");
+    }
+
+    @Test
+    void test_NestestLine1294_ExactScenario() {
+        // Reproduce the exact failing scenario from nestest line 1294
+        // This should pass now that the sign extension bug is fixed
+        
+        runWithSetup("38 A9 7F A2 00 61 80 85 00", () -> {
+            ram.cpuBusWrite(0x0080, (byte) 0x20); // Pointer low byte
+            ram.cpuBusWrite(0x0081, (byte) 0x00); // Pointer high byte
+            ram.cpuBusWrite(0x0020, (byte) 0x80); // Value at 0x0020
+        });
+        
+        // Verify results
+        assertEquals(0x00, cpu.getA(), "A should be 0x00 after ADC");
+        assertEquals(0x00, ram.cpuBusRead(0x00), "Memory should contain 0x00");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "Carry MUST be set (this was the bug!)");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Zero), "Zero flag should be set");
+        assertFalse(cpu.getFlag(CPU6502.Flag.Negative), "Negative flag should be clear");
     }
 }
