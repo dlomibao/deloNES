@@ -31,7 +31,7 @@ public class Ram  extends CPUBusComponent {
         if(index==-1){
             return 0;
         }
-        return byteArray[index];
+        return byteArray[index] & 0xFF; // Mask to treat byte as unsigned
     }
     private int getIndex(int address){
         if(address<ADDRESS_RANGE_START || address>ADDRESS_RANGE_START+ADDRESS_RANGE_SIZE){

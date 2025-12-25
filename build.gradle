@@ -74,7 +74,22 @@ project(":core") {
 
         testCompileOnly 'org.projectlombok:lombok:1.18.32'
         testAnnotationProcessor 'org.projectlombok:lombok:1.18.32'
+        testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.0"
+        testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.0"
 
+    }
 
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events "passed", "skipped", "failed", "standardOut", "standardError"
+            showStandardStreams = true
+            exceptionFormat = "full"
+        }
+        afterSuite { desc, result ->
+            if (desc.parent == null) {
+                logger.lifecycle("\nTest results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped)")
+            }
+        }
     }
 }
