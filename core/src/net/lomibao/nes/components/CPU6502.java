@@ -812,6 +812,16 @@ public class CPU6502 {
         return 1;
     }
 
+    /** load a and x register (illegal opcode) **/
+    int LAX() {
+        fetch();
+        setA(getFetched());
+        setX(getFetched());
+        setFlag(Flag.Zero, a == 0);
+        setFlag(Flag.Negative, (a & 0x80) != 0);
+        return 1;
+    }
+
     /** Logical shift right **/
     int LSR() {
         fetch();
@@ -926,6 +936,111 @@ public class CPU6502 {
         temp = popShortOffStack();
         temp++;
         setPc(temp);
+        return 0;
+    }
+
+    /** store A AND X (illegal opcode) **/
+    int SAX() {
+        byte result = (byte)(getA() & getX());
+        cpuBusWrite(getAddressAbs(), result);
+        // SAX does not set any flags
+        return 0;
+    }
+
+    /** decrement then compare (illegal opcode) **/
+    int DCP() {
+        fetch();
+        // Perform DEC on memory
+        temp = getFetched() - 1;
+        cpuBusWrite(getAddressAbs(), (byte)(temp & 0x00FF));
+        
+        // Perform CMP with accumulator
+        int cmpTemp = getA() - (temp & 0x00FF);
+        setFlag(Flag.Carry, getA() >= (temp & 0x00FF));
+        setFlag(Flag.Zero, (cmpTemp & 0x00FF) == 0);
+        setFlag(Flag.Negative, (cmpTemp & 0x80) != 0);
+        return 0;
+    }
+
+    /** increment then subtract (illegal opcode) **/
+    int ISB() {
+        fetch();
+        // Perform INC on memory
+        temp = getFetched() + 1;
+        cpuBusWrite(getAddressAbs(), (byte)(temp & 0x00FF));
+        
+        // Perform SBC with accumulator (SBC = A - M - (1 - Carry))
+        int value = (temp & 0x00FF) ^ 0x00FF;
+        int sbcTemp = getA() + value + (getFlag(Flag.Carry) ? 1 : 0);
+        setFlag(Flag.Carry, (sbcTemp & 0xFF00) != 0);
+        setFlag(Flag.Zero, (sbcTemp & 0x00FF) == 0);
+        setFlag(Flag.Negative, (sbcTemp & 0x80) != 0);
+        setFlag(Flag.VOverflow, ((getA() ^ sbcTemp) & (value ^ sbcTemp) & 0x80) != 0);
+        setA(sbcTemp & 0x00FF);
+        return 0;
+    }
+
+    /** shift left then OR (illegal opcode) **/
+    int SLO() {
+        fetch();
+        // Perform ASL on memory
+        temp = getFetched() << 1;
+        setFlag(Flag.Carry, (temp & 0xFF00) > 0);
+        cpuBusWrite(getAddressAbs(), (byte)(temp & 0x00FF));
+        
+        // Perform ORA with accumulator
+        setA(getA() | (temp & 0x00FF));
+        setFlag(Flag.Zero, a == 0);
+        setFlag(Flag.Negative, (a & 0x80) != 0);
+        return 0;
+    }
+
+    /** shift right then EOR (illegal opcode) **/
+    int SRE() {
+        fetch();
+        // Perform LSR on memory
+        setFlag(Flag.Carry, (getFetched() & 0x0001) != 0);
+        temp = getFetched() >> 1;
+        cpuBusWrite(getAddressAbs(), (byte)(temp & 0x00FF));
+        
+        // Perform EOR with accumulator
+        setA(getA() ^ (temp & 0x00FF));
+        setFlag(Flag.Zero, a == 0);
+        setFlag(Flag.Negative, (a & 0x80) != 0);
+        return 0;
+    }
+
+    /** rotate left then AND (illegal opcode) **/
+    int RLA() {
+        fetch();
+        // Perform ROL on memory
+        temp = (getFetched() << 1) | (getFlag(Flag.Carry) ? 0x1 : 0x0);
+        setFlag(Flag.Carry, (temp & 0xFF00) != 0);
+        cpuBusWrite(getAddressAbs(), (byte)(temp & 0x00FF));
+        
+        // Perform AND with accumulator
+        setA(getA() & (temp & 0x00FF));
+        setFlag(Flag.Zero, a == 0);
+        setFlag(Flag.Negative, (a & 0x80) != 0);
+        return 0;
+    }
+
+    /** rotate right then add (illegal opcode) **/
+    int RRA() {
+        fetch();
+        // Perform ROR on memory - save old carry, set new carry from bit 0
+        boolean oldCarry = getFlag(Flag.Carry);
+        setFlag(Flag.Carry, (getFetched() & 0x01) != 0);
+        temp = (getFetched() >> 1) | (oldCarry ? 0x80 : 0x00);
+        cpuBusWrite(getAddressAbs(), (byte)(temp & 0x00FF));
+        
+        // Perform ADC with accumulator
+        int adcTemp = getA() + (temp & 0x00FF) + (getFlag(Flag.Carry) ? 1 : 0);
+        setFlag(Flag.Carry, adcTemp > 255);
+        setFlag(Flag.Zero, (adcTemp & 0x00FF) == 0);
+        setFlag(Flag.Negative, (adcTemp & 0x80) != 0);
+        setFlag(Flag.VOverflow, ((getA() ^ adcTemp) & ((temp & 0x00FF) ^ adcTemp) & 0x80) != 0);
+        setA(adcTemp & 0x00FF);
         return 0;
     }
 
