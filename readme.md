@@ -3,6 +3,15 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 12-25-2025
+- Merry Christmas!
+- added support for all undocumented/illegal opcodes
+- full nestest headless validation 8992/8992 output match 
+### 12-24-2025
+- finally got back to working on this (had a new job + baby)
+- added rendering of arbitrary pixel array
+- added cpu opcode unit tests
+- added nestest validation (identified cpu bugs)
 ### 5-09-2024
 - setup base project
 - got libgdx running
