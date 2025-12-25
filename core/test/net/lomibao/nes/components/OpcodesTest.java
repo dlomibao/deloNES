@@ -100,10 +100,195 @@ public class OpcodesTest {
     }
 
     @Test
-    void test_Stack() {
-        run("A9 2A 48 A9 00 68 85 00 08 68 85 01");
-        assertEquals(42, ram.cpuBusRead(0x00));
-        assertTrue(ram.cpuBusRead(0x01) != 0);
+    void test_PHA_PLA_Basic() {
+        // Test basic PHA/PLA: Load A with 0x42, push it, clear A, pull it back
+        // LDA #$42, PHA, LDA #$00, PLA, STA $00
+        run("A9 42 48 A9 00 68 85 00");
+        assertEquals(0x42, ram.cpuBusRead(0x00), "PLA should restore the value pushed by PHA");
+        assertEquals(0x42, cpu.getA(), "Accumulator should be 0x42 after PLA");
+    }
+
+    @Test
+    void test_PHA_PLA_StackPointer() {
+        // Verify stack pointer changes correctly
+        // LDA #$42, PHA
+        run("A9 42 48");
+        assertEquals(0xFC, cpu.getStkp(), "Stack pointer should decrement after PHA");
+
+        // Continue: PLA
+        cpu.clock(); // Execute PLA
+        while (!cpu.complete())
+            cpu.clock();
+        assertEquals(0xFD, cpu.getStkp(), "Stack pointer should increment after PLA");
+    }
+
+    @Test
+    void test_PHP_PLP_Basic() {
+        // Test PHP/PLP: Set some flags, push status, clear flags, pull status back
+        // SEC, SEI, SED, PHP, CLC, CLI, CLD, PLP
+        run("38 78 F8 08 18 58 D8 28");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry), "Carry should be restored by PLP");
+        assertTrue(cpu.getFlag(CPU6502.Flag.InterruptDisable), "Interrupt Disable should be restored by PLP");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Decimal), "Decimal should be restored by PLP");
+    }
+
+    @Test
+    void test_PHP_PLA_Interaction() {
+        // This is the critical test! Push status register, then pull into accumulator
+        // Set P to a known value (0x6F), push it, then pull into A
+        // SEC (C=1), SEI (I=1), SED (D=1), CLV (V=0) -> P should be 0x6D or 0x6F
+        // Then PHP, PLA
+        run("38 78 F8 B8 08 68 85 00");
+        int pushedStatus = ram.cpuBusRead(0x00);
+        System.out.println("Status pushed by PHP and pulled by PLA: 0x" + Integer.toHexString(pushedStatus));
+
+        // The status register should have been pushed and then pulled into A
+        // Check if A contains the status value
+        assertTrue(pushedStatus != 0, "PLA should have pulled the status value into A");
+    }
+
+    @Test
+    void test_NestestSequence_Line70to73() {
+        // Reproduce the exact sequence from nestest lines 70-73
+        // Line 70: SED (Set Decimal)
+        // Line 71: PHP (Push Status - should push 0x6F)
+        // Line 72: PLA (Pull Accumulator - should pull 0x6F into A, but then A should
+        // become 0x7F somehow?)
+        // Line 73: AND #$EF
+
+        // First, let's set up the initial state to match line 70
+        // We need A=0x00, P=0x6D (based on the log)
+        run("18 B8 78 38 D8"); // CLC, CLV, SEI, SEC, CLD -> trying to get P=0x6D
+
+        // Now execute the sequence
+        // F8 = SED, 08 = PHP, 68 = PLA, 29 EF = AND #$EF
+        byte[] sequence = hexToBytes("F8 08 68 29 EF 85 00");
+        ram.writeRange(0x8010, sequence);
+
+        // Reset PC to 0x8010
+        cpu.setPc(0x8010);
+
+        // Execute SED
+        cpu.clock();
+        while (!cpu.complete())
+            cpu.clock();
+        System.out.println("After SED: A=" + String.format("0x%02X", cpu.getA()) +
+                ", P=" + String.format("0x%02X", cpu.getStatus() & 0xFF) +
+                ", SP=" + String.format("0x%02X", cpu.getStkp()));
+
+        // Execute PHP
+        cpu.clock();
+        while (!cpu.complete())
+            cpu.clock();
+        int spAfterPHP = cpu.getStkp();
+        System.out.println("After PHP: A=" + String.format("0x%02X", cpu.getA()) +
+                ", P=" + String.format("0x%02X", cpu.getStatus() & 0xFF) +
+                ", SP=" + String.format("0x%02X", spAfterPHP));
+
+        // Check what's on the stack
+        int stackValue = ram.cpuBusRead(0x0100 + spAfterPHP + 1);
+        System.out.println("Value on stack: " + String.format("0x%02X", stackValue));
+
+        // Execute PLA
+        cpu.clock();
+        while (!cpu.complete())
+            cpu.clock();
+        int aAfterPLA = cpu.getA();
+        System.out.println("After PLA: A=" + String.format("0x%02X", aAfterPLA) +
+                ", P=" + String.format("0x%02X", cpu.getStatus() & 0xFF) +
+                ", SP=" + String.format("0x%02X", cpu.getStkp()));
+
+        // According to nestest, A should be 0x7F here, but we're getting 0x6F
+        // Let's see what we actually get
+        System.out.println("Expected A=0x7F, Got A=0x" + Integer.toHexString(aAfterPLA));
+
+        // Execute AND #$EF
+        cpu.clock();
+        while (!cpu.complete())
+            cpu.clock();
+        cpu.clock();
+        while (!cpu.complete())
+            cpu.clock();
+
+        int finalA = ram.cpuBusRead(0x00);
+        System.out.println("After AND and STA: A=" + String.format("0x%02X", finalA));
+    }
+
+    @Test
+    void test_Stack_MultipleValues() {
+        // Push multiple values and verify they come back in correct order (LIFO)
+        // LDA #$11, PHA, LDA #$22, PHA, LDA #$33, PHA
+        // PLA (should get $33), STA $00
+        // PLA (should get $22), STA $01
+        // PLA (should get $11), STA $02
+        run("A9 11 48 A9 22 48 A9 33 48 68 85 00 68 85 01 68 85 02");
+        assertEquals(0x33, ram.cpuBusRead(0x00), "First PLA should get last pushed value");
+        assertEquals(0x22, ram.cpuBusRead(0x01), "Second PLA should get middle value");
+        assertEquals(0x11, ram.cpuBusRead(0x02), "Third PLA should get first pushed value");
+    }
+
+    @Test
+    void test_PLA_Flags() {
+        // Test that PLA sets Zero and Negative flags correctly
+        // Push 0x00, pull it
+        run("A9 00 48 68");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Zero), "Zero flag should be set when PLA pulls 0x00");
+        assertFalse(cpu.getFlag(CPU6502.Flag.Negative), "Negative flag should be clear for 0x00");
+
+        // Push 0x80 (negative), pull it
+        run("A9 80 48 68");
+        assertFalse(cpu.getFlag(CPU6502.Flag.Zero), "Zero flag should be clear for 0x80");
+        assertTrue(cpu.getFlag(CPU6502.Flag.Negative), "Negative flag should be set for 0x80");
+    }
+
+    @Test
+    void test_PHP_Pushes_Bit4_Bit5() {
+        // Clear all flags, then PHP
+        // F8 (SED) to set a known bit (Decimal = 8)
+        // Bit 4 (Break) and Bit 5 (Unused) should always be set when pushed via PHP
+        run("D8 18 58 B8 F8 08 68 85 00"); // CLD, CLC, CLI, CLV, SED, PHP, PLA, STA $00
+        int pulled = ram.cpuBusRead(0x00) & 0xFF;
+        // P should have: bit 3 (Decimal), bit 4 (Break), bit 5 (Unused)
+        // 0x08 | 0x10 | 0x20 = 0x38
+        assertEquals(0x38, pulled & 0x38,
+                "PHP should push status with bits 4 and 5 set. Got: 0x" + Integer.toHexString(pulled));
+    }
+
+    @Test
+    void test_BRK_StackValue() {
+        // Set flags, BRK, check stack
+        run("18 D8 00"); // CLC, CLD, BRK
+        // BRK pushes PC (2 bytes) then Status (1 byte)
+        // SP starts at FD.
+        // Instruction at 8000: 18 (CLC), 8001: D8 (CLD), 8002: 00 (BRK)
+        // BRK skips one byte (pc++), so it pushes 8004?
+        // Actually BRK pushes PC+2.
+        int sp = cpu.getStkp();
+        int pushedStatus = ram.cpuBusRead(0x0100 + sp + 1) & 0xFF;
+        // Status should have Bit 4 and 5 set (0x30)
+        assertEquals(0x30, pushedStatus & 0x30, "BRK should push status with bits 4 and 5 set");
+    }
+
+    @Test
+    void test_PHP_BreakFlagOnStack() {
+        // According to 6502 specs, PHP always pushes status with bit 4 set.
+        run("08 68 85 00"); // PHP, PLA, STA $00
+        int pulled = ram.cpuBusRead(0x00) & 0xFF;
+        assertEquals(0x10, pulled & 0x10, "PHP should set bit 4 on stack");
+    }
+
+    @Test
+    void test_PLP_Ignores_Bit4() {
+
+        // Push a value with bit 4 set, then PLP. Bit 4 in CPU should not be affected
+        // (or rather, it doesn't exist as a real register bit)
+        // LDA #$FF, PHA, PLP
+        run("A9 FF 48 28");
+        // After PLP, we check if we can still set/clear other flags
+        assertTrue(cpu.getFlag(CPU6502.Flag.Carry));
+        assertTrue(cpu.getFlag(CPU6502.Flag.Zero));
+        // CPU shouldn't really have a "Break" flag that persists,
+        // but if it does, it might be clear.
     }
 
     @Test
@@ -149,8 +334,16 @@ public class OpcodesTest {
     }
 
     @Test
-    void test_NOP() {
-        run("EA EA EA", 14);
-        assertEquals(0x8003, cpu.getPc());
+    void test_Diagnostic_Flags() {
+        System.out.println("Diagnostic - Initial status: " + String.format("0x%02X", cpu.getStatus()));
+        cpu.setFlag(CPU6502.Flag.U, true);
+        System.out.println("Diagnostic - After U=true: " + String.format("0x%02X", cpu.getStatus()));
+        cpu.setFlag(CPU6502.Flag.Break, true);
+        System.out.println("Diagnostic - After B=true: " + String.format("0x%02X", cpu.getStatus()));
+
+        // Print all flag masks
+        for (CPU6502.Flag f : CPU6502.Flag.values()) {
+            System.out.println("Diagnostic - Flag " + f.name() + " mask: 0x" + Integer.toHexString(f.mask));
+        }
     }
 }

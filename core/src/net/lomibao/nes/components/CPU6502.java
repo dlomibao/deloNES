@@ -3,7 +3,6 @@ package net.lomibao.nes.components;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
@@ -16,11 +15,32 @@ import java.util.Scanner;
 @Builder
 @Data
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 @Log4j2
-public class CPU6502 extends CPUBusComponent {
+public class CPU6502 {
+    private CPUBus cpuBus;
+
+    public void connectCpuBus(CPUBus cpuBus) {
+        this.cpuBus = cpuBus;
+    }
+
+    public CPUBus getBus() {
+        return cpuBus;
+    }
+
+    public int cpuBusRead(int address, boolean readOnly) {
+        return cpuBus.read(address, readOnly);
+    }
+
+    public int cpuBusRead(int address) {
+        return cpuBusRead(address, false);
+    }
+
+    public void cpuBusWrite(int address, byte value) {
+        cpuBus.write(address, value);
+    }
 
     private int readShortFromPCAddress() {
+
         int low = cpuBusRead(pc);
         pc++;
         int high = cpuBusRead(pc);
@@ -165,18 +185,6 @@ public class CPU6502 extends CPUBusComponent {
         } else {
             status &= ~flag.mask;
         }
-    }
-
-    @Override
-    public int getCPUBusStartAddress() {
-        // CPU doesn't have its own addresses
-        return Integer.MAX_VALUE;
-    }
-
-    @Override
-    public int getCPUBusEndAddress() {
-        // CPU doesn't have its own addresses
-        return Integer.MAX_VALUE;
     }
 
     /* helper method for casting */
@@ -392,11 +400,12 @@ public class CPU6502 extends CPUBusComponent {
     public void irq() {
         if (!getFlag(Flag.InterruptDisable)) {
             writeShortToStack(pc);
-            setFlag(Flag.Break, false);
-            setFlag(Flag.U, true);
+
+            // IRQ pushes status with bit 4 clear and bit 5 set
+            byte statusToPush = (byte) ((status & ~Flag.Break.mask) | Flag.U.mask);
+            writeByteToStack(statusToPush);
+
             setFlag(Flag.InterruptDisable, true);
-            cpuBusWrite((0x0100 + getStkp()), status);// write status flags
-            stkp--;
             addressAbs = 0xFFFE;
             pc = getProgramCounterAtAddress(addressAbs);
 
@@ -409,11 +418,12 @@ public class CPU6502 extends CPUBusComponent {
      */
     public void nmi() {
         writeShortToStack(pc);
-        setFlag(Flag.Break, false);
-        setFlag(Flag.U, true);
-        setFlag(Flag.InterruptDisable, true);
-        writeByteToStack(status);
 
+        // NMI pushes status with bit 4 clear and bit 5 set
+        byte statusToPush = (byte) ((status & ~Flag.Break.mask) | Flag.U.mask);
+        writeByteToStack(statusToPush);
+
+        setFlag(Flag.InterruptDisable, true);
         addressAbs = 0xFFFA;
         pc = getProgramCounterAtAddress(addressAbs);
 
@@ -601,11 +611,14 @@ public class CPU6502 extends CPUBusComponent {
     /** break **/
     int BRK() {
         pc++;
+
+        writeShortToStack(pc);
+
+        // BRK pushes status with bits 4 and 5 set
+        byte statusToPush = (byte) (status | Flag.Break.mask | Flag.U.mask);
+        writeByteToStack(statusToPush);
+
         setFlag(Flag.InterruptDisable, true);
-        writeShortToStack(getPc());
-        setFlag(Flag.Break, true);
-        writeByteToStack(getStatus());
-        setFlag(Flag.Break, false);
         setPc(readShortFromAddress(0xFFFE));
 
         return 0;
@@ -837,9 +850,9 @@ public class CPU6502 extends CPUBusComponent {
 
     /** push status register to stack **/
     int PHP() {
-        writeByteToStack((byte) getStatus());
-        setFlag(Flag.Break, false);
-        setFlag(Flag.U, false);
+        // PHP pushes status with bits 4 and 5 set
+        byte statusToPush = (byte) (status | Flag.Break.mask | Flag.U.mask);
+        writeByteToStack(statusToPush);
         return 0;
     }
 
@@ -853,8 +866,10 @@ public class CPU6502 extends CPUBusComponent {
 
     /** pop status off stack **/
     int PLP() {
-        setStatus((byte) popByteOffStack());
-        setFlag(Flag.U, true);
+        status = (byte) popByteOffStack();
+        // Bit 4 and 5 are ignored when pulling from stack
+        status &= ~Flag.Break.mask;
+        status |= Flag.U.mask;
         return 0;
     }
 
@@ -890,9 +905,10 @@ public class CPU6502 extends CPUBusComponent {
 
     /** return from interrupt **/
     int RTI() {
-        setStatus((byte) popByteOffStack());
+        status = (byte) popByteOffStack();
+        // Bit 4 and 5 are ignored when pulling from stack
         status &= ~Flag.Break.mask;
-        status &= ~Flag.U.mask;
+        status |= Flag.U.mask;
         setPc(popShortOffStack());
         return 0;
     }

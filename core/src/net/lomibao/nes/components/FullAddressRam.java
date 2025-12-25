@@ -6,7 +6,7 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class FullAddressRam extends CPUBusComponent {
     public int MEMORY_SIZE = 0x10000;
-    public int ADDRESS_RANGE_SIZE = MEMORY_SIZE - 1;
+    public int ADDRESS_RANGE_SIZE = MEMORY_SIZE;
     public short ADDRESS_RANGE_START = 0;
 
     public byte[] byteArray;

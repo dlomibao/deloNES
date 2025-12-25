@@ -2,26 +2,51 @@ package net.lomibao.nes.rom.mapper;
 
 /**
  * mapper 0 of ines format roms are straight passthrough
- * **/
-public class Mapper000 implements Mapper{
+ **/
+public class Mapper000 implements Mapper {
+    private final int nPRGBanks;
+    private final int nCHRBanks;
+
+    public Mapper000(int prgBanks, int chrBanks) {
+        this.nPRGBanks = prgBanks;
+        this.nCHRBanks = chrBanks;
+    }
+
     @Override
     public Integer cpuMapRead(int address) {
-        return address;
+        if (address >= 0x8000 && address <= 0xFFFF) {
+            // If PRG Banks > 1, 32KB mapping, else 16KB mirrored
+            return (address - 0x8000) & (nPRGBanks > 1 ? 0x7FFF : 0x3FFF);
+        }
+        return null; // Signals address not handled by mapper
     }
 
     @Override
     public Integer cpuMapWrite(int address) {
-        return address;
+        // Mapper 000 usually doesn't have PRG RAM/Registers in the $8000 range
+        if (address >= 0x8000 && address <= 0xFFFF) {
+            return (address - 0x8000) & (nPRGBanks > 1 ? 0x7FFF : 0x3FFF);
+        }
+        return null;
     }
 
     @Override
     public Integer ppuMapRead(int address) {
-        return address;
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            return address;
+        }
+        return null;
     }
 
     @Override
     public Integer ppuMapWrite(int address) {
-        return address;
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            // Usually read-only unless it's CHR RAM (which nCHRBanks == 0 indicates)
+            if (nCHRBanks == 0) {
+                return address;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -46,16 +71,16 @@ public class Mapper000 implements Mapper{
 
     @Override
     public int numberOfPRGBanks() {
-        return 0;
+        return nPRGBanks;
     }
 
     @Override
     public int numberOfCHRBanks() {
-        return 0;
+        return nCHRBanks;
     }
 
     @Override
     public Mirror mirror() {
-        return null;
+        return Mirror.HARDWARE;
     }
 }
