@@ -11,10 +11,19 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     public byte[] registers;
     public PPUBus ppuBus;
+    private Cartridge cartridge;  // Reference for CHR ROM access
 
 
     public PPU(){
         registers=new byte[REGISTER_SIZE];
+    }
+
+    /**
+     * Sets the cartridge reference for CHR ROM access
+     * @param cartridge the cartridge with CHR ROM data
+     */
+    public void setCartridge(Cartridge cartridge) {
+        this.cartridge = cartridge;
     }
 
     @Override
@@ -78,4 +87,58 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public int getPPUBusEndAddress() {
         return 0;
     }
+
+    /**
+     * Gets the full CHR layout decoded for debugging purposes
+     * @return byte[256][128] grid where [y][x] contains 2-bit color (0-3)
+     */
+    public byte[][] getCHRLayout() {
+        if (cartridge == null) {
+            log.warn("Cartridge not set, cannot decode CHR layout");
+            return null;
+        }
+        byte[] chrData = cartridge.getCHRROM();
+        return TileDecoder.decodeCHRLayout(chrData);
+    }
+
+    /**
+     * Gets a specific pattern table decoded for debugging
+     * @param table 0 or 1
+     * @return byte[128][128] grid where [y][x] contains 2-bit color (0-3)
+     */
+    public byte[][] getPatternTable(int table) {
+        if (cartridge == null) {
+            log.warn("Cartridge not set, cannot decode pattern table");
+            return null;
+        }
+        byte[] chrData = cartridge.getCHRROM();
+        return TileDecoder.decodePatternTable(chrData, table);
+    }
+
+    /**
+     * Gets a specific tile decoded
+     * @param tileIndex 0-511
+     * @return byte[8][8] grid where [y][x] contains 2-bit color (0-3)
+     */
+    public byte[][] getTile(int tileIndex) {
+        if (cartridge == null) {
+            log.warn("Cartridge not set, cannot decode tile");
+            return null;
+        }
+        byte[] chrData = cartridge.getCHRROM();
+        return TileDecoder.getTile(chrData, tileIndex);
+    }
+
+    /**
+     * Gets debug string representation of CHR layout
+     * @return ASCII visualization of CHR data
+     */
+    public String getCHRLayoutDebugString() {
+        byte[][] layout = getCHRLayout();
+        if (layout == null) {
+            return "CHR layout unavailable";
+        }
+        return TileDecoder.pixelsToDebugString(layout);
+    }
+
 }
