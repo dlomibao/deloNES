@@ -57,7 +57,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     private int getCPUBusIndex(int address){
-        if(address< CPUBUS_START_ADDRESS && address>= CPUBUS_END_ADDRESS){
+        if(address< CPUBUS_START_ADDRESS || address>= CPUBUS_END_ADDRESS){
             log.error("attempting to read memory out of range {}. valid range [{},{}]",address, CPUBUS_START_ADDRESS, CPUBUS_END_ADDRESS);
             return -1;
         }
