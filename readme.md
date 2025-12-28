@@ -3,6 +3,10 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 12-28-2025
+
+* Fixed tests
+* add CHR ROM viewer
 
 ### 12-25-2025
 

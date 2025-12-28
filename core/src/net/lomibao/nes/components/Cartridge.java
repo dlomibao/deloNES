@@ -140,4 +140,32 @@ public class Cartridge extends CPUBusComponent {
         return cpuBusRead(address, false);
     }
 
+    /**
+     * Returns the raw CHR ROM memory
+     * @return CHR ROM byte array (8KB per bank)
+     */
+    public byte[] getCHRROM() {
+        return vCHRMemory;
+    }
+
+    /**
+     * Returns the number of CHR banks
+     * @return number of 8KB CHR banks
+     */
+    public int getCHRBanks() {
+        return nCHRBanks;
+    }
+
+    /**
+     * Reads a single byte from CHR ROM using PPU address space
+     * @param address PPU address (0x0000-0x1FFF)
+     * @return byte value at address, or 0 if out of bounds
+     */
+    public int chrRead(int address) {
+        if (vCHRMemory == null || address < 0 || address >= vCHRMemory.length) {
+            return 0;
+        }
+        return Byte.toUnsignedInt(vCHRMemory[address]);
+    }
+
 }

@@ -31,6 +31,24 @@ tasks.register('debug', JavaExec) {
     debug = true
 }
 
+// Task to view CHR ROM tiles from nestest.nes using PixelRenderer
+tasks.register('viewCHRTiles', JavaExec) {
+    group = 'debugging'
+    description = 'Displays tiles from nestest.nes ROM using PixelRenderer'
+    
+    dependsOn classes
+    mainClass = 'net.lomibao.nes.desktop.CHRTileViewerLauncher'
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+    workingDir = project.assetsDir
+    ignoreExitValue = true
+    
+    // Optional: pass ROM path as argument
+    // args = ['nestest.nes']
+    
+    jvmArgs = ['-Xmx512m']
+}
+
 tasks.register('dist', Jar) {
     duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
     manifest {
