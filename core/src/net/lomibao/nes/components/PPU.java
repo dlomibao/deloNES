@@ -54,6 +54,9 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     private int bgNextTileAttr = 0;        // Next tile attribute from attribute table
     private int bgNextTilePatternLow = 0;  // Next tile pattern low byte
     private int bgNextTilePatternHigh = 0; // Next tile pattern high byte
+    
+    // Fine X scroll for pixel mux (0-7)
+    private int fineX = 0;
 
     public PPU(){
         registers=new byte[REGISTER_SIZE];
@@ -239,6 +242,11 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             // Shift registers every cycle (except cycle 0 idle cycle)
             if (cycle >= 1 && cycle <= 256) {
                 shiftBackgroundRegisters();
+            }
+            
+            // Render pixel during visible scanlines only (not pre-render)
+            if (isVisibleScanline() && cycle >= 1 && cycle <= 256) {
+                renderBackgroundPixel();
             }
             
             // Fetch tiles in 8-cycle pattern
@@ -832,6 +840,83 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             bgShiftAttrLow <<= 1;
             bgShiftAttrHigh <<= 1;
         }
+    }
+    
+    /**
+     * Renders a single background pixel to the screen buffer
+     * Called during visible scanlines at cycles 1-256
+     */
+    private void renderBackgroundPixel() {
+        if (!isShowBackground()) {
+            // Background rendering disabled, output backdrop color
+            int backdropColor = getColorFromPalette(0);
+            screen[scanline][cycle - 1] = backdropColor;
+            return;
+        }
+        
+        // Extract 2-bit pattern pixel from shift registers using fine X
+        int muxBit = 15 - fineX;  // Select bit position based on fine X scroll
+        int patternBit0 = (bgShiftPatternLow >> muxBit) & 0x01;
+        int patternBit1 = (bgShiftPatternHigh >> muxBit) & 0x01;
+        int patternPixel = (patternBit1 << 1) | patternBit0;
+        
+        // Extract 2-bit palette from attribute shift registers
+        int paletteBit0 = (bgShiftAttrLow >> muxBit) & 0x01;
+        int paletteBit1 = (bgShiftAttrHigh >> muxBit) & 0x01;
+        int paletteIndex = (paletteBit1 << 1) | paletteBit0;
+        
+        // Calculate final palette RAM index (background palettes are 0x00-0x0F)
+        // Formula: (palette << 2) | pixel
+        int paletteRamIndex;
+        if (patternPixel == 0) {
+            // Transparent pixel - use backdrop color (palette index 0)
+            paletteRamIndex = 0;
+        } else {
+            paletteRamIndex = (paletteIndex << 2) | patternPixel;
+        }
+        
+        // Look up RGB color from palette RAM and color palette
+        int color = getColorFromPalette(paletteRamIndex);
+        
+        // Write to screen buffer (cycle - 1 because cycle is 1-256 but screen is 0-255)
+        screen[scanline][cycle - 1] = color;
+    }
+    
+    /**
+     * Gets an RGB color from the palette RAM using the color palette
+     * @param paletteIndex Index into palette RAM (0-31)
+     * @return ARGB color as 32-bit integer (0xAARRGGBB)
+     */
+    private int getColorFromPalette(int paletteIndex) {
+        // Read color index from palette RAM
+        int colorIndex = Byte.toUnsignedInt(paletteRAM[paletteIndex & 0x1F]);
+        colorIndex &= 0x3F;  // Mask to 0-63 range
+        
+        // Convert to RGB using color palette
+        // NES color palette indices map to specific RGB values
+        return nesColorToRGB(colorIndex);
+    }
+    
+    /**
+     * Converts NES color index (0-63) to RGB color
+     * @param nesColor NES color palette index (0-63)
+     * @return ARGB color as 32-bit integer (0xAARRGGBB)
+     */
+    private int nesColorToRGB(int nesColor) {
+        // NES NTSC color palette (simplified version)
+        // Each entry is 0xAARRGGBB format
+        int[] nesColorPalette = {
+            0xFF545454, 0xFF001E74, 0xFF081090, 0xFF300088, 0xFF440064, 0xFF5C0030, 0xFF540400, 0xFF3C1800,
+            0xFF202A00, 0xFF083A00, 0xFF004000, 0xFF003C00, 0xFF00323C, 0xFF000000, 0xFF000000, 0xFF000000,
+            0xFF989698, 0xFF084CC4, 0xFF3032EC, 0xFF5C1EE4, 0xFF8814B0, 0xFFA01464, 0xFF982220, 0xFF783C00,
+            0xFF545A00, 0xFF287200, 0xFF087C00, 0xFF007628, 0xFF006678, 0xFF000000, 0xFF000000, 0xFF000000,
+            0xFFECEEEC, 0xFF4C9AEC, 0xFF787CEC, 0xFFB062EC, 0xFFE454EC, 0xFFEC58B4, 0xFFEC6A64, 0xFFD48820,
+            0xFFA0AA00, 0xFF74C400, 0xFF4CD020, 0xFF38CC6C, 0xFF38B4CC, 0xFF3C3C3C, 0xFF000000, 0xFF000000,
+            0xFFECEEEC, 0xFFA8CCEC, 0xFFBCBCEC, 0xFFD4B2EC, 0xFFECAEEC, 0xFFECAED4, 0xFFECB4B0, 0xFFE4C490,
+            0xFFCCD278, 0xFFB4DE78, 0xFFA8E290, 0xFF98E2B4, 0xFFA0D6E4, 0xFFA0A2A0, 0xFF000000, 0xFF000000
+        };
+        
+        return nesColorPalette[nesColor & 0x3F];
     }
     
     // ==================== Getters for Testing ====================

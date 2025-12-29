@@ -15,6 +15,7 @@ public class CPUBus {
     PPU ppu;
     APU apu;
     Cartridge cartridge;
+    Controller controller;
     FullAddressRam testRam;
     @Builder.Default
     long masterClockCount = 0;// the master clock is the total number of clocks for the system. aligned with
@@ -27,6 +28,7 @@ public class CPUBus {
         Optional.ofNullable(ppu).ifPresent(ppu -> ppu.connectCpuBus(this));
         Optional.ofNullable(apu).ifPresent(apu -> apu.connectCpuBus(this));
         Optional.ofNullable(cartridge).ifPresent(cartridge -> cartridge.connectCpuBus(this));
+        Optional.ofNullable(controller).ifPresent(controller -> controller.connectCpuBus(this));
         return this;
     }
 
@@ -40,6 +42,8 @@ public class CPUBus {
             ram.cpuBusWrite(addr, value);
         } else if (Optional.ofNullable(ppu).map(ppu -> ppu.inCPUBusRange(addr)).orElse(false)) {
             ppu.cpuBusWrite(addr, value);
+        } else if (Optional.ofNullable(controller).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
+            controller.cpuBusWrite(addr, value);
         } else {
             log.error("no device found in range of address {}", address);
         }
@@ -68,6 +72,8 @@ public class CPUBus {
             return apu.cpuBusRead(addr, readOnly);
         } else if (Optional.ofNullable(cartridge).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
             return cartridge.cpuBusRead(addr, readOnly);
+        } else if (Optional.ofNullable(controller).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
+            return controller.cpuBusRead(addr, readOnly);
         }
         log.error("no device found in range of address {}", address);
         return 0;
