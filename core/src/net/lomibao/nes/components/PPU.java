@@ -1,6 +1,7 @@
 package net.lomibao.nes.components;
 
 import lombok.extern.log4j.Log4j2;
+import net.lomibao.nes.components.ppu.NameTableMemory;
 
 //Picture Processing Unit
 @Log4j2
@@ -12,18 +13,59 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public byte[] registers;
     public PPUBus ppuBus;
     private Cartridge cartridge;  // Reference for CHR ROM access
+    
+    // PPU memory components
+    private NameTableMemory nameTableMemory;
 
+    // Internal PPU memory
+    private byte[] paletteRAM = new byte[32];  // Palette RAM (internal to PPU chip)
+    private byte[] oam = new byte[256];        // Object Attribute Memory (sprites)
+    
+    // PPUADDR/PPUDATA protocol state
+    private int ppuAddress = 0;           // Current PPU address (14-bit)
+    private boolean addressLatch = false; // false = expecting high byte, true = expecting low byte
+    private byte ppuDataBuffer = 0;       // Read buffer for non-palette reads
+
+    // Screen buffer and rendering state
+    // Full NES resolution including overscan/blanking for debugging
+    // 341 cycles per scanline (visible 0-255), 262 scanlines (visible 0-239)
+    public static final int SCREEN_WIDTH = 341;   // Including horizontal blanking
+    public static final int SCREEN_HEIGHT = 262;  // Including vertical blanking
+    public static final int VISIBLE_WIDTH = 256;  // Visible pixels
+    public static final int VISIBLE_HEIGHT = 240; // Visible scanlines
+    
+    private int[][] screen = new int[SCREEN_HEIGHT][SCREEN_WIDTH];  // screen[y][x] = RGBA as int
+    private int scanline = 0;   // Current scanline (0-261, where 261 is pre-render)
+    private int cycle = 0;      // Current cycle within scanline (0-340)
 
     public PPU(){
         registers=new byte[REGISTER_SIZE];
+        clearScreen();
+        initializeMemoryComponents();
+    }
+    
+    /**
+     * Initializes PPU memory components and connects them to the PPU bus
+     */
+    private void initializeMemoryComponents() {
+        nameTableMemory = new NameTableMemory();
+        
+        // Connect components to PPU bus if bus is available
+        if (ppuBus != null) {
+            ppuBus.connect(nameTableMemory);
+        }
     }
 
     /**
      * Sets the cartridge reference for CHR ROM access
+     * Also updates nametable memory with cartridge reference for mirroring
      * @param cartridge the cartridge with CHR ROM data
      */
     public void setCartridge(Cartridge cartridge) {
         this.cartridge = cartridge;
+        if (nameTableMemory != null) {
+            nameTableMemory.setCartridge(cartridge);
+        }
     }
 
     @Override
@@ -38,7 +80,50 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     @Override
     public void cpuBusWrite(int address, byte value){
         int index= getCPUBusIndex(address);
-        registers[index]=value;
+        if (index == -1) {
+            return;
+        }
+        
+        // Handle specific register writes
+        switch (index) {
+            case 0: // PPUCTRL (0x2000)
+                registers[index] = value;
+                break;
+            case 1: // PPUMASK (0x2001)
+                registers[index] = value;
+                break;
+            case 2: // PPUSTATUS (0x2002) - read-only
+                // Ignore writes to status register
+                break;
+            case 3: // OAMADDR (0x2003)
+                registers[index] = value;
+                break;
+            case 4: // OAMDATA (0x2004)
+                registers[index] = value;
+                // TODO: Write to OAM
+                break;
+            case 5: // PPUSCROLL (0x2005)
+                registers[index] = value;
+                // TODO: Implement scroll protocol
+                break;
+            case 6: // PPUADDR (0x2006)
+                if (!addressLatch) {
+                    // First write: high byte
+                    ppuAddress = (value & 0x3F) << 8; // Only 6 bits used for high byte
+                    addressLatch = true;
+                } else {
+                    // Second write: low byte
+                    ppuAddress = (ppuAddress & 0x3F00) | (value & 0xFF);
+                    ppuAddress &= 0x3FFF; // Mask to 14 bits
+                    addressLatch = false;
+                }
+                break;
+            case 7: // PPUDATA (0x2007)
+                writePPUData(value);
+                ppuAddress += getAddressIncrement();
+                ppuAddress &= 0x3FFF; // Wrap at 14 bits
+                break;
+        }
     }
 
     /**
@@ -53,7 +138,41 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         if(index==-1){
             return 0;
         }
-        return Byte.toUnsignedInt(registers[index]);
+        
+        // Handle specific register reads
+        switch (index) {
+            case 0: // PPUCTRL (0x2000) - write-only
+                return 0;
+            case 1: // PPUMASK (0x2001) - write-only
+                return 0;
+            case 2: // PPUSTATUS (0x2002)
+                int status = Byte.toUnsignedInt(registers[index]);
+                if (!readOnly) {
+                    // Clear vblank flag (bit 7) after read
+                    registers[index] &= 0x7F;
+                    // Reset address latch
+                    addressLatch = false;
+                }
+                return status;
+            case 3: // OAMADDR (0x2003) - write-only
+                return 0;
+            case 4: // OAMDATA (0x2004)
+                // TODO: Read from OAM
+                return Byte.toUnsignedInt(registers[index]);
+            case 5: // PPUSCROLL (0x2005) - write-only
+                return 0;
+            case 6: // PPUADDR (0x2006) - write-only
+                return 0;
+            case 7: // PPUDATA (0x2007)
+                int data = readPPUData();
+                if (!readOnly) {
+                    ppuAddress += getAddressIncrement();
+                    ppuAddress &= 0x3FFF; // Wrap at 14 bits
+                }
+                return data;
+            default:
+                return Byte.toUnsignedInt(registers[index]);
+        }
     }
 
     private int getCPUBusIndex(int address){
@@ -68,9 +187,223 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         //todo complete
     }
 
+    /**
+     * Writes data to PPU memory via PPUDATA register
+     */
+    private void writePPUData(byte value) {
+        int addr = ppuAddress & 0x3FFF;
+        
+        if (addr >= 0x3F00 && addr < 0x4000) {
+            // Palette RAM range (0x3F00-0x3FFF, mirrored every 32 bytes)
+            int paletteAddr = mirrorPaletteAddress(addr);
+            paletteRAM[paletteAddr] = value;
+        } else {
+            // Other addresses go to PPU bus (nametables, pattern tables)
+            if (ppuBus != null) {
+                ppuBus.write(addr, value);
+            }
+        }
+    }
+
+    /**
+     * Reads data from PPU memory via PPUDATA register
+     * Palette reads are immediate, other reads are buffered
+     */
+    private int readPPUData() {
+        int addr = ppuAddress & 0x3FFF;
+        
+        if (addr >= 0x3F00 && addr < 0x4000) {
+            // Palette RAM reads are immediate (no buffering)
+            int paletteAddr = mirrorPaletteAddress(addr);
+            // Update buffer with nametable data "underneath" the palette
+            if (ppuBus != null) {
+                ppuDataBuffer = (byte) ppuBus.read(addr & 0x2FFF);
+            }
+            return Byte.toUnsignedInt(paletteRAM[paletteAddr]);
+        } else {
+            // Non-palette reads are buffered (read returns previous buffer)
+            int result = Byte.toUnsignedInt(ppuDataBuffer);
+            if (ppuBus != null) {
+                ppuDataBuffer = (byte) ppuBus.read(addr);
+            }
+            return result;
+        }
+    }
+
+    /**
+     * Mirrors palette addresses to the actual 32-byte palette RAM
+     * Special mirroring: 0x3F10, 0x3F14, 0x3F18, 0x3F1C mirror to 0x3F00, 0x3F04, 0x3F08, 0x3F0C
+     */
+    private int mirrorPaletteAddress(int address) {
+        int addr = address & 0x1F; // Mirror every 32 bytes (0x3F00-0x3F1F)
+        
+        // Special case: background color mirrors
+        // 0x3F10, 0x3F14, 0x3F18, 0x3F1C -> 0x3F00, 0x3F04, 0x3F08, 0x3F0C
+        if (addr >= 0x10 && (addr & 0x03) == 0) {
+            addr &= 0x0F;
+        }
+        
+        return addr;
+    }
+
+    /**
+     * Gets the address increment amount based on PPUCTRL bit 2
+     * @return 1 for horizontal increment, 32 for vertical increment
+     */
+    private int getAddressIncrement() {
+        // PPUCTRL bit 2: 0 = add 1, 1 = add 32
+        return ((registers[0] & 0x04) != 0) ? 32 : 1;
+    }
+
+    /**
+     * Gets a palette color index for debugging
+     * @param paletteIndex 0-31
+     * @return color index (0-63)
+     */
+    public int getPaletteColor(int paletteIndex) {
+        if (paletteIndex < 0 || paletteIndex >= 32) {
+            return 0;
+        }
+        return Byte.toUnsignedInt(paletteRAM[paletteIndex]);
+    }
+
+    /**
+     * Resets PPU state
+     */
+    public void reset() {
+        for (int i = 0; i < registers.length; i++) {
+            registers[i] = 0;
+        }
+        ppuAddress = 0;
+        addressLatch = false;
+        ppuDataBuffer = 0;
+        scanline = 0;
+        cycle = 0;
+        clearScreen();
+    }
+
+    /**
+     * Clears the screen buffer to black
+     */
+    private void clearScreen() {
+        for (int y = 0; y < SCREEN_HEIGHT; y++) {
+            for (int x = 0; x < SCREEN_WIDTH; x++) {
+                screen[y][x] = 0xFF000000; // Black with full alpha
+            }
+        }
+    }
+
+    /**
+     * Gets the current screen buffer
+     * @return screen[y][x] containing RGBA values as integers
+     */
+    public int[][] getScreen() {
+        return screen;
+    }
+
+    /**
+     * Gets only the visible portion of the screen (256x240)
+     * @return screen[y][x] containing RGBA values for visible area
+     */
+    public int[][] getVisibleScreen() {
+        int[][] visible = new int[VISIBLE_HEIGHT][VISIBLE_WIDTH];
+        for (int y = 0; y < VISIBLE_HEIGHT; y++) {
+            System.arraycopy(screen[y], 0, visible[y], 0, VISIBLE_WIDTH);
+        }
+        return visible;
+    }
+
+    /**
+     * Gets the full screen buffer as a 2D array compatible with PixelRenderer
+     * Format: pixels[y][x] = RGBA
+     * @return 2D array of size [SCREEN_HEIGHT][SCREEN_WIDTH] (262 x 341)
+     */
+    public int[][] getScreenPixels2D() {
+        int[][] pixels = new int[SCREEN_HEIGHT][SCREEN_WIDTH];
+        for (int y = 0; y < SCREEN_HEIGHT; y++) {
+            System.arraycopy(screen[y], 0, pixels[y], 0, SCREEN_WIDTH);
+        }
+        return pixels;
+    }
+
+    /**
+     * Gets only the visible screen as a 2D array compatible with PixelRenderer
+     * Format: pixels[y][x] = RGBA
+     * @return 2D array of size [VISIBLE_HEIGHT][VISIBLE_WIDTH] (240 x 256)
+     */
+    public int[][] getVisibleScreenPixels2D() {
+        int[][] pixels = new int[VISIBLE_HEIGHT][VISIBLE_WIDTH];
+        for (int y = 0; y < VISIBLE_HEIGHT; y++) {
+            System.arraycopy(screen[y], 0, pixels[y], 0, VISIBLE_WIDTH);
+        }
+        return pixels;
+    }
+
+    /**
+     * Gets the full screen buffer as a 1D array compatible with PixelRenderer
+     * Format: pixels[y * SCREEN_WIDTH + x] = RGBA
+     * @return 1D array of size SCREEN_WIDTH * SCREEN_HEIGHT (341 * 262)
+     */
+    public int[] getScreenPixels1D() {
+        int[] pixels = new int[SCREEN_WIDTH * SCREEN_HEIGHT];
+        for (int y = 0; y < SCREEN_HEIGHT; y++) {
+            for (int x = 0; x < SCREEN_WIDTH; x++) {
+                pixels[y * SCREEN_WIDTH + x] = screen[y][x];
+            }
+        }
+        return pixels;
+    }
+
+    /**
+     * Gets only the visible screen as a 1D array compatible with PixelRenderer
+     * Format: pixels[y * VISIBLE_WIDTH + x] = RGBA
+     * @return 1D array of size VISIBLE_WIDTH * VISIBLE_HEIGHT (256 * 240)
+     */
+    public int[] getVisibleScreenPixels1D() {
+        int[] pixels = new int[VISIBLE_WIDTH * VISIBLE_HEIGHT];
+        for (int y = 0; y < VISIBLE_HEIGHT; y++) {
+            for (int x = 0; x < VISIBLE_WIDTH; x++) {
+                pixels[y * VISIBLE_WIDTH + x] = screen[y][x];
+            }
+        }
+        return pixels;
+    }
+
+    /**
+     * Sets a pixel in the screen buffer
+     * @param x horizontal position (0-340)
+     * @param y vertical position (0-261)
+     * @param rgba color value as RGBA8888 integer
+     */
+    public void setPixel(int x, int y, int rgba) {
+        if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
+            screen[y][x] = rgba;
+        }
+    }
+
+    /**
+     * Gets current scanline number
+     * @return current scanline (0-261)
+     */
+    public int getScanline() {
+        return scanline;
+    }
+
+    /**
+     * Gets current cycle within scanline
+     * @return current cycle (0-340)
+     */
+    public int getCycle() {
+        return cycle;
+    }
+
     @Override
     public void connectPPUBus(PPUBus ppuBus) {
         this.ppuBus=ppuBus;
+        // Connect memory components now that bus is available
+        if (nameTableMemory != null) {
+            ppuBus.connect(nameTableMemory);
+        }
     }
 
     @Override

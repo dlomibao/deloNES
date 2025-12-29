@@ -23,7 +23,7 @@ public class Cartridge extends CPUBusComponent {
 
     byte[] data = null;
     String fileName;
-    INESHeader header;
+    public INESHeader header;
     private boolean bImageValid = false;
     private int nPRGBanks = 0;
     private int nCHRBanks = 0;
@@ -166,6 +166,14 @@ public class Cartridge extends CPUBusComponent {
             return 0;
         }
         return Byte.toUnsignedInt(vCHRMemory[address]);
+    }
+    
+    /**
+     * Gets whether this cartridge uses horizontal mirroring
+     * @return true if horizontal mirroring, false if vertical
+     */
+    public boolean isHorizontalMirroring() {
+        return header.isHorizontalMirroring();
     }
 
 }
