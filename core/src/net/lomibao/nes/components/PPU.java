@@ -42,6 +42,18 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     
     // CPU reference for NMI signaling
     private CPU6502 cpu;
+    
+    // Background rendering shift registers (16 bits each)
+    private int bgShiftPatternLow = 0;   // Low bit plane pattern shifter
+    private int bgShiftPatternHigh = 0;  // High bit plane pattern shifter
+    private int bgShiftAttrLow = 0;      // Low bit attribute shifter
+    private int bgShiftAttrHigh = 0;     // High bit attribute shifter
+    
+    // Tile fetch latches (loaded during fetch, then shifted into registers)
+    private int bgNextTileId = 0;          // Next tile ID from nametable
+    private int bgNextTileAttr = 0;        // Next tile attribute from attribute table
+    private int bgNextTilePatternLow = 0;  // Next tile pattern low byte
+    private int bgNextTilePatternHigh = 0; // Next tile pattern high byte
 
     public PPU(){
         registers=new byte[REGISTER_SIZE];
@@ -220,6 +232,49 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             registers[2] &= ~0x80;  // Clear bit 7 of PPUSTATUS (VBlank flag)
             registers[2] &= ~0x40;  // Clear bit 6 of PPUSTATUS (sprite 0 hit)
             frameComplete = false;
+        }
+        
+        // Perform background tile fetching on visible and pre-render scanlines
+        if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
+            // Shift registers every cycle (except cycle 0 idle cycle)
+            if (cycle >= 1 && cycle <= 256) {
+                shiftBackgroundRegisters();
+            }
+            
+            // Fetch tiles in 8-cycle pattern
+            // Cycles 1-256: Fetch tiles for next scanline (32 tiles)
+            // Cycles 321-336: Fetch first 2 tiles of next scanline
+            if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
+                int cycleMod = (cycle - 1) % 8;
+                
+                switch (cycleMod) {
+                    case 0:
+                        // Cycle 0: Load shift registers with fetched data
+                        loadBackgroundShifters();
+                        break;
+                    case 1:
+                        // Cycle 1: Fetch nametable byte
+                        fetchNametableByte();
+                        break;
+                    case 3:
+                        // Cycle 3: Fetch attribute byte
+                        fetchAttributeByte();
+                        break;
+                    case 5:
+                        // Cycle 5: Fetch pattern table low byte
+                        fetchPatternLowByte();
+                        break;
+                    case 7:
+                        // Cycle 7: Fetch pattern table high byte
+                        fetchPatternHighByte();
+                        break;
+                }
+            }
+            
+            // Load shift registers at cycle 257 (after visible area)
+            if (cycle == 257) {
+                loadBackgroundShifters();
+            }
         }
     }
 
@@ -583,6 +638,230 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             return "CHR layout unavailable";
         }
         return TileDecoder.pixelsToDebugString(layout);
+    }
+    
+    // ==================== PPUCTRL Helper Methods ====================
+    
+    /**
+     * Gets the base nametable address from PPUCTRL bits 0-1
+     * 0 = $2000, 1 = $2400, 2 = $2800, 3 = $2C00
+     */
+    private int getBaseNametableAddress() {
+        int nametableSelect = registers[0] & 0x03;
+        return 0x2000 + (nametableSelect * 0x0400);
+    }
+    
+    /**
+     * Gets the VRAM address increment from PPUCTRL bit 2
+     * 0 = increment by 1 (horizontal), 1 = increment by 32 (vertical)
+     */
+    private int getVRAMIncrement() {
+        return ((registers[0] & 0x04) != 0) ? 32 : 1;
+    }
+    
+    /**
+     * Gets the sprite pattern table address from PPUCTRL bit 3
+     * 0 = $0000, 1 = $1000
+     */
+    private int getSpritePatternTableAddress() {
+        return ((registers[0] & 0x08) != 0) ? 0x1000 : 0x0000;
+    }
+    
+    /**
+     * Gets the background pattern table address from PPUCTRL bit 4
+     * 0 = $0000, 1 = $1000
+     */
+    private int getBackgroundPatternTableAddress() {
+        return ((registers[0] & 0x10) != 0) ? 0x1000 : 0x0000;
+    }
+    
+    /**
+     * Gets the sprite size from PPUCTRL bit 5
+     * 0 = 8x8, 1 = 8x16
+     */
+    private int getSpriteSize() {
+        return ((registers[0] & 0x20) != 0) ? 16 : 8;
+    }
+    
+    // ==================== PPUMASK Helper Methods ====================
+    
+    /**
+     * Checks if grayscale mode is enabled (PPUMASK bit 0)
+     */
+    private boolean isGrayscaleEnabled() {
+        return (registers[1] & 0x01) != 0;
+    }
+    
+    /**
+     * Checks if background rendering in leftmost 8 pixels is enabled (PPUMASK bit 1)
+     */
+    private boolean isShowBackgroundLeft() {
+        return (registers[1] & 0x02) != 0;
+    }
+    
+    /**
+     * Checks if sprite rendering in leftmost 8 pixels is enabled (PPUMASK bit 2)
+     */
+    private boolean isShowSpritesLeft() {
+        return (registers[1] & 0x04) != 0;
+    }
+    
+    /**
+     * Checks if background rendering is enabled (PPUMASK bit 3)
+     */
+    private boolean isShowBackground() {
+        return (registers[1] & 0x08) != 0;
+    }
+    
+    /**
+     * Checks if sprite rendering is enabled (PPUMASK bit 4)
+     */
+    private boolean isShowSprites() {
+        return (registers[1] & 0x10) != 0;
+    }
+    
+    /**
+     * Checks if rendering is enabled (either background or sprites)
+     */
+    private boolean isRenderingEnabled() {
+        return isShowBackground() || isShowSprites();
+    }
+    
+    // ==================== Background Tile Fetching ====================
+    
+    /**
+     * Fetches the nametable byte for the current tile
+     * Nametable byte contains the tile ID (0-255)
+     */
+    private void fetchNametableByte() {
+        // Calculate nametable address based on scroll position
+        // For now, using simple addressing without scroll
+        // Address = base nametable + (scanline/8) * 32 + (cycle/8)
+        int baseAddr = getBaseNametableAddress();
+        int tileX = (cycle - 1) / 8;
+        int tileY = scanline / 8;
+        int addr = baseAddr + (tileY * 32) + tileX;
+        
+        if (ppuBus != null) {
+            bgNextTileId = ppuBus.read(addr & 0x3FFF);
+        }
+    }
+    
+    /**
+     * Fetches the attribute byte for the current tile
+     * Attribute byte contains palette selection (2 bits per 2x2 tile group)
+     */
+    private void fetchAttributeByte() {
+        // Calculate attribute table address
+        // Attribute table is at nametable base + 0x3C0
+        int baseAddr = getBaseNametableAddress();
+        int tileX = (cycle - 1) / 8;
+        int tileY = scanline / 8;
+        
+        // Each attribute byte covers a 4x4 tile area (32x32 pixels)
+        int attrX = tileX / 4;
+        int attrY = tileY / 4;
+        int attrAddr = baseAddr + 0x3C0 + (attrY * 8) + attrX;
+        
+        if (ppuBus != null) {
+            int attrByte = ppuBus.read(attrAddr & 0x3FFF);
+            
+            // Extract the 2-bit palette for this tile within the 4x4 group
+            int quadX = (tileX % 4) / 2;
+            int quadY = (tileY % 4) / 2;
+            int shift = (quadY * 4) + (quadX * 2);
+            bgNextTileAttr = (attrByte >> shift) & 0x03;
+        }
+    }
+    
+    /**
+     * Fetches the low byte of the pattern table for the current tile
+     */
+    private void fetchPatternLowByte() {
+        int patternTableBase = getBackgroundPatternTableAddress();
+        int fineY = scanline % 8;
+        
+        // Pattern table address = base + (tile_id * 16) + fine_y
+        int addr = patternTableBase + (bgNextTileId * 16) + fineY;
+        
+        if (ppuBus != null) {
+            bgNextTilePatternLow = ppuBus.read(addr & 0x3FFF);
+        }
+    }
+    
+    /**
+     * Fetches the high byte of the pattern table for the current tile
+     */
+    private void fetchPatternHighByte() {
+        int patternTableBase = getBackgroundPatternTableAddress();
+        int fineY = scanline % 8;
+        
+        // Pattern table high byte is 8 bytes after low byte
+        int addr = patternTableBase + (bgNextTileId * 16) + fineY + 8;
+        
+        if (ppuBus != null) {
+            bgNextTilePatternHigh = ppuBus.read(addr & 0x3FFF);
+        }
+    }
+    
+    /**
+     * Loads the fetched tile data into the background shift registers
+     * Called every 8 cycles to reload the shifters with the next tile
+     */
+    private void loadBackgroundShifters() {
+        // Load lower 8 bits of shift registers with next tile data
+        bgShiftPatternLow = (bgShiftPatternLow & 0xFF00) | bgNextTilePatternLow;
+        bgShiftPatternHigh = (bgShiftPatternHigh & 0xFF00) | bgNextTilePatternHigh;
+        
+        // Expand attribute bits to all 8 pixels of the tile
+        int attrLowBit = (bgNextTileAttr & 0x01) != 0 ? 0xFF : 0x00;
+        int attrHighBit = (bgNextTileAttr & 0x02) != 0 ? 0xFF : 0x00;
+        
+        bgShiftAttrLow = (bgShiftAttrLow & 0xFF00) | attrLowBit;
+        bgShiftAttrHigh = (bgShiftAttrHigh & 0xFF00) | attrHighBit;
+    }
+    
+    /**
+     * Shifts all background registers by one pixel
+     * Called every cycle during visible rendering
+     */
+    private void shiftBackgroundRegisters() {
+        if (isShowBackground()) {
+            bgShiftPatternLow <<= 1;
+            bgShiftPatternHigh <<= 1;
+            bgShiftAttrLow <<= 1;
+            bgShiftAttrHigh <<= 1;
+        }
+    }
+    
+    // ==================== Getters for Testing ====================
+    
+    /**
+     * Gets the background pattern low shift register value (for testing)
+     */
+    public int getBgShiftPatternLow() {
+        return bgShiftPatternLow & 0xFFFF;
+    }
+    
+    /**
+     * Gets the background pattern high shift register value (for testing)
+     */
+    public int getBgShiftPatternHigh() {
+        return bgShiftPatternHigh & 0xFFFF;
+    }
+    
+    /**
+     * Gets the next tile ID latch value (for testing)
+     */
+    public int getBgNextTileId() {
+        return bgNextTileId & 0xFF;
+    }
+    
+    /**
+     * Gets the next tile attribute latch value (for testing)
+     */
+    public int getBgNextTileAttr() {
+        return bgNextTileAttr & 0x03;
     }
 
 }
