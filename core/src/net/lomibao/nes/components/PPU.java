@@ -37,6 +37,11 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     private int[][] screen = new int[SCREEN_HEIGHT][SCREEN_WIDTH];  // screen[y][x] = RGBA as int
     private int scanline = 0;   // Current scanline (0-261, where 261 is pre-render)
     private int cycle = 0;      // Current cycle within scanline (0-340)
+    private boolean frameComplete = false;  // Set when frame finishes, cleared when checked
+    private boolean oddFrame = false;       // Tracks odd/even frames
+    
+    // CPU reference for NMI signaling
+    private CPU6502 cpu;
 
     public PPU(){
         registers=new byte[REGISTER_SIZE];
@@ -184,7 +189,38 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     public void clock() {
-        //todo complete
+        // Increment cycle
+        cycle++;
+        
+        // Wrap cycle at 341 (0-340)
+        if (cycle >= 341) {
+            cycle = 0;
+            scanline++;
+            
+            // Wrap scanline at 262 (0-261)
+            if (scanline >= 262) {
+                scanline = 0;
+                frameComplete = true;
+                oddFrame = !oddFrame;
+            }
+        }
+        
+        // Set VBlank flag at scanline 241, cycle 1
+        if (scanline == 241 && cycle == 1) {
+            registers[2] |= 0x80;  // Set bit 7 of PPUSTATUS (VBlank flag)
+            
+            // Trigger NMI if enabled in PPUCTRL bit 7
+            if (isNMIEnabled() && cpu != null) {
+                cpu.nmi();
+            }
+        }
+        
+        // Clear VBlank flag and sprite 0 hit at pre-render scanline
+        if (scanline == 261 && cycle == 1) {
+            registers[2] &= ~0x80;  // Clear bit 7 of PPUSTATUS (VBlank flag)
+            registers[2] &= ~0x40;  // Clear bit 6 of PPUSTATUS (sprite 0 hit)
+            frameComplete = false;
+        }
     }
 
     /**
@@ -279,6 +315,8 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         ppuDataBuffer = 0;
         scanline = 0;
         cycle = 0;
+        frameComplete = false;
+        oddFrame = false;
         clearScreen();
     }
 
@@ -395,6 +433,79 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     public int getCycle() {
         return cycle;
+    }
+    
+    /**
+     * Checks if a frame is complete.
+     * @return true if frame just completed, false otherwise
+     */
+    public boolean isFrameComplete() {
+        return frameComplete;
+    }
+    
+    /**
+     * Clears the frame complete flag (should be called after checking)
+     */
+    public void clearFrameComplete() {
+        frameComplete = false;
+    }
+    
+    /**
+     * Checks if current frame is odd
+     * @return true for odd frames, false for even frames
+     */
+    public boolean isOddFrame() {
+        return oddFrame;
+    }
+    
+    /**
+     * Sets the CPU reference for NMI signaling
+     * @param cpu the CPU instance
+     */
+    public void setCPU(CPU6502 cpu) {
+        this.cpu = cpu;
+    }
+    
+    // Scanline type helper methods
+    
+    /**
+     * Checks if current scanline is visible (0-239)
+     * @return true if scanline is visible
+     */
+    private boolean isVisibleScanline() {
+        return scanline >= 0 && scanline <= 239;
+    }
+    
+    /**
+     * Checks if current scanline is post-render (240)
+     * @return true if scanline 240
+     */
+    private boolean isPostRenderScanline() {
+        return scanline == 240;
+    }
+    
+    /**
+     * Checks if current scanline is in VBlank period (241-260)
+     * @return true if in VBlank
+     */
+    private boolean isVBlankScanline() {
+        return scanline >= 241 && scanline <= 260;
+    }
+    
+    /**
+     * Checks if current scanline is pre-render (261)
+     * @return true if scanline 261
+     */
+    private boolean isPreRenderScanline() {
+        return scanline == 261;
+    }
+    
+    /**
+     * Checks if NMI is enabled in PPUCTRL
+     * @return true if PPUCTRL bit 7 is set
+     */
+    private boolean isNMIEnabled() {
+        return (registers[0] & 0x80) != 0;
     }
 
     @Override
