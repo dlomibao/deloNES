@@ -386,7 +386,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     /**
      * Clears the screen buffer to black
      */
-    private void clearScreen() {
+    public void clearScreen() {
         for (int y = 0; y < SCREEN_HEIGHT; y++) {
             for (int x = 0; x < SCREEN_WIDTH; x++) {
                 screen[y][x] = 0xFF000000; // Black with full alpha

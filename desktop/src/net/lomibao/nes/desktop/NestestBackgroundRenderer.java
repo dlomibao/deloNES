@@ -148,25 +148,34 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
         Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         
+        // Clear PPU screen buffer before rendering new frame
+        ppu.clearScreen();
+        
         // Run emulation for one frame
         runFrame();
         
         // Get PPU screen buffer and render it
         int[][] screen = ppu.getScreen();
         
-        // Extract visible area (256x240)
+        // Extract visible area (256x240) and convert from ARGB to RGBA
         int[][] visibleScreen = new int[240][256];
         for (int y = 0; y < 240; y++) {
-            System.arraycopy(screen[y], 0, visibleScreen[y], 0, 256);
+            for (int x = 0; x < 256; x++) {
+                // Convert ARGB to RGBA: shift bytes left, move alpha to end
+                int argb = screen[y][x];
+                int rgba = (argb << 8) | (argb >>> 24);
+                visibleScreen[y][x] = rgba;
+            }
         }
         
         // Debug: Check for non-black pixels every 60 frames
         if (frameCount % 60 == 0) {
             int nonZeroCount = 0;
-            int sampleColor = screen[120][128]; // Center pixel
+            int sampleColor = visibleScreen[120][128]; // Center pixel (converted RGBA)
             for (int y = 0; y < 240; y++) {
                 for (int x = 0; x < 256; x++) {
-                    if (screen[y][x] != 0xFF000000) {
+                    // 0xFF000000 in ARGB converts to 0x000000FF in RGBA
+                    if (visibleScreen[y][x] != 0x000000FF) {
                         nonZeroCount++;
                     }
                 }
@@ -246,8 +255,8 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
         
         // Draw all 32 palette colors (16 background + 16 sprite)
         for (int i = 0; i < 32; i++) {
-            // Read color from palette via PPU bus (using readOnly to avoid side effects)
-            int nesColor = ppu.ppuBusRead(0x3F00 + i, true);
+            // Read color directly from PPU's getPaletteColor method
+            int nesColor = ppu.getPaletteColor(i);
             
             // Convert NES color to RGB using the PPU's color conversion
             // We'll use a simple direct mapping here - create a small screen to get the color

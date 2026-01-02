@@ -3,6 +3,12 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 1-1-2026
+* fixed background tile rendering (issue with PPU using ARGB vs RGBA causing alpha being read from wrong spot)
+* ![alt text](repoassets/bgrender.gif)
+### 12-31-2025
+* Background rendering working with bugs! 
+* ![alt text](repoassets/brokenbg.png)
 ### 12-28-2025
 
 * Fixed tests
