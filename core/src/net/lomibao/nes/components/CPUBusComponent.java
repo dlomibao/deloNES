@@ -32,7 +32,7 @@ public abstract class CPUBusComponent {
 
     abstract public int getCPUBusEndAddress();
 
-    public boolean inCPUBusRange(int address) {
+public boolean inCPUBusRange(int address) {
         return address >= getCPUBusStartAddress() && address < getCPUBusEndAddress();
     }
 }

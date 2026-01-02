@@ -49,6 +49,25 @@ tasks.register('viewCHRTiles', JavaExec) {
     jvmArgs = ['-Xmx512m']
 }
 
+// Task to run nestest.nes with background rendering
+tasks.register('runNestest', JavaExec) {
+    group = 'emulator'
+    description = 'Runs nestest.nes ROM and renders the background using PPU'
+    
+    dependsOn classes
+    mainClass = 'net.lomibao.nes.desktop.NestestBackgroundLauncher'
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+    workingDir = project.assetsDir
+    ignoreExitValue = true
+    
+    jvmArgs = ['-Xmx1024m']
+    
+    if (OperatingSystem.current() == OperatingSystem.MAC_OS) {
+        jvmArgs += "-XstartOnFirstThread"
+    }
+}
+
 tasks.register('dist', Jar) {
     duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
     manifest {
