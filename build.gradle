@@ -6,13 +6,17 @@ buildscript {
         mavenCentral()
         gradlePluginPortal()
         maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://central.sonatype.com/repository/maven-snapshots/" }
+        maven { url "https://jitpack.io" }
+        maven { 
+            url "http://teavm.org/maven/repository/"
+            allowInsecureProtocol = true
+        }
         google()
     }
     dependencies {
-        classpath 'org.docstr:gwt-gradle-plugin:1.1.29'
-        classpath 'org.gretty:gretty:3.1.0'
-
-
+        classpath 'org.teavm:teavm-gradle-plugin:0.13.0'
+        classpath 'org.gretty:gretty:4.1.10'
     }
 }
 
@@ -22,7 +26,8 @@ allprojects {
     version = '1.0'
     ext {
         appName = "nes_emu"
-        gdxVersion = '1.12.1'
+        gdxVersion = '1.14.0'
+        gdxTeaVMVersion = '1.4.0'
         roboVMVersion = '2.3.20'
         box2DLightsVersion = '1.5'
         ashleyVersion = '1.7.4'
@@ -44,6 +49,10 @@ allprojects {
 project(":desktop") {
     apply plugin: "java-library"
 
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
 
     dependencies {
         implementation project(":core")
@@ -60,6 +69,10 @@ project(":desktop") {
 project(":core") {
     apply plugin: "java-library"
 
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
 
     dependencies {
         api "com.badlogicgames.gdx:gdx:$gdxVersion"
@@ -90,6 +103,26 @@ project(":core") {
             if (desc.parent == null) {
                 logger.lifecycle("\nTest results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped)")
             }
+        }
+    }
+}
+
+project(":html") {
+    apply plugin: "java-library"
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    dependencies {
+        implementation project(":core")
+        implementation "com.github.xpenatan.gdx-teavm:backend-teavm:$gdxTeaVMVersion"
+        implementation "com.github.xpenatan.gdx-teavm:gdx-freetype-teavm:$gdxTeaVMVersion"
+        
+        // Exclude Log4j from web build - TeaVM doesn't support all Java Time APIs
+        configurations.all {
+            exclude group: 'org.apache.logging.log4j'
         }
     }
 }
