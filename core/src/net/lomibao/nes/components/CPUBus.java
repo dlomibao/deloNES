@@ -2,6 +2,7 @@ package net.lomibao.nes.components;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.ToString;
 import lombok.extern.log4j.Log4j2;
 
 import java.util.Optional;
@@ -10,6 +11,7 @@ import java.util.Optional;
 @Builder
 @Log4j2
 public class CPUBus {
+    @ToString.Exclude
     CPU6502 cpu;
     Ram ram;
     PPU ppu;

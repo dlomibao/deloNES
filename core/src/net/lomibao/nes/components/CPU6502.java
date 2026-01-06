@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.extern.log4j.Log4j2;
 
 import java.io.InputStream;
@@ -17,6 +18,7 @@ import java.util.Scanner;
 @AllArgsConstructor
 @Log4j2
 public class CPU6502 {
+    @ToString.Exclude
     private CPUBus cpuBus;
 
     public void connectCpuBus(CPUBus cpuBus) {
