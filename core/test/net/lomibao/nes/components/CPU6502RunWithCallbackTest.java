@@ -9,18 +9,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link CPU6502#runWithCallback} introduced in Step 2 of the
- * playable-gen1 plan. The callback is invoked once before each instruction
+ * playable-gen1 plan. The predicate is invoked once before each instruction
  * fetch — the host (debugger, tracer, Snake demo, headless test) uses it to
  * inject per-instruction work without subclassing.
  *
- * <p>Loop termination is by callback throwing {@link CallbackStop}; this
- * matches bugzmanov's {@code FnMut(&mut CPU)} pattern (ch. 3.4) where the
- * Rust closure can simply return.
+ * <p>The predicate returns {@code true} to keep going, {@code false} to
+ * cleanly exit. Mirrors the bugzmanov ch. 3.4 {@code FnMut(&mut CPU) -> bool}
+ * pattern.
  */
 class CPU6502RunWithCallbackTest {
-
-    /** Sentinel used to break out of {@code runWithCallback} cleanly. */
-    static class CallbackStop extends RuntimeException {}
 
     /**
      * Wires a CPU to a {@link FullAddressRam} so we can poke a tiny program
@@ -49,7 +46,7 @@ class CPU6502RunWithCallbackTest {
     }
 
     @Test
-    void runWithCallback_invokesCallbackBeforeEachInstruction() {
+    void runWithCallback_invokesPredicateBeforeEachInstruction() {
         CPU6502 cpu = newCpuWithRam();
         // 3 NOPs ($EA), then BRK ($00) to halt
         loadProgramAt8000(cpu, 0xEA, 0xEA, 0xEA, 0x00);
@@ -58,15 +55,12 @@ class CPU6502RunWithCallbackTest {
         cpu.runWithCallback(c -> {
             seenPc.add(c.getPc());
             // Stop after observing 4 PCs (3 NOPs + 1 BRK fetch)
-            if (seenPc.size() >= 4) {
-                throw new CallbackStop();
-            }
+            return seenPc.size() < 4;
         });
 
-        // Callback should have observed PC at exactly the instruction-fetch
-        // points: $8000, $8001, $8002, $8003 — one per instruction (NOPs are
-        // 1 byte each).
-        assertEquals(4, seenPc.size(), "callback should fire once per instruction");
+        // Predicate should have observed PC at exactly the instruction-fetch
+        // points: $8000, $8001, $8002, $8003 (NOPs are 1 byte each).
+        assertEquals(4, seenPc.size(), "predicate should fire once per instruction");
         assertEquals(0x8000, seenPc.get(0).intValue());
         assertEquals(0x8001, seenPc.get(1).intValue());
         assertEquals(0x8002, seenPc.get(2).intValue());
@@ -74,9 +68,9 @@ class CPU6502RunWithCallbackTest {
     }
 
     @Test
-    void runWithCallback_canStopByThrowingFromCallback() {
+    void runWithCallback_returnsCleanly_whenPredicateReturnsFalse() {
         CPU6502 cpu = newCpuWithRam();
-        // Long NOP sled — callback must be the one to terminate.
+        // Long NOP sled — predicate must be the one to terminate.
         int[] program = new int[200];
         for (int i = 0; i < program.length - 1; i++) {
             program[i] = 0xEA;
@@ -87,17 +81,15 @@ class CPU6502RunWithCallbackTest {
         int[] count = {0};
         cpu.runWithCallback(c -> {
             count[0]++;
-            if (count[0] == 5) {
-                throw new CallbackStop();
-            }
+            return count[0] < 5;
         });
 
         assertEquals(5, count[0],
-                "throwing CallbackStop should immediately exit runWithCallback");
+                "loop should stop on the iteration that returns false");
     }
 
     @Test
-    void runWithCallback_advancesCpuStateBetweenCallbacks() {
+    void runWithCallback_advancesCpuStateBetweenPredicateCalls() {
         CPU6502 cpu = newCpuWithRam();
         // LDA #$42, BRK
         loadProgramAt8000(cpu, 0xA9, 0x42, 0x00);
@@ -108,11 +100,14 @@ class CPU6502RunWithCallbackTest {
             if (step[0] == 1) {
                 // Before the LDA fires, A should be its reset value (0).
                 assertEquals(0, c.getA() & 0xFF, "A should be 0 before LDA executes");
+                return true;
             } else if (step[0] == 2) {
                 // After LDA #$42 ran, before BRK fetches, A should be $42.
                 assertEquals(0x42, c.getA() & 0xFF, "A should be $42 after LDA #$42");
-                throw new CallbackStop();
+                return false;
             }
+            return false;
         });
+        assertEquals(2, step[0], "predicate should have run exactly twice");
     }
 }

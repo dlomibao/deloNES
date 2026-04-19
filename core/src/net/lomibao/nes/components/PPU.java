@@ -40,8 +40,15 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     private boolean frameComplete = false;  // Set when frame finishes, cleared when checked
     private boolean oddFrame = false;       // Tracks odd/even frames
     
-    // CPU reference for NMI signaling
+    // CPU reference — retained for backward compatibility with tests that
+    // wire a CPU directly to the PPU. Production code uses the latch-and-poll
+    // protocol (see {@link #consumeNmi()}) and never calls setCPU.
     private CPU6502 cpu;
+
+    // NMI latch — set on VBlank entry when PPUCTRL bit 7 is 1, cleared by
+    // {@link #consumeNmi()}. Hosts (e.g. NesSystem) poll this after each tick
+    // and forward to the CPU on the false→true transition.
+    private boolean nmiPending = false;
     
     // Background rendering shift registers (16 bits each)
     private int bgShiftPatternLow = 0;   // Low bit plane pattern shifter
@@ -223,10 +230,11 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         // Set VBlank flag at scanline 241, cycle 1
         if (scanline == 241 && cycle == 1) {
             registers[2] |= 0x80;  // Set bit 7 of PPUSTATUS (VBlank flag)
-            
-            // Trigger NMI if enabled in PPUCTRL bit 7
-            if (isNMIEnabled() && cpu != null) {
-                cpu.nmi();
+
+            // Latch NMI for the host to consume. Production code (NesSystem)
+            // polls {@link #consumeNmi()} once per tick and forwards to CPU.
+            if (isNMIEnabled()) {
+                nmiPending = true;
             }
         }
         
@@ -380,6 +388,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         cycle = 0;
         frameComplete = false;
         oddFrame = false;
+        nmiPending = false;
         clearScreen();
     }
 
@@ -522,11 +531,41 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
     
     /**
-     * Sets the CPU reference for NMI signaling
+     * Sets the CPU reference. <strong>Deprecated</strong> — production code
+     * uses the latch-and-poll protocol via {@link #consumeNmi()}. This setter
+     * is retained only for older tests that constructed a {@code MockCPU}
+     * directly and inspected its {@code nmi()} call count. The PPU itself
+     * no longer pokes {@code cpu.nmi()} — callers should drive the system
+     * through {@link net.lomibao.nes.NesSystem} which polls the latch.
+     *
      * @param cpu the CPU instance
      */
+    @Deprecated
     public void setCPU(CPU6502 cpu) {
         this.cpu = cpu;
+    }
+
+    /**
+     * Non-destructive read of the NMI latch.
+     * @return true if the PPU latched an NMI that hasn't been consumed yet
+     */
+    public boolean peekNmi() {
+        return nmiPending;
+    }
+
+    /**
+     * Read AND clear the NMI latch. Returns true exactly once per VBlank
+     * entry (when PPUCTRL bit 7 is set); subsequent calls return false until
+     * the next rising edge. The host (typically {@code NesSystem}) calls
+     * this once per master tick and, on a true return, forwards an NMI to
+     * the CPU.
+     *
+     * @return true if an NMI was pending (and clears the latch); false otherwise
+     */
+    public boolean consumeNmi() {
+        boolean fire = nmiPending;
+        nmiPending = false;
+        return fire;
     }
     
     // Scanline type helper methods
