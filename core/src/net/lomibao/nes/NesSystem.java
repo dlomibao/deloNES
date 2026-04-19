@@ -12,6 +12,8 @@ import net.lomibao.nes.components.FullAddressRam;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.Ram;
 
+import java.util.Objects;
+
 /**
  * System orchestrator that sits above {@link CPUBus} and exposes a single
  * {@code tick()} / {@code runFrame()} entry point for hosts (LibGDX render
@@ -44,8 +46,12 @@ public class NesSystem {
                       Cartridge cartridge,
                       Controller controller,
                       FullAddressRam testRam) {
-        this.cpu = cpu;
-        this.ppu = ppu;
+        // Required components — fail fast at construction so callers don't
+        // get a NullPointerException deep inside CPUBus.clock() on first tick.
+        this.cpu = Objects.requireNonNull(cpu, "cpu is required");
+        this.ppu = Objects.requireNonNull(ppu, "ppu is required");
+        Objects.requireNonNull(ram, "ram is required (CPU bus needs $0000-$1FFF backing)");
+        // apu, cartridge, controller, testRam remain optional.
         this.cpuBus = CPUBus.builder()
                 .cpu(cpu)
                 .ram(ram)
@@ -72,19 +78,23 @@ public class NesSystem {
      * (clear) the flag and return. After this call, {@code ppu.isFrameComplete()}
      * is false and the PPU is positioned at the start of the next frame.
      *
-     * <p>A safety cap of 3× the nominal frame length (341*262*3 = 268,026
-     * ticks) prevents an infinite loop if rendering state is wedged. If the
-     * cap trips, this method logs an error and returns.
+     * <p>A safety cap of 3× the nominal frame length (341 × 262 × 3 = 268,026
+     * ticks) prevents an infinite loop if PPU state is wedged. If the cap
+     * trips, this method throws {@link IllegalStateException} so a hung PPU
+     * surfaces as a loud test failure rather than a silent timeout.
+     *
+     * @throws IllegalStateException if the PPU does not signal frame complete
+     *         within the safety window
      */
     public void runFrame() {
         long maxTicks = 341L * 262L * 3L; // 3× safety margin
-        long start = cpuBus.getMasterClockCount();
+        long deadline = cpuBus.getMasterClockCount() + maxTicks;
         while (!ppu.isFrameComplete()) {
             tick();
-            if (cpuBus.getMasterClockCount() - start > maxTicks) {
-                log.error("runFrame() safety cap tripped after {} ticks without frame-complete",
-                        cpuBus.getMasterClockCount() - start);
-                return;
+            if (cpuBus.getMasterClockCount() >= deadline) {
+                throw new IllegalStateException(
+                        "PPU did not signal frame complete within " + maxTicks +
+                        " master ticks — rendering state may be wedged");
             }
         }
         // Consume the flag so a subsequent call has a fresh frame to wait on.
