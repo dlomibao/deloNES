@@ -8,6 +8,7 @@ import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.CPUBus;
 import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.Controller;
+import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.FullAddressRam;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.Ram;
@@ -53,13 +54,14 @@ public class NesSystem {
                       APU apu,
                       Cartridge cartridge,
                       Controller controller,
+                      DmaController dma,
                       FullAddressRam testRam) {
         // Required components — fail fast at construction so callers don't
         // get a NullPointerException deep inside CPUBus.clock() on first tick.
         this.cpu = Objects.requireNonNull(cpu, "cpu is required");
         this.ppu = Objects.requireNonNull(ppu, "ppu is required");
         Objects.requireNonNull(ram, "ram is required (CPU bus needs $0000-$1FFF backing)");
-        // apu, cartridge, controller, testRam remain optional.
+        // apu, cartridge, controller, dma, testRam remain optional.
         this.cpuBus = CPUBus.builder()
                 .cpu(cpu)
                 .ram(ram)
@@ -67,6 +69,7 @@ public class NesSystem {
                 .apu(apu)
                 .cartridge(cartridge)
                 .controller(controller)
+                .dma(dma)
                 .testRam(testRam)
                 .build()
                 .connect();
