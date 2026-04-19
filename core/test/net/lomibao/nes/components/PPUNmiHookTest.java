@@ -83,16 +83,29 @@ class PPUNmiHookTest {
     }
 
     @Test
-    void ppu_doesNotCallCpuNmi_directly() {
-        // Sanity check that the production PPU path no longer pokes the CPU
-        // directly: even when a CPU reference is wired (legacy test pattern),
-        // we rely on the latch-and-poll protocol exclusively.
+    void reset_clearsNmiLatch() {
+        // Arrange: drive PPU to VBlank entry with NMI enabled, latch should be set.
         ppu = new PPU();
-        // We do NOT call ppu.setCPU(...) here intentionally — production
-        // (NesSystem-driven) PPU has no CPU reference and must still latch.
+        writePpuCtrl((byte) 0x80);
+        runUntilEnteringVBlank();
+        assertTrue(ppu.peekNmi(), "precondition: latch should be set before reset");
+
+        // Act
+        ppu.reset();
+
+        // Assert: stale latch must not bleed into the next run.
+        assertFalse(ppu.peekNmi(), "reset() must clear the NMI latch");
+        assertFalse(ppu.consumeNmi(), "consumeNmi after reset should return false");
+    }
+
+    @Test
+    void ppu_latches_withNoCpuReference() {
+        // Production PPU has no CPU reference at all (post-Step-2 cleanup);
+        // the latch-and-poll protocol stands on its own.
+        ppu = new PPU();
         writePpuCtrl((byte) 0x80);
         runUntilEnteringVBlank();
         assertTrue(ppu.consumeNmi(),
-                "PPU must latch NMI even when no CPU reference is set");
+                "PPU must latch NMI without any CPU collaborator");
     }
 }

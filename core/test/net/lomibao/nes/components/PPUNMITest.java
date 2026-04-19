@@ -14,10 +14,9 @@ class PPUNMITest {
     private PPU ppu;
     /**
      * Per-test counter incremented every time we observe a true return from
-     * {@link PPU#consumeNmi()}. Replaces the legacy {@code MockCPU.getNMICount()}
-     * pattern: production NMI dispatch goes through the PPU latch (Step 2 of
-     * the playable-gen1 plan), so we observe NMI by polling the latch in the
-     * tick loop rather than mocking out {@code CPU6502.nmi()}.
+     * {@link PPU#consumeNmi()}. Production NMI dispatch goes through the PPU
+     * latch (Step 2 of the playable-gen1 plan), so we observe NMI by polling
+     * the latch in the tick loop rather than mocking out {@code CPU6502.nmi()}.
      */
     private int nmiCount;
 
@@ -176,8 +175,10 @@ class PPUNMITest {
 
     @Test
     void testNMIWithoutCPUDoesNotCrash() {
-        // Sanity check that PPU doesn't NPE when no CPU reference is set —
-        // production wiring (NesSystem) never calls setCPU on PPU.
+        // Sanity check: PPU has no CPU reference at all post-Step-2 — the
+        // latch-and-poll API stands on its own. This test is preserved
+        // for the test-name continuity but the failure mode it once guarded
+        // (NPE in PPU.clock when cpu==null) is now structurally impossible.
         PPU ppuNoCPU = new PPU();
 
         // Enable NMI

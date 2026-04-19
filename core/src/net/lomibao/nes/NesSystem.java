@@ -89,7 +89,14 @@ public class NesSystem {
             cpu.nmi();
             Consumer<NesSystem> listener = frameRenderedListener;
             if (listener != null) {
-                listener.accept(this);
+                // Listener exceptions must NOT crash the emulator. A buggy
+                // screenshot-save IOException or a nullable upstream state
+                // bug should land in the log, not stop the master clock.
+                try {
+                    listener.accept(this);
+                } catch (RuntimeException e) {
+                    log.error("frameRenderedListener threw — emulator continues", e);
+                }
             }
         }
     }
