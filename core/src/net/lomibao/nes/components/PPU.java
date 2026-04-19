@@ -535,6 +535,31 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
+     * Write a byte directly into OAM at the given index. Used by
+     * {@link DmaController} to land bytes during an OAM DMA burst —
+     * production code should NOT poke OAM through this API outside of DMA;
+     * use {@code $2003}/{@code $2004} (OAMADDR/OAMDATA) for CPU-driven OAM
+     * updates.
+     *
+     * @param index 0..255 (OAM is 256 bytes); high bits are masked off
+     * @param value the byte to store
+     */
+    public void writeOam(int index, byte value) {
+        oam[index & 0xFF] = value;
+    }
+
+    /**
+     * Read a byte from OAM at the given index. Primarily for tests and
+     * debug tooling; CPU code accesses OAM via {@code $2004} (OAMDATA).
+     *
+     * @param index 0..255 (OAM is 256 bytes); high bits are masked off
+     * @return the byte at that OAM index
+     */
+    public byte readOam(int index) {
+        return oam[index & 0xFF];
+    }
+
+    /**
      * Read AND clear the NMI latch. Returns true exactly once per VBlank
      * entry (when PPUCTRL bit 7 is set); subsequent calls return false until
      * the next rising edge. The host (typically {@code NesSystem}) calls
