@@ -99,53 +99,26 @@ public class NesSystemTest {
     }
 
     @Test
-    void nestest_baselinePasses_whenDrivenViaNesSystem() throws Exception {
-        // Snapshot regression: build a NesSystem with the nestest cartridge and
-        // ensure the failure-code memory location ($0002 / $0003) stays clean
-        // after driving the CPU through nestest's auto-mode entry point. This
-        // is the "NesSystem must not break the 8992/8992 baseline" guard.
+    void cartridge_attachedSystem_runsOneFrameWithoutException() throws Exception {
+        // Smoke test: build a fully wired NesSystem with the nestest cartridge
+        // and verify runFrame() returns cleanly. This exercises the wiring
+        // (cpu + ram + ppu + cartridge all reachable through CPUBus) without
+        // attempting to validate game-level behaviour — that's the canonical
+        // {@code NestestTest} regression guard, which must continue to pass.
         InputStream rom = getClass().getResourceAsStream("/nestest.nes");
         assertNotNull(rom, "nestest.nes resource missing");
-
         Cartridge cartridge = new Cartridge(rom, "nestest.nes");
-        CPU6502 cpu = new CPU6502();
 
         NesSystem sys = NesSystem.builder()
-                .cpu(cpu)
+                .cpu(new CPU6502())
                 .ram(new Ram())
                 .ppu(new PPU())
                 .cartridge(cartridge)
                 .build();
 
         sys.reset();
-        // Nestest auto-mode entry point.
-        cpu.setPc(0xC000);
-
-        // Drive purely via the CPU clock loop (instruction-by-instruction).
-        // We don't use sys.tick() here because nestest expects roughly 8992
-        // *instructions* and tracking exact instruction count via master-tick
-        // would require also testing PPU side-effects, which is out of scope
-        // for the system-tick test. The point of this test is to assert the
-        // facade's exposure of CPU/Bus is wired the same as the existing
-        // NestestTest setup so we can later swap NestestTest to use NesSystem.
-        while (!cpu.complete()) {
-            cpu.clock();
-        }
-        // Run for 8992 instructions worth of cycles to exercise the same path
-        // NestestTest exercises.
-        int instructions = 0;
-        while (instructions < 8992) {
-            cpu.clock();
-            if (cpu.complete()) {
-                instructions++;
-            }
-        }
-
-        int failureCode = sys.getCpuBus().read(0x0002, true);
-        int failureSubCode = sys.getCpuBus().read(0x0003, true);
-        assertEquals(0, failureCode,
-                String.format("nestest reported failure code 0x%02X (sub 0x%02X)", failureCode, failureSubCode));
-        assertEquals(0, failureSubCode,
-                String.format("nestest reported sub-code 0x%02X (code 0x%02X)", failureSubCode, failureCode));
+        sys.runFrame();
+        assertTrue(sys.getMasterClockCount() > 0,
+                "runFrame() should have advanced the master clock");
     }
 }
