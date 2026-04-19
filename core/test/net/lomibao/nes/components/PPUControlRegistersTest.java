@@ -255,26 +255,6 @@ class PPUControlRegistersTest {
     }
     
     /**
-     * Mock CPU for testing NMI
-     */
-    private static class MockCPU extends CPU6502 {
-        private boolean nmiCalled = false;
-        
-        @Override
-        public void nmi() {
-            nmiCalled = true;
-        }
-        
-        public boolean wasNMICalled() {
-            return nmiCalled;
-        }
-        
-        public void reset() {
-            nmiCalled = false;
-        }
-    }
-    
-    /**
      * Mock PPU bus component for testing
      */
     private static class MockPPUBus implements PPUBusComponent {
