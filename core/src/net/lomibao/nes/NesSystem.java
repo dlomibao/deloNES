@@ -13,6 +13,7 @@ import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.Ram;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * System orchestrator that sits above {@link CPUBus} and exposes a single
@@ -37,6 +38,13 @@ public class NesSystem {
     private final CPU6502 cpu;
     private final PPU ppu;
     private final CPUBus cpuBus;
+
+    /**
+     * Optional listener invoked once per VBlank rising edge — i.e., once
+     * per rendered frame. Hosts use this to upload the PPU framebuffer to
+     * the screen, poll input, advance audio, etc. Null by default.
+     */
+    private Consumer<NesSystem> frameRenderedListener;
 
     @Builder
     private NesSystem(CPU6502 cpu,
@@ -68,9 +76,30 @@ public class NesSystem {
      * Advance the system by exactly one master tick. Delegates to
      * {@link CPUBus#clock()} which advances the PPU every call and the CPU
      * every third call (the NES PPU runs at 3× CPU speed).
+     *
+     * <p>After the bus tick, polls the PPU's NMI latch
+     * ({@link PPU#consumeNmi()}). On a rising edge this method
+     * (a) invokes {@link CPU6502#nmi()} on the CPU, and
+     * (b) fires the {@link #frameRenderedListener} if registered.
+     * The listener fires exactly once per VBlank entry — never per tick.
      */
     public void tick() {
         cpuBus.clock();
+        if (ppu.consumeNmi()) {
+            cpu.nmi();
+            Consumer<NesSystem> listener = frameRenderedListener;
+            if (listener != null) {
+                listener.accept(this);
+            }
+        }
+    }
+
+    /**
+     * Register (or unregister with {@code null}) a listener fired on every
+     * VBlank rising edge. Replaces any previously-registered listener.
+     */
+    public void setFrameRenderedListener(Consumer<NesSystem> listener) {
+        this.frameRenderedListener = listener;
     }
 
     /**
