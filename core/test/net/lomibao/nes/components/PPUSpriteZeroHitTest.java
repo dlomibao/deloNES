@@ -128,13 +128,14 @@ class PPUSpriteZeroHitTest {
     }
 
     @Test
-    void bit6_notSet_aboveSprite0Y() {
+    void bit6_notSet_whenWalkedOnlyToScanlineAboveSprite0() {
         putSprite0(49, 100); // sprite occupies scanlines 50..57
         enableBothLayers();
-        // Stop at scanline 49, cycle 200 — above the sprite
+        // Stop at scanline 49, cycle 200 — above the sprite. We never
+        // walk through scanlines 50+ so the predicate is never satisfied.
         tickTo(49, 200);
         assertFalse(spriteZeroHit(),
-                "bit 6 must not be set on a scanline above sprite 0");
+                "bit 6 must not be set when we've walked only to a scanline above sprite 0");
     }
 
     @Test
@@ -171,6 +172,19 @@ class PPUSpriteZeroHitTest {
         tickTo(57, 100);
         assertTrue(spriteZeroHit(),
                 "bit 6 should set on the bottom scanline of sprite 0");
+    }
+
+    @Test
+    void bit6_setOnLastScanlineOfSprite0_in8x16Mode() {
+        // PPUCTRL bit 5 = 1 → 8x16 sprites. Y=49 → scanlines 50..65.
+        ppu.cpuBusWrite(0x2000, (byte) 0x20);
+        putSprite0(49, 50);
+        enableBothLayers();
+        // Walk to scanline 65 (last row of an 8x16 sprite that an 8x8
+        // sprite would no longer cover). Cycle 100 is in the X range.
+        tickTo(65, 100);
+        assertTrue(spriteZeroHit(),
+                "bit 6 should set on scanline 65 in 8x16 mode (would be past end if 8x8)");
     }
 
     // ---- clear at pre-render ----
