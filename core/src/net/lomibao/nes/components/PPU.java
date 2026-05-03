@@ -253,9 +253,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             frameComplete = false;
             // Reset bg-pattern shadow for the next frame so stale values
             // don't bleed into the next frame's sprite-priority decisions.
-            for (int y = 0; y < VISIBLE_HEIGHT; y++) {
-                java.util.Arrays.fill(bgPatternPixel[y], 0);
-            }
+            clearBgPatternShadow();
         }
         
         // Perform background tile fetching on visible and pre-render scanlines
@@ -402,10 +400,19 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         frameComplete = false;
         oddFrame = false;
         nmiPending = false;
+        clearBgPatternShadow();
+        clearScreen();
+    }
+
+    /**
+     * Zero the bg-pattern shadow that the sprite renderer reads for
+     * priority decisions. Called from {@link #reset()} and from the
+     * pre-render scanline at the end of every frame.
+     */
+    private void clearBgPatternShadow() {
         for (int y = 0; y < VISIBLE_HEIGHT; y++) {
             java.util.Arrays.fill(bgPatternPixel[y], 0);
         }
-        clearScreen();
     }
 
     /**
@@ -616,13 +623,15 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     /**
      * Test-only: directly set the bg-pattern shadow value. Lets the sprite
      * priority tests fake an opaque/transparent background pixel without
-     * driving the full background pipeline.
+     * driving the full background pipeline. Package-private intentionally —
+     * this is not a production API; the bg pipeline is the only legitimate
+     * writer outside of {@link #reset()}.
      *
      * @param y row 0..{@link #VISIBLE_HEIGHT}-1
      * @param x column 0..{@link #VISIBLE_WIDTH}-1
      * @param value 0 (transparent) .. 3
      */
-    public void setBgPatternPixelForTest(int y, int x, int value) {
+    void setBgPatternPixelForTest(int y, int x, int value) {
         bgPatternPixel[y][x] = value & 0x03;
     }
 

@@ -321,6 +321,63 @@ class SpriteRendererTest {
     }
 
     @Test
+    void reset_clearsBgPatternShadow() {
+        // Pre-populate shadow as if a previous frame left opaque pixels.
+        for (int y = 0; y < PPU.VISIBLE_HEIGHT; y++) {
+            for (int x = 0; x < PPU.VISIBLE_WIDTH; x++) {
+                ppu.setBgPatternPixelForTest(y, x, 2);
+            }
+        }
+        // Sanity precondition
+        assertEquals(2, ppu.getBgPatternPixel(50, 50), "precondition: shadow populated");
+
+        ppu.reset();
+        // Every cell must be back to 0 (transparent).
+        for (int y = 0; y < PPU.VISIBLE_HEIGHT; y++) {
+            for (int x = 0; x < PPU.VISIBLE_WIDTH; x++) {
+                assertEquals(0, ppu.getBgPatternPixel(y, x),
+                        "bgPatternPixel[" + y + "][" + x + "] should be cleared by reset()");
+            }
+        }
+    }
+
+    @Test
+    void allSpritesOffScreen_yEquals240OrAbove_renderIsNoOp() {
+        clearOam(); // sets all 64 sprite Y to 0xFF (= 256, off-screen)
+        enableSprites();
+        putTile(0x0000, 11, solidLowPlane(), zeroPlane());
+        writePalette(0x11, 0x16);
+
+        // Snapshot the screen BEFORE render
+        int[][] before = new int[PPU.VISIBLE_HEIGHT][PPU.VISIBLE_WIDTH];
+        for (int y = 0; y < PPU.VISIBLE_HEIGHT; y++) {
+            System.arraycopy(ppu.getScreen()[y], 0, before[y], 0, PPU.VISIBLE_WIDTH);
+        }
+
+        SpriteRenderer.render(ppu);
+
+        // Every pixel unchanged
+        for (int y = 0; y < PPU.VISIBLE_HEIGHT; y++) {
+            for (int x = 0; x < PPU.VISIBLE_WIDTH; x++) {
+                assertEquals(before[y][x], ppu.getScreen()[y][x],
+                        "off-screen sprite should not touch pixel (" + x + ", " + y + ")");
+            }
+        }
+    }
+
+    @Test
+    void renderer_doesNotCrash_whenPpuBusIsNull() {
+        // Construct a PPU with NO ppu bus wired and ensure SpriteRenderer
+        // degrades gracefully (logs once, no NPE). This is the production-
+        // wiring-error path we don't want to crash the master clock on.
+        PPU bareppu = new PPU();
+        // Enable sprites so the renderer doesn't bail at the bit-4 gate
+        bareppu.cpuBusWrite(0x2001, (byte) 0x10);
+        assertDoesNotThrow(() -> SpriteRenderer.render(bareppu),
+                "renderer with null ppuBus should warn and return, not NPE");
+    }
+
+    @Test
     void eightBySixteenMode_picksPatternTableFromTileIdBit0() {
         clearOam();
         enableSprites();

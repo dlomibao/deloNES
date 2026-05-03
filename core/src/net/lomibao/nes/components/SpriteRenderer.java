@@ -1,5 +1,9 @@
 package net.lomibao.nes.components;
 
+import lombok.extern.log4j.Log4j2;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * MVP sprite renderer (Step 5 of the playable-gen1 plan).
  *
@@ -36,7 +40,15 @@ package net.lomibao.nes.components;
  *   <li>No grayscale/emphasis bits applied to sprites.</li>
  * </ul>
  */
+@Log4j2
 final class SpriteRenderer {
+
+    /**
+     * Guards the "no PPU bus wired" warning so we log once per JVM
+     * lifetime instead of 60 times per second when sprites are enabled
+     * but CHR isn't reachable.
+     */
+    private static final AtomicBoolean NO_BUS_WARNED = new AtomicBoolean(false);
 
     private SpriteRenderer() {}
 
@@ -59,7 +71,16 @@ final class SpriteRenderer {
         int defaultPatternBase = ppu.getSpritePatternTableAddress();
         boolean showLeft8 = ppu.isShowSpritesLeft();
         PPUBus bus = ppu.ppuBus();
-        if (bus == null) return; // no CHR available; nothing to draw
+        if (bus == null) {
+            // PPU has no PPUBus wired — typically a wiring bug rather than a
+            // legitimate state. Log once so the missing connection surfaces
+            // in CI/dev logs without spamming 60 lines/second.
+            if (NO_BUS_WARNED.compareAndSet(false, true)) {
+                log.warn("SpriteRenderer: PPU has no PPUBus wired; sprites will not render. " +
+                        "Did you forget to call PPU.connectPPUBus(...)?");
+            }
+            return;
+        }
 
         // Reverse iteration so lower OAM index wins z-order.
         for (int spriteIdx = 63; spriteIdx >= 0; spriteIdx--) {
