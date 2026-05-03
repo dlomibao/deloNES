@@ -138,13 +138,19 @@ class PPUSpriteZeroHitTest {
     }
 
     @Test
-    void bit6_notSet_belowSprite0YPlusHeight() {
-        // Sprite Y=49, 8x8 → bottom = scanline 57. Scanline 58 is past it.
-        putSprite0(49, 100);
+    void bit6_notSet_whenSpriteYIsBelowVisibleArea() {
+        // OAM Y >= 239 puts sprite top at scanline 240+, which is post-render
+        // and never visible. Walk through the entire visible frame; the
+        // predicate should never fire.
+        // (Note: we can't test "scanline > spriteBottom" directly without
+        // first WALKING through the in-range scanlines, where the bit
+        // would correctly fire and stay set — that's covered by the
+        // persistence test instead.)
+        putSprite0(239, 100); // top scanline = 240 (off-screen)
         enableBothLayers();
-        tickTo(58, 200);
+        tickTo(239, 256); // last visible cell
         assertFalse(spriteZeroHit(),
-                "bit 6 must not be set on a scanline below sprite 0");
+                "off-screen sprite Y must not trigger sprite-0 hit anywhere in the visible frame");
     }
 
     @Test

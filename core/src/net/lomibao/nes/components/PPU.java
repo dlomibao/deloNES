@@ -256,6 +256,17 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             clearBgPatternShadow();
         }
         
+        // Coarse sprite-0 hit (Step 6): set PPUSTATUS bit 6 when (scanline,
+        // cycle) falls inside sprite 0's bounding box AND both bg + sprites
+        // are enabled. This is the bugzmanov ch. 7 approximation — pixel
+        // opacity is not checked. Good enough for SMB / Ice Climber /
+        // Excitebike status-bar splits; nesdev sprite-hit test ROMs need
+        // the exact opaque-pixel test (future work).
+        if (isVisibleScanline() && cycle >= 1 && cycle <= 256
+                && isShowBackground() && isShowSprites()) {
+            checkSpriteZeroHitCoarse();
+        }
+
         // Perform background tile fetching on visible and pre-render scanlines
         if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
             // Shift registers every cycle (except cycle 0 idle cycle)
@@ -402,6 +413,40 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         nmiPending = false;
         clearBgPatternShadow();
         clearScreen();
+    }
+
+    /**
+     * Coarse sprite-0 hit detection (Step 6 of the playable-gen1 plan).
+     * Sets PPUSTATUS bit 6 when sprite 0's bounding box overlaps the
+     * current (scanline, cycle). Per bugzmanov ch. 7 this is intentionally
+     * loose — no pixel-opacity test, no per-pixel walk. Most games that
+     * poll bit 6 (SMB, Ice Climber, Excitebike) only need to know "the
+     * raster has reached the status-bar split line" and the coarse box
+     * test is sufficient.
+     *
+     * <p>Caller is responsible for the gating checks (visible scanline,
+     * cycle 1..256, both bg and sprites enabled) before invoking this.
+     *
+     * <p>Bit 6 is cleared at the pre-render scanline (261, cycle 1) by
+     * the existing reset path.
+     */
+    private void checkSpriteZeroHitCoarse() {
+        // Already set this frame? Nothing more to do.
+        if ((registers[2] & 0x40) != 0) return;
+
+        int oamY = Byte.toUnsignedInt(oam[0]);
+        int oamX = Byte.toUnsignedInt(oam[3]);
+        int spriteTop = oamY + 1;                                  // OAM Y is "top - 1"
+        int spriteHeight = getSpriteSize();                        // 8 or 16 from PPUCTRL bit 5
+        int spriteBottom = spriteTop + spriteHeight;               // exclusive
+
+        // We're in the visible window (cycle 1..256, scanline 0..239).
+        // The sprite's screen X covers [oamX, oamX+8); cycle 1 maps to x=0.
+        int x = cycle - 1;
+        if (scanline >= spriteTop && scanline < spriteBottom
+                && x >= oamX && x < oamX + 8) {
+            registers[2] |= 0x40; // set PPUSTATUS bit 6 (sprite-0 hit)
+        }
     }
 
     /**
