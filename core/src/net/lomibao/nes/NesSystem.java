@@ -36,9 +36,31 @@ import java.util.function.Consumer;
 @Log4j2
 @Getter
 public class NesSystem {
+    /**
+     * NTSC frame period in seconds. The real NES runs at
+     * 1.7897725 MHz / 29780.5 cycles per frame ≈ 60.0988 Hz, giving
+     * ~16.6389 ms per frame. {@link #advance(double)} uses this to
+     * convert real elapsed time into integer frames.
+     */
+    public static final double NTSC_FRAME_SECONDS = 1.0 / 60.0988;
+
+    /**
+     * Cap on how many frames a single {@link #advance(double)} call
+     * will run, even if {@code deltaSeconds} is huge. Prevents the
+     * "spiral of death" where a slow render frame produces a large
+     * delta, which produces a longer catch-up frame, which produces an
+     * even larger delta. 2 is enough for occasional double-frame
+     * catchup (a missed vsync) without giving the game a permanent
+     * head start.
+     */
+    public static final int MAX_FRAMES_PER_ADVANCE = 2;
+
     private final CPU6502 cpu;
     private final PPU ppu;
     private final CPUBus cpuBus;
+
+    /** Accumulated real-time seconds awaiting conversion into frames. */
+    private double frameAccumulatorSeconds = 0.0;
 
     /**
      * Optional listener invoked once per VBlank rising edge — i.e., once
@@ -141,11 +163,47 @@ public class NesSystem {
     }
 
     /**
+     * Time-driven frame pacing entry point — call from a host loop
+     * (LibGDX {@code render()}, headless replay, etc.) once per host
+     * tick with the real elapsed seconds since the last call. Runs as
+     * many full frames as the accumulated time covers, capped at
+     * {@link #MAX_FRAMES_PER_ADVANCE}, and carries fractional
+     * accumulation across calls so the long-run rate matches NTSC.
+     *
+     * <p>If the host stalls (e.g. GC pause produces a 500 ms delta),
+     * the cap drops the excess accumulation rather than running 30
+     * catch-up frames in one tick — the game effectively skips those
+     * lost frames instead of slowing down the host trying to catch up.
+     *
+     * @param deltaSeconds real time elapsed since the last call
+     * @return number of frames actually run on this call (0..{@link #MAX_FRAMES_PER_ADVANCE})
+     */
+    public int advance(double deltaSeconds) {
+        if (deltaSeconds < 0) deltaSeconds = 0;
+        frameAccumulatorSeconds += deltaSeconds;
+        int framesRun = 0;
+        while (frameAccumulatorSeconds >= NTSC_FRAME_SECONDS && framesRun < MAX_FRAMES_PER_ADVANCE) {
+            runFrame();
+            frameAccumulatorSeconds -= NTSC_FRAME_SECONDS;
+            framesRun++;
+        }
+        // If we're still over the cap's worth of time, drop the excess
+        // to prevent runaway accumulation. Keep up to one frame's worth
+        // for normal carry-over.
+        if (frameAccumulatorSeconds > NTSC_FRAME_SECONDS) {
+            frameAccumulatorSeconds = 0.0;
+        }
+        return framesRun;
+    }
+
+    /**
      * Reset the system to power-on state. Resets the CPU and zeroes the
-     * master-clock count via {@link CPUBus#reset()}.
+     * master-clock count via {@link CPUBus#reset()}. Also clears any
+     * accumulated frame-pacing time from {@link #advance(double)}.
      */
     public void reset() {
         cpuBus.reset();
+        frameAccumulatorSeconds = 0.0;
     }
 
     /**

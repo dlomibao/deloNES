@@ -86,9 +86,11 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
                 .build()
                 .connect();
         
-        // Connect CPU to PPU for NMI
-        ppu.setCPU(cpu);
-        
+        // NMI is now polled via ppu.consumeNmi() — see NesSystem.tick.
+        // (NestestBackgroundRenderer drives the bus directly; that path
+        // doesn't propagate NMI but nestest is a CPU-only test ROM that
+        // never enables NMI anyway, so it doesn't matter here.)
+
         System.out.println("NES components connected");
     }
     

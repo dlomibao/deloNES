@@ -68,6 +68,30 @@ tasks.register('runNestest', JavaExec) {
     }
 }
 
+// Step 8: launch an arbitrary NES ROM via RomLauncher.
+//   ./gradlew desktop:runRom -Prom=path/to/file.nes
+// Falls back to nestest.nes if -Prom isn't supplied.
+tasks.register('runRom', JavaExec) {
+    group = 'emulator'
+    description = 'Runs an arbitrary NES ROM via RomLauncher (use -Prom=path)'
+
+    dependsOn classes
+    mainClass = 'net.lomibao.nes.desktop.RomLauncher'
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+    workingDir = project.assetsDir
+    ignoreExitValue = true
+    jvmArgs = ['-Xmx1024m']
+
+    if (OperatingSystem.current() == OperatingSystem.MAC_OS) {
+        jvmArgs += "-XstartOnFirstThread"
+    }
+
+    if (project.hasProperty('rom')) {
+        args = [project.property('rom')]
+    }
+}
+
 tasks.register('dist', Jar) {
     duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
     manifest {

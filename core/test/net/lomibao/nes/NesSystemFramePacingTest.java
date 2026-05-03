@@ -90,16 +90,29 @@ class NesSystemFramePacingTest {
     }
 
     @Test
-    void advance_overManyCalls_runsFrameRateMatchingNtsc() {
-        // Simulate 60 ms intervals (~3.6 frames each) for 10 calls = 600 ms total.
-        // Expected frames: 600 ms / 16.6389 ms ≈ 36 frames.
+    void advance_overManyCalls_atRealisticHostRate_matchesNtscFrameCount() {
+        // Realistic host: render() called every NTSC_FRAME_SECONDS (matched
+        // vsync). 60 calls of one-frame-each delta should produce 60 frames.
+        // (Our 2-frame cap is for occasional catchup, not the normal path.)
         int totalFrames = 0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 60; i++) {
+            totalFrames += sys.advance(NesSystem.NTSC_FRAME_SECONDS);
+        }
+        assertTrue(totalFrames >= 58 && totalFrames <= 60,
+                "60 × frame-period delta ≈ 60 frames; got " + totalFrames);
+    }
+
+    @Test
+    void advance_atSlowHostRate_capsThroughputAtMaxFramesPerAdvance() {
+        // Slow host: 60 ms intervals (~3.6 frames each). Cap at MAX
+        // means at most MAX frames per call. The emulator effectively
+        // runs slower than real-time but doesn't race ahead.
+        int totalFrames = 0;
+        for (int i = 0; i < 5; i++) {
             totalFrames += sys.advance(0.06);
         }
-        // Allow ±2 slack for floating-point + cap interactions.
-        assertTrue(totalFrames >= 34 && totalFrames <= 38,
-                "10 × 60ms ≈ 36 frames; got " + totalFrames);
+        assertEquals(NesSystem.MAX_FRAMES_PER_ADVANCE * 5, totalFrames,
+                "slow-host delta should run exactly MAX*calls frames");
     }
 
     @Test

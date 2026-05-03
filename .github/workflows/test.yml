@@ -42,6 +42,12 @@ jobs:
         # the suite-summary line is visible in the Actions log.
         run: ./gradlew core:test --no-daemon
 
+      - name: Compile desktop module
+        # Catches API breakage in the LibGDX launchers (e.g. dangling
+        # references after a core refactor). desktop has no test suite so
+        # we just verify the Java compiles against the current core API.
+        run: ./gradlew desktop:compileJava --no-daemon
+
       - name: Upload test report on failure
         # Makes it easy to download the HTML report instead of scrolling logs.
         if: failure()
