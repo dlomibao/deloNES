@@ -65,15 +65,18 @@ class PPUScrolledFetchTest {
 
     // ---- baseline: no scroll ----
 
+    /**
+     * Fetch happens at cycleMod 1 (cycle 2, 10, 18, ...) for the
+     * 8-cycle pattern. cycleMod 0 (cycle 1, 9, 17, ...) is the shifter
+     * load. So for tile column N, observe at cycle = N*8 + 2.
+     */
+    private int firstTileFetchCycle() { return 2; }
+    private int tileColFetchCycle(int tileCol) { return tileCol * 8 + 2; }
+
     @Test
     void scrollZero_baseNt0_fetchesNt0Row0Col0_atFirstFetch() {
         writeMarker(0, 0, 0);
-        // First nametable byte is fetched at cycle 1 case 0 → cycle 1 % 8 == 1...
-        // Looking at PPU.clock: case 0 fires at cycleMod==0, which is when (cycle-1)%8==0
-        // → cycles 1, 9, 17, ... For the FIRST fetch, the tile coordinate is
-        // (scanline 0, cycle 1) → tileX=0, tileY=0.
-        // After case 0 runs, bgNextTileId holds the byte at NT0[0][0] = (0<<6)|(0<<3)|0 = 0.
-        int tileId = fetchTileIdAt(0, 1);
+        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
         assertEquals(0, decodeNt(tileId));
         assertEquals(0, decodeRow(tileId));
         assertEquals(0, decodeCol(tileId));
@@ -83,30 +86,26 @@ class PPUScrolledFetchTest {
 
     @Test
     void scrollX8_shiftsFetchByOneTileColumn_intoSameNt() {
-        // Set scroll: write 8 to PPUSCROLL (first), then 0 (second).
         ppu.cpuBusWrite(0x2005, (byte) 8);
         ppu.cpuBusWrite(0x2005, (byte) 0);
         // Marker at NT0 row 0 col 1 — should be the first tile fetched
         // when scrollX=8 (8 px = 1 tile shift).
         writeMarker(0, 0, 1);
-        int tileId = fetchTileIdAt(0, 1);
+        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
         assertEquals(0, decodeNt(tileId), "still in NT 0 (no wrap yet)");
         assertEquals(0, decodeRow(tileId));
         assertEquals(1, decodeCol(tileId), "scrollX=8 → first fetch should be col 1");
     }
 
-    // ---- horizontal cross-NT wrap ----
+    // ---- horizontal cross-NT wrap (PPUCTRL base NT) ----
 
     @Test
-    void scrollX256_wrapsToOtherNt_horizontal() {
-        // scrollX = 256 → 32 tiles → wraps fully to the OTHER NT (NT1).
-        ppu.cpuBusWrite(0x2005, (byte) 0); // first byte (low 5 bits used; 256 & 0xFF = 0)
-        ppu.cpuBusWrite(0x2005, (byte) 0); // second byte
-        // 256 doesn't fit in a byte; the real path is via PPUCTRL bit 0 + scrollX=0:
-        // PPUCTRL bit 0 = 1 → base NT = NT1. Set this directly.
+    void ppuCtrlBit0_baseNt1_fetchesFromNt1() {
+        // PPUCTRL bit 0 = 1 → base NT = NT1. With scroll=0, first fetch
+        // should land in NT1 col 0.
         ppu.cpuBusWrite(0x2000, (byte) 0x01);
         writeMarker(1, 0, 0);
-        int tileId = fetchTileIdAt(0, 1);
+        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
         assertEquals(1, decodeNt(tileId), "PPUCTRL bit 0 = 1 → fetches start in NT1");
         assertEquals(0, decodeCol(tileId));
     }
@@ -115,13 +114,12 @@ class PPUScrolledFetchTest {
     void scrollX_wrappingMidScanline_picksOtherNt() {
         // scrollX = 64 (= 8 tiles offset) in NT0. The visible row spans
         // tiles col 8..39. Cols 8..31 come from NT0; cols 32..39 wrap into
-        // NT1 cols 0..7.
+        // NT1 cols 0..7. Viewport col 24 with scrollX=64 → virtTileX = 32
+        // → wraps → NT1 col 0.
         ppu.cpuBusWrite(0x2005, (byte) 64);
         ppu.cpuBusWrite(0x2005, (byte) 0);
-        // Marker in NT1 col 0 (which corresponds to viewport tile column 24)
         writeMarker(1, 0, 0);
-        // Tile fetch case 0 for viewport col 24 → cycle = 24*8 + 1 = 193
-        int tileId = fetchTileIdAt(0, 193);
+        int tileId = fetchTileIdAt(0, tileColFetchCycle(24));
         assertEquals(1, decodeNt(tileId), "viewport col 24 with scrollX=64 should fetch from NT1 col 0");
         assertEquals(0, decodeCol(tileId));
     }
@@ -133,7 +131,7 @@ class PPUScrolledFetchTest {
         ppu.cpuBusWrite(0x2005, (byte) 0);
         ppu.cpuBusWrite(0x2005, (byte) 8);
         writeMarker(0, 1, 0);
-        int tileId = fetchTileIdAt(0, 1);
+        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
         assertEquals(0, decodeNt(tileId));
         assertEquals(1, decodeRow(tileId), "scrollY=8 → first fetch should be row 1");
         assertEquals(0, decodeCol(tileId));

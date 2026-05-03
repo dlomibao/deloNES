@@ -23,8 +23,23 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     
     // PPUADDR/PPUDATA protocol state
     private int ppuAddress = 0;           // Current PPU address (14-bit)
-    private boolean addressLatch = false; // false = expecting high byte, true = expecting low byte
+    /**
+     * Shared write-toggle latch for PPUSCROLL ($2005) and PPUADDR ($2006).
+     * On real hardware this is the "loopy w" register: false = next write
+     * is the FIRST half (scrollX or addr-high), true = next write is the
+     * SECOND half (scrollY or addr-low). Reading PPUSTATUS resets it.
+     */
+    private boolean addressLatch = false;
     private byte ppuDataBuffer = 0;       // Read buffer for non-palette reads
+
+    // PPUSCROLL state — Step 7. Snapshotted from PPUSCROLL writes; the
+    // background fetcher reads them every cycle. Games typically write
+    // PPUSCROLL once per frame in the NMI handler, so mid-frame reads
+    // are stable.
+    /** Horizontal scroll in pixels (0..255). */
+    private int scrollX = 0;
+    /** Vertical scroll in pixels (0..255). */
+    private int scrollY = 0;
 
     // Screen buffer and rendering state
     // Full NES resolution including overscan/blanking for debugging
@@ -135,7 +150,16 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
                 break;
             case 5: // PPUSCROLL (0x2005)
                 registers[index] = value;
-                // TODO: Implement scroll protocol
+                // Step 7: shared-latch protocol. First write = scrollX,
+                // second write = scrollY. Latch is shared with PPUADDR
+                // ($2006) — see {@link #addressLatch}.
+                if (!addressLatch) {
+                    scrollX = Byte.toUnsignedInt(value);
+                    addressLatch = true;
+                } else {
+                    scrollY = Byte.toUnsignedInt(value);
+                    addressLatch = false;
+                }
                 break;
             case 6: // PPUADDR (0x2006)
                 if (!addressLatch) {
@@ -400,6 +424,8 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         ppuAddress = 0;
         addressLatch = false;
         ppuDataBuffer = 0;
+        scrollX = 0;
+        scrollY = 0;
         scanline = 0;
         cycle = 0;
         frameComplete = false;
@@ -602,6 +628,24 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         return oddFrame;
     }
     
+    /**
+     * Current horizontal scroll value, set by writes to {@code $2005}.
+     * Step 7 — used by the per-cycle nametable/attribute fetcher to
+     * shift tile lookups by {@code scrollX} pixels.
+     */
+    public int getScrollX() {
+        return scrollX;
+    }
+
+    /**
+     * Current vertical scroll value, set by writes to {@code $2005}.
+     * Step 7 — used by the per-cycle nametable/attribute fetcher to
+     * shift tile lookups by {@code scrollY} pixels.
+     */
+    public int getScrollY() {
+        return scrollY;
+    }
+
     /**
      * Non-destructive read of the NMI latch.
      * @return true if the PPU latched an NMI that hasn't been consumed yet
@@ -915,75 +959,124 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     // ==================== Background Tile Fetching ====================
     
     /**
-     * Fetches the nametable byte for the current tile
-     * Nametable byte contains the tile ID (0-255)
+     * Fetches the nametable byte for the current tile, honouring
+     * scrollX/scrollY and the PPUCTRL base-nametable bits, with
+     * cross-NT wrap (Step 7).
+     *
+     * <p>The viewport tile (screenTileX, screenTileY) is derived from
+     * the current cycle and scanline. Adding the scroll offset and
+     * PPUCTRL's base NT gives a "virtual" tile coordinate; we wrap
+     * horizontally at 32 (NT width) by toggling NT bit 0, and vertically
+     * at 30 (NT visible height) by toggling NT bit 1. The tile is then
+     * fetched from the resolved NT.
      */
     private void fetchNametableByte() {
-        // Calculate nametable address based on scroll position
-        // For now, using simple addressing without scroll
-        // Address = base nametable + (scanline/8) * 32 + (cycle/8)
-        int baseAddr = getBaseNametableAddress();
-        int tileX = (cycle - 1) / 8;
-        int tileY = scanline / 8;
-        int addr = baseAddr + (tileY * 32) + tileX;
-        
+        ScrolledFetch f = scrolledFetchAddress();
         if (ppuBus != null) {
-            bgNextTileId = ppuBus.read(addr & 0x3FFF);
+            bgNextTileId = ppuBus.read(f.ntAddr & 0x3FFF);
         }
     }
-    
+
     /**
-     * Fetches the attribute byte for the current tile
-     * Attribute byte contains palette selection (2 bits per 2x2 tile group)
+     * Fetches the attribute byte for the current tile. Crucially, the
+     * attribute table is read from THE SAME NT as the tile (the
+     * cross-NT bugzmanov ch. 7 gotcha) — when scroll wraps a tile into
+     * the other NT, its palette comes from that NT's attribute table.
      */
     private void fetchAttributeByte() {
-        // Calculate attribute table address
-        // Attribute table is at nametable base + 0x3C0
-        int baseAddr = getBaseNametableAddress();
-        int tileX = (cycle - 1) / 8;
-        int tileY = scanline / 8;
-        
-        // Each attribute byte covers a 4x4 tile area (32x32 pixels)
-        int attrX = tileX / 4;
-        int attrY = tileY / 4;
-        int attrAddr = baseAddr + 0x3C0 + (attrY * 8) + attrX;
-        
+        ScrolledFetch f = scrolledFetchAddress();
+        // Attribute table is at NT base + 0x3C0; each attr byte covers a
+        // 4x4 tile area (32x32 pixels).
+        int attrX = f.tileX / 4;
+        int attrY = f.tileY / 4;
+        int attrAddr = f.ntBase + 0x3C0 + (attrY * 8) + attrX;
         if (ppuBus != null) {
             int attrByte = ppuBus.read(attrAddr & 0x3FFF);
-            
-            // Extract the 2-bit palette for this tile within the 4x4 group
-            int quadX = (tileX % 4) / 2;
-            int quadY = (tileY % 4) / 2;
+            // Extract the 2-bit palette for this tile within the 4x4 group.
+            int quadX = (f.tileX % 4) / 2;
+            int quadY = (f.tileY % 4) / 2;
             int shift = (quadY * 4) + (quadX * 2);
             bgNextTileAttr = (attrByte >> shift) & 0x03;
         }
     }
+
+    /** Result of resolving a scrolled fetch coordinate to (NT, tileX, tileY, addr). */
+    private static final class ScrolledFetch {
+        final int ntBase;   // base address of the resolved NT ($2000/$2400/$2800/$2C00)
+        final int tileX;    // 0..31 within that NT
+        final int tileY;    // 0..29 within that NT
+        final int ntAddr;   // computed nametable cell address
+        ScrolledFetch(int ntBase, int tileX, int tileY) {
+            this.ntBase = ntBase;
+            this.tileX = tileX;
+            this.tileY = tileY;
+            this.ntAddr = ntBase + (tileY * 32) + tileX;
+        }
+    }
+
+    /**
+     * Resolve the current (cycle, scanline) + scrollX/scrollY +
+     * PPUCTRL base NT into the right NT, tile-X (0..31) and tile-Y
+     * (0..29) within that NT, with cross-NT wrap. The returned
+     * coordinate is what the background fetcher reads from this cycle.
+     */
+    private ScrolledFetch scrolledFetchAddress() {
+        // Viewport tile column being fetched (cycles 1..256 → tileX 0..31;
+        // cycles 321..336 → next-scanline tile 0..1 — both still fit the formula).
+        int screenTileX = (cycle - 1) / 8;
+        int screenTileY = scanline / 8;
+
+        // Add scroll (in tile units; sub-tile is fineX/fineY).
+        int virtTileX = screenTileX + (scrollX >> 3);
+        int virtTileY = screenTileY + (scrollY >> 3);
+
+        // PPUCTRL bits 0+1 select the base NT (0..3). We use this as the
+        // starting NT, then wrap horizontally (32 cols) and vertically
+        // (30 visible rows) toggling NT bits accordingly.
+        int baseNtSelect = registers[0] & 0x03;
+        int ntH = baseNtSelect & 1;
+        int ntV = (baseNtSelect >> 1) & 1;
+
+        if (virtTileX >= 32) {
+            virtTileX -= 32;
+            ntH ^= 1; // wrap horizontally → toggle NT bit 0
+        }
+        // Vertical NT is 30 rows visible (rows 0..29); rows 30..31 are
+        // attribute-table memory and should never be addressed as tiles.
+        if (virtTileY >= 30) {
+            virtTileY -= 30;
+            ntV ^= 1;
+        }
+
+        int ntBase = 0x2000 + (ntV << 11) + (ntH << 10);
+        return new ScrolledFetch(ntBase, virtTileX, virtTileY);
+    }
     
     /**
-     * Fetches the low byte of the pattern table for the current tile
+     * Fetches the low byte of the pattern table for the current tile.
+     * Step 7: fineY combines scanline + scrollY so the fetched row is
+     * shifted by sub-tile vertical scroll.
      */
     private void fetchPatternLowByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = scanline % 8;
-        
+        int fineY = (scanline + scrollY) & 0x07;
         // Pattern table address = base + (tile_id * 16) + fine_y
         int addr = patternTableBase + (bgNextTileId * 16) + fineY;
-        
         if (ppuBus != null) {
             bgNextTilePatternLow = ppuBus.read(addr & 0x3FFF);
         }
     }
-    
+
     /**
-     * Fetches the high byte of the pattern table for the current tile
+     * Fetches the high byte of the pattern table for the current tile.
+     * Step 7: fineY combines scanline + scrollY so the fetched row is
+     * shifted by sub-tile vertical scroll.
      */
     private void fetchPatternHighByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = scanline % 8;
-        
+        int fineY = (scanline + scrollY) & 0x07;
         // Pattern table high byte is 8 bytes after low byte
         int addr = patternTableBase + (bgNextTileId * 16) + fineY + 8;
-        
         if (ppuBus != null) {
             bgNextTilePatternHigh = ppuBus.read(addr & 0x3FFF);
         }
@@ -1031,7 +1124,10 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             return;
         }
         
-        // Extract 2-bit pattern pixel from shift registers using fine X
+        // Extract 2-bit pattern pixel from shift registers using fine X.
+        // Step 7: fineX comes from low 3 bits of scrollX so sub-tile
+        // horizontal scrolling works.
+        fineX = scrollX & 0x07;
         int muxBit = 15 - fineX;  // Select bit position based on fine X scroll
         int patternBit0 = (bgShiftPatternLow >> muxBit) & 0x01;
         int patternBit1 = (bgShiftPatternHigh >> muxBit) & 0x01;

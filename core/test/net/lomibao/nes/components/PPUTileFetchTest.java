@@ -141,23 +141,21 @@ class PPUTileFetchTest {
     
     @Test
     void testFetchingOnPreRenderScanline() {
-        // Start fresh and fill nametable
+        // Start fresh and fill ALL 4KB of nametable address space ($2000-$2FFF)
+        // so the fetcher's scrolled-NT wrap (Step 7) lands on a populated cell
+        // regardless of which NT it resolves to.
         ppu.reset();
-        // Fill enough memory to cover pre-render scanline fetches (scanline 261 / 8 = 32)
-        // This means addresses up to baseAddr + (32 * 32) + 32 = baseAddr + 1056
-        for (int i = 0; i < 2048; i++) {
+        for (int i = 0; i < 4096; i++) {
             mockBus.write(0x2000 + i, (byte) 0xAB);
         }
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
-        // Manually advance to pre-render scanline (261), cycle 2
-        // Total cycles per frame: 341 * 262 = 89,342
-        // Advance to start of scanline 261 (341 * 261 = 89,101 cycles)
+
+        // Advance to pre-render scanline (261), cycle 2.
         int targetCycles = 341 * 261 + 2;
         for (int i = 0; i < targetCycles; i++) {
             ppu.clock();
         }
-        
+
         // Fetching should occur on pre-render scanline
         assertEquals(0xAB, ppu.getBgNextTileId(), "Fetching should occur on pre-render scanline");
     }
@@ -184,28 +182,27 @@ class PPUTileFetchTest {
     void testFetchCycleRanges() {
         // Enable rendering
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
-        // Fill the entire nametable so all fetches will succeed
-        for (int i = 0; i < 1024; i++) {
+
+        // Fill all 4KB of nametable address space ($2000-$2FFF). With Step 7,
+        // fetches at cycle >= 257 land on the NEXT NT via cross-NT wrap, so
+        // we need both NT0 and NT1 (and their mirrors) populated.
+        for (int i = 0; i < 4096; i++) {
             mockBus.write(0x2000 + i, (byte) 0x99);
         }
-        
+
         // Test that fetching occurs in cycles 1-256 (cycle 2 fetches nametable)
         advanceToCycle(0, 2);
         int tileIdAfterCycle2 = ppu.getBgNextTileId();
-        
         assertEquals(0x99, tileIdAfterCycle2, "Fetching should occur in cycle range 1-256");
-        
-        // Test cycles 321-336 on SAME scanline (next scanline prefetch)
-        // Fill nametable with a different value
-        for (int i = 0; i < 1024; i++) {
+
+        // Refill with a different value across all 4KB.
+        for (int i = 0; i < 4096; i++) {
             mockBus.write(0x2000 + i, (byte) 0x88);
         }
         while (ppu.getCycle() < 322) {
             ppu.clock();
         }
         int tileIdAfterCycle322 = ppu.getBgNextTileId();
-        
         assertEquals(0x88, tileIdAfterCycle322, "Fetching should occur in cycle range 321-336");
     }
     
