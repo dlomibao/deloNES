@@ -81,9 +81,6 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     private int bgNextTilePatternLow = 0;  // Next tile pattern low byte
     private int bgNextTilePatternHigh = 0; // Next tile pattern high byte
     
-    // Fine X scroll for pixel mux (0-7)
-    private int fineX = 0;
-
     public PPU(){
         registers=new byte[REGISTER_SIZE];
         clearScreen();
@@ -1000,13 +997,19 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         }
     }
 
-    /** Result of resolving a scrolled fetch coordinate to (NT, tileX, tileY, addr). */
+    /**
+     * Mutable scratch object for scrolled-fetch results. Reused across
+     * every fetch call to avoid the ~30K allocations/frame that an
+     * immutable value object would produce. Single-threaded by
+     * construction (PPU.clock is the only caller).
+     */
     private static final class ScrolledFetch {
-        final int ntBase;   // base address of the resolved NT ($2000/$2400/$2800/$2C00)
-        final int tileX;    // 0..31 within that NT
-        final int tileY;    // 0..29 within that NT
-        final int ntAddr;   // computed nametable cell address
-        ScrolledFetch(int ntBase, int tileX, int tileY) {
+        int ntBase;   // base address of the resolved NT ($2000/$2400/$2800/$2C00)
+        int tileX;    // 0..31 within that NT
+        int tileY;    // 0..29 within that NT
+        int ntAddr;   // computed nametable cell address
+
+        void set(int ntBase, int tileX, int tileY) {
             this.ntBase = ntBase;
             this.tileX = tileX;
             this.tileY = tileY;
@@ -1014,11 +1017,17 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         }
     }
 
+    /** Reusable scratch — see {@link ScrolledFetch} class doc. */
+    private final ScrolledFetch fetchScratch = new ScrolledFetch();
+
     /**
      * Resolve the current (cycle, scanline) + scrollX/scrollY +
      * PPUCTRL base NT into the right NT, tile-X (0..31) and tile-Y
      * (0..29) within that NT, with cross-NT wrap. The returned
      * coordinate is what the background fetcher reads from this cycle.
+     *
+     * <p>Returns the shared {@link #fetchScratch} object — caller MUST
+     * read fields immediately and not retain a reference.
      */
     private ScrolledFetch scrolledFetchAddress() {
         // Viewport tile column being fetched (cycles 1..256 → tileX 0..31;
@@ -1032,24 +1041,27 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
         // PPUCTRL bits 0+1 select the base NT (0..3). We use this as the
         // starting NT, then wrap horizontally (32 cols) and vertically
-        // (30 visible rows) toggling NT bits accordingly.
+        // (30 visible rows) toggling NT bits accordingly. Use modulo +
+        // parity so any outlier (scroll values combined with large
+        // screen-tile positions) wraps correctly, not just the [32, 63]
+        // / [30, 59] ranges that arise during normal play.
         int baseNtSelect = registers[0] & 0x03;
         int ntH = baseNtSelect & 1;
         int ntV = (baseNtSelect >> 1) & 1;
 
-        if (virtTileX >= 32) {
-            virtTileX -= 32;
-            ntH ^= 1; // wrap horizontally → toggle NT bit 0
-        }
+        int hWraps = virtTileX / 32;
+        virtTileX = virtTileX - (hWraps * 32);
+        ntH ^= (hWraps & 1);
+
         // Vertical NT is 30 rows visible (rows 0..29); rows 30..31 are
         // attribute-table memory and should never be addressed as tiles.
-        if (virtTileY >= 30) {
-            virtTileY -= 30;
-            ntV ^= 1;
-        }
+        int vWraps = virtTileY / 30;
+        virtTileY = virtTileY - (vWraps * 30);
+        ntV ^= (vWraps & 1);
 
         int ntBase = 0x2000 + (ntV << 11) + (ntH << 10);
-        return new ScrolledFetch(ntBase, virtTileX, virtTileY);
+        fetchScratch.set(ntBase, virtTileX, virtTileY);
+        return fetchScratch;
     }
     
     /**
@@ -1125,10 +1137,8 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         }
         
         // Extract 2-bit pattern pixel from shift registers using fine X.
-        // Step 7: fineX comes from low 3 bits of scrollX so sub-tile
-        // horizontal scrolling works.
-        fineX = scrollX & 0x07;
-        int muxBit = 15 - fineX;  // Select bit position based on fine X scroll
+        // Step 7: fine X is the low 3 bits of scrollX (sub-tile shift).
+        int muxBit = 15 - (scrollX & 0x07);
         int patternBit0 = (bgShiftPatternLow >> muxBit) & 0x01;
         int patternBit1 = (bgShiftPatternHigh >> muxBit) & 0x01;
         int patternPixel = (patternBit1 << 1) | patternBit0;

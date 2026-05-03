@@ -136,4 +136,40 @@ class PPUScrolledFetchTest {
         assertEquals(1, decodeRow(tileId), "scrollY=8 → first fetch should be row 1");
         assertEquals(0, decodeCol(tileId));
     }
+
+    // ---- vertical cross-NT wrap ----
+
+    @Test
+    void scrollY240_wrapsToOtherNt_vertical() {
+        // scrollY = 240 → 30 tile rows → exact NT boundary; first fetch
+        // should land in NT2's row 0 (vertical mirroring puts NT2 below
+        // NT0 logically). Note: the test uses VERTICAL mirroring so $2800
+        // mirrors $2000 — so NT2 reads come back from NT0's physical RAM.
+        // To unambiguously test the NT toggle we use HORIZONTAL mirroring
+        // (NT0+NT1 share, NT2+NT3 share — top vs bottom independent).
+        nametables.setMirroringOverride(net.lomibao.nes.components.ppu.MirroringMode.HORIZONTAL);
+        ppu.cpuBusWrite(0x2005, (byte) 0);
+        ppu.cpuBusWrite(0x2005, (byte) 240);
+        writeMarker(2, 0, 0); // marker in NT2, row 0, col 0
+        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
+        assertEquals(2, decodeNt(tileId),
+                "scrollY=240 (= 30 tiles) should wrap from NT0 to NT2");
+        assertEquals(0, decodeRow(tileId));
+    }
+
+    // ---- combined horizontal + vertical scroll ----
+
+    @Test
+    void combinedScroll_64x16_picksRightNtAndCell() {
+        // scrollX = 64 (8 tiles), scrollY = 16 (2 tiles). At viewport
+        // tile column 24, row 0 → virtTileX = 32 (wrap to NT1 col 0),
+        // virtTileY = 2.
+        ppu.cpuBusWrite(0x2005, (byte) 64);
+        ppu.cpuBusWrite(0x2005, (byte) 16);
+        writeMarker(1, 2, 0);
+        int tileId = fetchTileIdAt(0, tileColFetchCycle(24));
+        assertEquals(1, decodeNt(tileId), "combined scroll should land in NT1 col 0");
+        assertEquals(2, decodeRow(tileId), "combined scroll should land in row 2");
+        assertEquals(0, decodeCol(tileId));
+    }
 }

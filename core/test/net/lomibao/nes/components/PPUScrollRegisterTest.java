@@ -114,4 +114,17 @@ class PPUScrollRegisterTest {
         // Don't care about the value here — just that no NPE / behavior change.
         assertDoesNotThrow(() -> ppu.cpuBusRead(0x2007, false));
     }
+
+    // ---- reset clears scroll ----
+
+    @Test
+    void reset_clearsScrollXAndScrollY() {
+        ppu.cpuBusWrite(0x2005, (byte) 100);
+        ppu.cpuBusWrite(0x2005, (byte) 50);
+        assertEquals(100, ppu.getScrollX(), "precondition: scrollX populated");
+        assertEquals(50, ppu.getScrollY(), "precondition: scrollY populated");
+        ppu.reset();
+        assertEquals(0, ppu.getScrollX(), "reset() must zero scrollX");
+        assertEquals(0, ppu.getScrollY(), "reset() must zero scrollY");
+    }
 }
