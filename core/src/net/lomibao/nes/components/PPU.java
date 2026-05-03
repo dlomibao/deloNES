@@ -35,6 +35,14 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public static final int VISIBLE_HEIGHT = 240; // Visible scanlines
     
     private int[][] screen = new int[SCREEN_HEIGHT][SCREEN_WIDTH];  // screen[y][x] = RGBA as int
+    /**
+     * Shadow of the per-pixel background pattern value (0..3). Recorded
+     * during background rendering so the sprite renderer can apply the
+     * priority bit (sprite-behind-background pixel only loses to bg
+     * pixels with non-zero pattern value). Bounds match the visible area
+     * only ({@link #VISIBLE_HEIGHT} x {@link #VISIBLE_WIDTH}).
+     */
+    private int[][] bgPatternPixel = new int[VISIBLE_HEIGHT][VISIBLE_WIDTH];
     private int scanline = 0;   // Current scanline (0-261, where 261 is pre-render)
     private int cycle = 0;      // Current cycle within scanline (0-340)
     private boolean frameComplete = false;  // Set when frame finishes, cleared when checked
@@ -214,12 +222,16 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         if (cycle >= 341) {
             cycle = 0;
             scanline++;
-            
+
             // Wrap scanline at 262 (0-261)
             if (scanline >= 262) {
                 scanline = 0;
                 frameComplete = true;
                 oddFrame = !oddFrame;
+            } else if (scanline == 240) {
+                // Just entered post-render scanline — composite sprites
+                // onto the now-complete background frame. Step 5.
+                SpriteRenderer.render(this);
             }
         }
         
@@ -239,6 +251,9 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             registers[2] &= ~0x80;  // Clear bit 7 of PPUSTATUS (VBlank flag)
             registers[2] &= ~0x40;  // Clear bit 6 of PPUSTATUS (sprite 0 hit)
             frameComplete = false;
+            // Reset bg-pattern shadow for the next frame so stale values
+            // don't bleed into the next frame's sprite-priority decisions.
+            clearBgPatternShadow();
         }
         
         // Perform background tile fetching on visible and pre-render scanlines
@@ -385,7 +400,19 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         frameComplete = false;
         oddFrame = false;
         nmiPending = false;
+        clearBgPatternShadow();
         clearScreen();
+    }
+
+    /**
+     * Zero the bg-pattern shadow that the sprite renderer reads for
+     * priority decisions. Called from {@link #reset()} and from the
+     * pre-render scanline at the end of every frame.
+     */
+    private void clearBgPatternShadow() {
+        for (int y = 0; y < VISIBLE_HEIGHT; y++) {
+            java.util.Arrays.fill(bgPatternPixel[y], 0);
+        }
     }
 
     /**
@@ -559,6 +586,62 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         return oam[index & 0xFF];
     }
 
+    /** Package-public access to raw OAM array for the sprite renderer. */
+    byte[] oam() {
+        return oam;
+    }
+
+    /** Package-public access to the PPU bus for CHR reads from the sprite renderer. */
+    PPUBus ppuBus() {
+        return ppuBus;
+    }
+
+    /**
+     * Look up the RGB color (0xAARRGGBB) for a palette-RAM index. Public
+     * because tests (and host renderers) need to compare against expected
+     * colours without re-implementing the palette pipeline.
+     *
+     * @param paletteRamIndex 0..31; sprite palettes are 0x10..0x1F
+     * @return the ARGB color the PPU would write to the framebuffer
+     */
+    public int getPaletteColorRgb(int paletteRamIndex) {
+        return getColorFromPalette(paletteRamIndex);
+    }
+
+    /**
+     * Read the recorded background pattern value (0..3) at a visible
+     * coordinate. Used by the sprite renderer for the priority-bit check.
+     *
+     * @param y 0..{@link #VISIBLE_HEIGHT}-1
+     * @param x 0..{@link #VISIBLE_WIDTH}-1
+     * @return 0 if bg pixel is transparent here, else 1..3
+     */
+    int getBgPatternPixel(int y, int x) {
+        return bgPatternPixel[y][x];
+    }
+
+    /**
+     * Test-only: directly set the bg-pattern shadow value. Lets the sprite
+     * priority tests fake an opaque/transparent background pixel without
+     * driving the full background pipeline. Package-private intentionally —
+     * this is not a production API; the bg pipeline is the only legitimate
+     * writer outside of {@link #reset()}.
+     *
+     * @param y row 0..{@link #VISIBLE_HEIGHT}-1
+     * @param x column 0..{@link #VISIBLE_WIDTH}-1
+     * @param value 0 (transparent) .. 3
+     */
+    void setBgPatternPixelForTest(int y, int x, int value) {
+        bgPatternPixel[y][x] = value & 0x03;
+    }
+
+    /** Test-only / sprite-renderer: write directly to the frame buffer at (x, y). */
+    void putScreenPixel(int x, int y, int rgba) {
+        if (y >= 0 && y < SCREEN_HEIGHT && x >= 0 && x < SCREEN_WIDTH) {
+            screen[y][x] = rgba;
+        }
+    }
+
     /**
      * Read AND clear the NMI latch. Returns true exactly once per VBlank
      * entry (when PPUCTRL bit 7 is set); subsequent calls return false until
@@ -716,7 +799,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Gets the sprite pattern table address from PPUCTRL bit 3
      * 0 = $0000, 1 = $1000
      */
-    private int getSpritePatternTableAddress() {
+    int getSpritePatternTableAddress() {
         return ((registers[0] & 0x08) != 0) ? 0x1000 : 0x0000;
     }
     
@@ -732,7 +815,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Gets the sprite size from PPUCTRL bit 5
      * 0 = 8x8, 1 = 8x16
      */
-    private int getSpriteSize() {
+    int getSpriteSize() {
         return ((registers[0] & 0x20) != 0) ? 16 : 8;
     }
     
@@ -755,7 +838,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     /**
      * Checks if sprite rendering in leftmost 8 pixels is enabled (PPUMASK bit 2)
      */
-    private boolean isShowSpritesLeft() {
+    boolean isShowSpritesLeft() {
         return (registers[1] & 0x04) != 0;
     }
     
@@ -769,7 +852,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     /**
      * Checks if sprite rendering is enabled (PPUMASK bit 4)
      */
-    private boolean isShowSprites() {
+    boolean isShowSprites() {
         return (registers[1] & 0x10) != 0;
     }
     
@@ -922,9 +1005,14 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         
         // Look up RGB color from palette RAM and color palette
         int color = getColorFromPalette(paletteRamIndex);
-        
+
         // Write to screen buffer (cycle - 1 because cycle is 1-256 but screen is 0-255)
-        screen[scanline][cycle - 1] = color;
+        int x = cycle - 1;
+        screen[scanline][x] = color;
+        // Record the pattern value for sprite-priority compositing (Step 5).
+        if (scanline < VISIBLE_HEIGHT && x < VISIBLE_WIDTH) {
+            bgPatternPixel[scanline][x] = patternPixel;
+        }
     }
     
     /**
