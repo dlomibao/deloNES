@@ -86,9 +86,6 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
                 .build()
                 .connect();
         
-        // Connect CPU to PPU for NMI
-        ppu.setCPU(cpu);
-        
         System.out.println("NES components connected");
     }
     
