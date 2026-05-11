@@ -100,6 +100,18 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
+     * Retained for API compatibility — the PPU does not call the CPU directly.
+     * NMI forwarding is done by the host (e.g. {@code NesSystem}) by polling
+     * {@link #consumeNmi()} after each clock tick. This method is intentionally
+     * a no-op; the {@code cpu} reference is not stored.
+     *
+     * @param cpu ignored
+     */
+    public void setCPU(CPU6502 cpu) {
+        // NMI coupling lives in the host, not in the PPU. See consumeNmi().
+    }
+
+    /**
      * Sets the cartridge reference for CHR ROM access
      * Also updates nametable memory with cartridge reference for mirroring
      * @param cartridge the cartridge with CHR ROM data
