@@ -51,6 +51,10 @@ project(":desktop") {
         api "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
         api "com.badlogicgames.gdx-controllers:gdx-controllers-desktop:$gdxControllersVersion"
         api "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
+        api "org.lwjgl:lwjgl-tinyfd:3.3.3"
+        api "org.lwjgl:lwjgl-tinyfd:3.3.3:natives-windows"
+        api "org.lwjgl:lwjgl-tinyfd:3.3.3:natives-linux"
+        api "org.lwjgl:lwjgl-tinyfd:3.3.3:natives-macos"
 
         testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
         testImplementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
