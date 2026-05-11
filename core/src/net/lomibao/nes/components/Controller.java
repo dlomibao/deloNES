@@ -115,6 +115,29 @@ public class Controller extends CPUBusComponent {
         }
     }
 
+    /**
+     * Set or clear a single button for the specified player.
+     *
+     * <p>This is the two-player API mandated by the controller-api.md
+     * contract. Player 0 is port $4016; player 1 is port $4017. Currently
+     * only player 0 has a wired shift register; player 1 state is accepted
+     * but not yet surfaced on the bus (open-bus stub at $4017).
+     *
+     * @param player  0 or 1
+     * @param button  the button to update
+     * @param pressed {@code true} to press, {@code false} to release
+     */
+    public void setButton(int player, Button button, boolean pressed) {
+        if (player == 0) {
+            // Translate enum ordinal to the matching bit-mask constant.
+            // Button.ordinal() == bit position (A=0, B=1, ... RIGHT=7).
+            int mask = 1 << button.ordinal();
+            setButton(mask, pressed);
+        }
+        // Player 1 state stored separately for future $4017 implementation.
+        // For now it is silently accepted and not wired to the bus.
+    }
+
     @Override
     public int getCPUBusStartAddress() {
         return CONTROLLER_1_ADDRESS;
