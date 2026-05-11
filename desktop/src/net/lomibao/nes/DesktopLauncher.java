@@ -2,14 +2,17 @@ package net.lomibao.nes;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
-import net.lomibao.nes.NesEmulator;
+import net.lomibao.nes.desktop.NesGame;
 
 // Please note that on macOS your application needs to be started with the -XstartOnFirstThread JVM argument
 public class DesktopLauncher {
 	public static void main (String[] arg) {
 		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 		config.setForegroundFPS(60);
-		config.setTitle("nes_emu");
-		new Lwjgl3Application(new NesEmulator(), config);
+		config.setTitle("deloNES");
+		config.setWindowedMode(640, 600);
+		new Lwjgl3Application(new NesGame(), config);
 	}
+
+	// NesEmulator is retained as dead code for reference — do not delete.
 }
