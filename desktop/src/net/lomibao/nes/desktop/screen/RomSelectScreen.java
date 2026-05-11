@@ -223,7 +223,7 @@ public class RomSelectScreen implements Screen {
             return;
         }
 
-        onSelect.accept(new ClasspathRomSource("/roms/" + romName));
+        onSelect.accept(new RomSource.ClasspathRomSource("/roms/" + romName));
     }
 
     private void browseForRom() {
@@ -260,7 +260,7 @@ public class RomSelectScreen implements Screen {
             return;
         }
 
-        onSelect.accept(new FileRomSource(Gdx.files.absolute(path)));
+        onSelect.accept(new RomSource.FileRomSource(Gdx.files.absolute(path)));
     }
 
     /**
