@@ -473,11 +473,79 @@ public class CPU6502 {
 
     /**
      * is current instruction complete
-     * 
+     *
      * @return
      */
     boolean complete() {
         return cycles == 0;
+    }
+
+    /**
+     * Run instructions in a tight loop, invoking {@code shouldContinue} once
+     * before each instruction fetch. This is the bugzmanov ch. 3.4 pattern:
+     * a host (debugger, tracer, the Snake assembly demo) injects
+     * per-instruction work without subclassing.
+     *
+     * <p>The predicate is called with this CPU as argument and returns
+     * {@code true} to execute the next instruction or {@code false} to
+     * cleanly exit the loop. The CPU is always at an instruction boundary
+     * when the predicate runs (PC points at the next opcode, no cycles
+     * remain on the previous instruction). On the very first call after
+     * {@link #reset()}, the implementation drains the 8-cycle reset
+     * sequence first, so the predicate's initial view is the CPU at the
+     * reset vector — not mid-reset.
+     *
+     * <p><strong>Termination is the caller's responsibility.</strong> This
+     * method has no built-in time, instruction, or opcode limit — it loops
+     * until the predicate returns false. In particular:
+     * <ul>
+     *   <li><strong>Do not</strong> assume {@code BRK} ($00) is a halt. On
+     *       the real 6502, BRK is a software interrupt: it pushes status +
+     *       PC, jumps through {@code [$FFFE/$FFFF]}, and execution continues
+     *       after the IRQ handler returns via RTI. Many real games use BRK
+     *       as a dispatch primitive for their sound engine or screen-update
+     *       routine.</li>
+     *   <li>Real "halt" patterns on the NES are {@code JMP *} or
+     *       {@code BNE *-2} style infinite loops — programs never finish in
+     *       the imperative sense, they wait for the next NMI/IRQ.</li>
+     *   <li>The bugzmanov Snake demo terminates with BRK only because his
+     *       test fixture has no IRQ vector wired up; that is a test-harness
+     *       convention, not a 6502 convention.</li>
+     * </ul>
+     *
+     * <p>Common safe predicates:
+     * <ul>
+     *   <li>Bounded run: {@code int[] n = {0}; cpu.runWithCallback(c -> n[0]++ < 1_000_000)}</li>
+     *   <li>Stop at PC: {@code cpu.runWithCallback(c -> c.getPc() != haltPc)}</li>
+     *   <li>Wedge detection (PC unchanged for N consecutive calls): catches
+     *       any tight-loop halt including {@code JMP *}.</li>
+     * </ul>
+     *
+     * <p>Note: this drives the CPU one instruction at a time. The PPU /
+     * APU / DMA arbitration that {@link net.lomibao.nes.NesSystem#runFrame()}
+     * orchestrates is NOT exercised here — this is the pure-CPU path,
+     * useful for nestest-style headless validation and CPU-only demos.
+     *
+     * @param shouldContinue invoked once before each instruction; return
+     *        {@code false} to break out of the loop
+     */
+    public void runWithCallback(java.util.function.Predicate<CPU6502> shouldContinue) {
+        while (true) {
+            // Drain any in-flight instruction's remaining cycles before the
+            // predicate runs, so the predicate always sees the CPU at an
+            // instruction boundary.
+            while (cycles != 0) {
+                clock();
+            }
+            if (!shouldContinue.test(this)) {
+                return;
+            }
+            // Execute exactly one full instruction.
+            clock();
+            while (cycles != 0) {
+                clock();
+            }
+        }
     }
 
     /**

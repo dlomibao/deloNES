@@ -103,26 +103,21 @@ class PPUControlRegistersTest {
     
     @Test
     void testPPUCTRLBit7ControlsNMI() {
-        MockCPU mockCPU = new MockCPU();
-        ppu.setCPU(mockCPU);
-        
         // Disable NMI generation (bit 7 = 0)
         ppu.cpuBusWrite(0x2000, (byte) 0x00);
-        
+
         // Advance to VBlank start
         advanceToCycle(241, 1);
-        
-        assertFalse(mockCPU.wasNMICalled(), "NMI should not trigger when PPUCTRL bit 7 = 0");
-        
+
+        assertFalse(ppu.peekNmi(), "NMI should not be latched when PPUCTRL bit 7 = 0");
+
         // Reset and enable NMI (bit 7 = 1)
         ppu.reset();
-        mockCPU.reset();
-        ppu.setCPU(mockCPU);
         ppu.cpuBusWrite(0x2000, (byte) 0x80);
-        
+
         advanceToCycle(241, 1);
-        
-        assertTrue(mockCPU.wasNMICalled(), "NMI should trigger when PPUCTRL bit 7 = 1");
+
+        assertTrue(ppu.peekNmi(), "NMI should be latched when PPUCTRL bit 7 = 1");
     }
     
     // ==================== PPUMASK Tests ====================
@@ -256,26 +251,6 @@ class PPUControlRegistersTest {
             ppu.clock();
             currentCycle = ppu.getCycle();
             currentScanline = ppu.getScanline();
-        }
-    }
-    
-    /**
-     * Mock CPU for testing NMI
-     */
-    private static class MockCPU extends CPU6502 {
-        private boolean nmiCalled = false;
-        
-        @Override
-        public void nmi() {
-            nmiCalled = true;
-        }
-        
-        public boolean wasNMICalled() {
-            return nmiCalled;
-        }
-        
-        public void reset() {
-            nmiCalled = false;
         }
     }
     

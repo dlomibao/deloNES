@@ -23,8 +23,23 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     
     // PPUADDR/PPUDATA protocol state
     private int ppuAddress = 0;           // Current PPU address (14-bit)
-    private boolean addressLatch = false; // false = expecting high byte, true = expecting low byte
+    /**
+     * Shared write-toggle latch for PPUSCROLL ($2005) and PPUADDR ($2006).
+     * On real hardware this is the "loopy w" register: false = next write
+     * is the FIRST half (scrollX or addr-high), true = next write is the
+     * SECOND half (scrollY or addr-low). Reading PPUSTATUS resets it.
+     */
+    private boolean addressLatch = false;
     private byte ppuDataBuffer = 0;       // Read buffer for non-palette reads
+
+    // PPUSCROLL state — Step 7. Snapshotted from PPUSCROLL writes; the
+    // background fetcher reads them every cycle. Games typically write
+    // PPUSCROLL once per frame in the NMI handler, so mid-frame reads
+    // are stable.
+    /** Horizontal scroll in pixels (0..255). */
+    private int scrollX = 0;
+    /** Vertical scroll in pixels (0..255). */
+    private int scrollY = 0;
 
     // Screen buffer and rendering state
     // Full NES resolution including overscan/blanking for debugging
@@ -35,13 +50,24 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public static final int VISIBLE_HEIGHT = 240; // Visible scanlines
     
     private int[][] screen = new int[SCREEN_HEIGHT][SCREEN_WIDTH];  // screen[y][x] = RGBA as int
+    /**
+     * Shadow of the per-pixel background pattern value (0..3). Recorded
+     * during background rendering so the sprite renderer can apply the
+     * priority bit (sprite-behind-background pixel only loses to bg
+     * pixels with non-zero pattern value). Bounds match the visible area
+     * only ({@link #VISIBLE_HEIGHT} x {@link #VISIBLE_WIDTH}).
+     */
+    private int[][] bgPatternPixel = new int[VISIBLE_HEIGHT][VISIBLE_WIDTH];
     private int scanline = 0;   // Current scanline (0-261, where 261 is pre-render)
     private int cycle = 0;      // Current cycle within scanline (0-340)
     private boolean frameComplete = false;  // Set when frame finishes, cleared when checked
     private boolean oddFrame = false;       // Tracks odd/even frames
     
-    // CPU reference for NMI signaling
-    private CPU6502 cpu;
+    // NMI latch — set on VBlank entry when PPUCTRL bit 7 is 1, cleared by
+    // {@link #consumeNmi()}. Hosts (e.g. NesSystem) poll this after each tick
+    // and forward to the CPU on the false→true transition. The PPU itself
+    // never calls cpu.nmi() directly — that coupling lives in the host.
+    private boolean nmiPending = false;
     
     // Background rendering shift registers (16 bits each)
     private int bgShiftPatternLow = 0;   // Low bit plane pattern shifter
@@ -55,9 +81,6 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     private int bgNextTilePatternLow = 0;  // Next tile pattern low byte
     private int bgNextTilePatternHigh = 0; // Next tile pattern high byte
     
-    // Fine X scroll for pixel mux (0-7)
-    private int fineX = 0;
-
     public PPU(){
         registers=new byte[REGISTER_SIZE];
         clearScreen();
@@ -74,6 +97,18 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         if (ppuBus != null) {
             ppuBus.connect(nameTableMemory);
         }
+    }
+
+    /**
+     * Retained for API compatibility — the PPU does not call the CPU directly.
+     * NMI forwarding is done by the host (e.g. {@code NesSystem}) by polling
+     * {@link #consumeNmi()} after each clock tick. This method is intentionally
+     * a no-op; the {@code cpu} reference is not stored.
+     *
+     * @param cpu ignored
+     */
+    public void setCPU(CPU6502 cpu) {
+        // NMI coupling lives in the host, not in the PPU. See consumeNmi().
     }
 
     /**
@@ -124,7 +159,16 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
                 break;
             case 5: // PPUSCROLL (0x2005)
                 registers[index] = value;
-                // TODO: Implement scroll protocol
+                // Step 7: shared-latch protocol. First write = scrollX,
+                // second write = scrollY. Latch is shared with PPUADDR
+                // ($2006) — see {@link #addressLatch}.
+                if (!addressLatch) {
+                    scrollX = Byte.toUnsignedInt(value);
+                    addressLatch = true;
+                } else {
+                    scrollY = Byte.toUnsignedInt(value);
+                    addressLatch = false;
+                }
                 break;
             case 6: // PPUADDR (0x2006)
                 if (!addressLatch) {
@@ -211,22 +255,27 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         if (cycle >= 341) {
             cycle = 0;
             scanline++;
-            
+
             // Wrap scanline at 262 (0-261)
             if (scanline >= 262) {
                 scanline = 0;
                 frameComplete = true;
                 oddFrame = !oddFrame;
+            } else if (scanline == 240) {
+                // Just entered post-render scanline — composite sprites
+                // onto the now-complete background frame. Step 5.
+                SpriteRenderer.render(this);
             }
         }
         
         // Set VBlank flag at scanline 241, cycle 1
         if (scanline == 241 && cycle == 1) {
             registers[2] |= 0x80;  // Set bit 7 of PPUSTATUS (VBlank flag)
-            
-            // Trigger NMI if enabled in PPUCTRL bit 7
-            if (isNMIEnabled() && cpu != null) {
-                cpu.nmi();
+
+            // Latch NMI for the host to consume. Production code (NesSystem)
+            // polls {@link #consumeNmi()} once per tick and forwards to CPU.
+            if (isNMIEnabled()) {
+                nmiPending = true;
             }
         }
         
@@ -235,8 +284,16 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             registers[2] &= ~0x80;  // Clear bit 7 of PPUSTATUS (VBlank flag)
             registers[2] &= ~0x40;  // Clear bit 6 of PPUSTATUS (sprite 0 hit)
             frameComplete = false;
+            // Reset bg-pattern shadow for the next frame so stale values
+            // don't bleed into the next frame's sprite-priority decisions.
+            clearBgPatternShadow();
         }
         
+        // Coarse sprite-0 hit (Step 6): see {@link #checkSpriteZeroHitCoarse()}.
+        // Called unconditionally; the helper does its own gating so the
+        // contract lives in one place.
+        checkSpriteZeroHitCoarse();
+
         // Perform background tile fetching on visible and pre-render scanlines
         if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
             // Shift registers every cycle (except cycle 0 idle cycle)
@@ -376,11 +433,70 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         ppuAddress = 0;
         addressLatch = false;
         ppuDataBuffer = 0;
+        scrollX = 0;
+        scrollY = 0;
         scanline = 0;
         cycle = 0;
         frameComplete = false;
         oddFrame = false;
+        nmiPending = false;
+        clearBgPatternShadow();
         clearScreen();
+    }
+
+    /**
+     * Coarse sprite-0 hit detection (Step 6 of the playable-gen1 plan).
+     * Sets PPUSTATUS bit 6 when sprite 0's bounding box overlaps the
+     * current (scanline, cycle) AND both background and sprite rendering
+     * are enabled. Per bugzmanov ch. 7 this is intentionally loose — no
+     * pixel-opacity test, no per-pixel walk. Most games that poll bit 6
+     * (SMB, Ice Climber, Excitebike) only need to know "the raster has
+     * reached the status-bar split line" and the coarse box test is
+     * sufficient.
+     *
+     * <p>Performs all its own gating (visible-scanline / visible-cycle /
+     * both-layers-enabled / not-already-set) — safe to call every PPU tick
+     * unconditionally. Bit 6 is cleared at the pre-render scanline
+     * (261, cycle 1) by the existing reset path.
+     *
+     * <p>Note: "sprite 0" is by convention OAM bytes [0..3] regardless of
+     * OAMADDR — OAMADDR shuffles where CPU writes/reads land in OAM but
+     * does not redefine which sprite is "sprite 0".
+     */
+    private void checkSpriteZeroHitCoarse() {
+        // Visible-area + both-layers gate. Combined with the early-return
+        // for the already-set case, this short-circuits ~99% of calls
+        // outside the brief sprite-0 window each frame.
+        if (!isVisibleScanline() || cycle < 1 || cycle > 256
+                || !isShowBackground() || !isShowSprites()) {
+            return;
+        }
+        // Already set this frame? Nothing more to do.
+        if ((registers[2] & 0x40) != 0) return;
+
+        int oamY = Byte.toUnsignedInt(oam[0]);
+        int oamX = Byte.toUnsignedInt(oam[3]);
+        int spriteTop = oamY + 1;                                  // OAM Y is "top - 1"
+        int spriteHeight = getSpriteSize();                        // 8 or 16 from PPUCTRL bit 5
+        int spriteBottom = spriteTop + spriteHeight;               // exclusive
+
+        // The sprite's screen X covers [oamX, oamX+8); cycle 1 maps to x=0.
+        int x = cycle - 1;
+        if (scanline >= spriteTop && scanline < spriteBottom
+                && x >= oamX && x < oamX + 8) {
+            registers[2] |= 0x40; // set PPUSTATUS bit 6 (sprite-0 hit)
+        }
+    }
+
+    /**
+     * Zero the bg-pattern shadow that the sprite renderer reads for
+     * priority decisions. Called from {@link #reset()} and from the
+     * pre-render scanline at the end of every frame.
+     */
+    private void clearBgPatternShadow() {
+        for (int y = 0; y < VISIBLE_HEIGHT; y++) {
+            java.util.Arrays.fill(bgPatternPixel[y], 0);
+        }
     }
 
     /**
@@ -522,11 +638,125 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
     
     /**
-     * Sets the CPU reference for NMI signaling
-     * @param cpu the CPU instance
+     * Current horizontal scroll value, set by writes to {@code $2005}.
+     * Step 7 — used by the per-cycle nametable/attribute fetcher to
+     * shift tile lookups by {@code scrollX} pixels.
      */
-    public void setCPU(CPU6502 cpu) {
-        this.cpu = cpu;
+    public int getScrollX() {
+        return scrollX;
+    }
+
+    /**
+     * Current vertical scroll value, set by writes to {@code $2005}.
+     * Step 7 — used by the per-cycle nametable/attribute fetcher to
+     * shift tile lookups by {@code scrollY} pixels.
+     */
+    public int getScrollY() {
+        return scrollY;
+    }
+
+    /**
+     * Non-destructive read of the NMI latch.
+     * @return true if the PPU latched an NMI that hasn't been consumed yet
+     */
+    public boolean peekNmi() {
+        return nmiPending;
+    }
+
+    /**
+     * Write a byte directly into OAM at the given index. Used by
+     * {@link DmaController} to land bytes during an OAM DMA burst —
+     * production code should NOT poke OAM through this API outside of DMA;
+     * use {@code $2003}/{@code $2004} (OAMADDR/OAMDATA) for CPU-driven OAM
+     * updates.
+     *
+     * @param index 0..255 (OAM is 256 bytes); high bits are masked off
+     * @param value the byte to store
+     */
+    public void writeOam(int index, byte value) {
+        oam[index & 0xFF] = value;
+    }
+
+    /**
+     * Read a byte from OAM at the given index. Primarily for tests and
+     * debug tooling; CPU code accesses OAM via {@code $2004} (OAMDATA).
+     *
+     * @param index 0..255 (OAM is 256 bytes); high bits are masked off
+     * @return the byte at that OAM index
+     */
+    public byte readOam(int index) {
+        return oam[index & 0xFF];
+    }
+
+    /** Package-public access to raw OAM array for the sprite renderer. */
+    byte[] oam() {
+        return oam;
+    }
+
+    /** Package-public access to the PPU bus for CHR reads from the sprite renderer. */
+    PPUBus ppuBus() {
+        return ppuBus;
+    }
+
+    /**
+     * Look up the RGB color (0xAARRGGBB) for a palette-RAM index. Public
+     * because tests (and host renderers) need to compare against expected
+     * colours without re-implementing the palette pipeline.
+     *
+     * @param paletteRamIndex 0..31; sprite palettes are 0x10..0x1F
+     * @return the ARGB color the PPU would write to the framebuffer
+     */
+    public int getPaletteColorRgb(int paletteRamIndex) {
+        return getColorFromPalette(paletteRamIndex);
+    }
+
+    /**
+     * Read the recorded background pattern value (0..3) at a visible
+     * coordinate. Used by the sprite renderer for the priority-bit check.
+     *
+     * @param y 0..{@link #VISIBLE_HEIGHT}-1
+     * @param x 0..{@link #VISIBLE_WIDTH}-1
+     * @return 0 if bg pixel is transparent here, else 1..3
+     */
+    int getBgPatternPixel(int y, int x) {
+        return bgPatternPixel[y][x];
+    }
+
+    /**
+     * Test-only: directly set the bg-pattern shadow value. Lets the sprite
+     * priority tests fake an opaque/transparent background pixel without
+     * driving the full background pipeline. Package-private intentionally —
+     * this is not a production API; the bg pipeline is the only legitimate
+     * writer outside of {@link #reset()}.
+     *
+     * @param y row 0..{@link #VISIBLE_HEIGHT}-1
+     * @param x column 0..{@link #VISIBLE_WIDTH}-1
+     * @param value 0 (transparent) .. 3
+     */
+    void setBgPatternPixelForTest(int y, int x, int value) {
+        bgPatternPixel[y][x] = value & 0x03;
+    }
+
+    /** Test-only / sprite-renderer: write directly to the frame buffer at (x, y). */
+    void putScreenPixel(int x, int y, int rgba) {
+        if (y >= 0 && y < SCREEN_HEIGHT && x >= 0 && x < SCREEN_WIDTH) {
+            screen[y][x] = rgba;
+        }
+    }
+
+    /**
+     * Read AND clear the NMI latch. Returns true exactly once per VBlank
+     * entry (when PPUCTRL bit 7 is set); subsequent calls return false until
+     * the next rising edge. The host (typically {@code NesSystem}) calls
+     * this once per master tick and, on a true return, forwards an NMI to
+     * the CPU.
+     *
+     * @return true if an NMI was pending (and clears the latch); false otherwise
+     */
+    public boolean consumeNmi() {
+        boolean fire = nmiPending;
+        nmiPending = false;
+        return fire;
     }
     
     // Scanline type helper methods
@@ -671,7 +901,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Gets the sprite pattern table address from PPUCTRL bit 3
      * 0 = $0000, 1 = $1000
      */
-    private int getSpritePatternTableAddress() {
+    int getSpritePatternTableAddress() {
         return ((registers[0] & 0x08) != 0) ? 0x1000 : 0x0000;
     }
     
@@ -687,7 +917,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Gets the sprite size from PPUCTRL bit 5
      * 0 = 8x8, 1 = 8x16
      */
-    private int getSpriteSize() {
+    int getSpriteSize() {
         return ((registers[0] & 0x20) != 0) ? 16 : 8;
     }
     
@@ -710,7 +940,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     /**
      * Checks if sprite rendering in leftmost 8 pixels is enabled (PPUMASK bit 2)
      */
-    private boolean isShowSpritesLeft() {
+    boolean isShowSpritesLeft() {
         return (registers[1] & 0x04) != 0;
     }
     
@@ -724,7 +954,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     /**
      * Checks if sprite rendering is enabled (PPUMASK bit 4)
      */
-    private boolean isShowSprites() {
+    boolean isShowSprites() {
         return (registers[1] & 0x10) != 0;
     }
     
@@ -738,75 +968,139 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     // ==================== Background Tile Fetching ====================
     
     /**
-     * Fetches the nametable byte for the current tile
-     * Nametable byte contains the tile ID (0-255)
+     * Fetches the nametable byte for the current tile, honouring
+     * scrollX/scrollY and the PPUCTRL base-nametable bits, with
+     * cross-NT wrap (Step 7).
+     *
+     * <p>The viewport tile (screenTileX, screenTileY) is derived from
+     * the current cycle and scanline. Adding the scroll offset and
+     * PPUCTRL's base NT gives a "virtual" tile coordinate; we wrap
+     * horizontally at 32 (NT width) by toggling NT bit 0, and vertically
+     * at 30 (NT visible height) by toggling NT bit 1. The tile is then
+     * fetched from the resolved NT.
      */
     private void fetchNametableByte() {
-        // Calculate nametable address based on scroll position
-        // For now, using simple addressing without scroll
-        // Address = base nametable + (scanline/8) * 32 + (cycle/8)
-        int baseAddr = getBaseNametableAddress();
-        int tileX = (cycle - 1) / 8;
-        int tileY = scanline / 8;
-        int addr = baseAddr + (tileY * 32) + tileX;
-        
+        ScrolledFetch f = scrolledFetchAddress();
         if (ppuBus != null) {
-            bgNextTileId = ppuBus.read(addr & 0x3FFF);
+            bgNextTileId = ppuBus.read(f.ntAddr & 0x3FFF);
         }
     }
-    
+
     /**
-     * Fetches the attribute byte for the current tile
-     * Attribute byte contains palette selection (2 bits per 2x2 tile group)
+     * Fetches the attribute byte for the current tile. Crucially, the
+     * attribute table is read from THE SAME NT as the tile (the
+     * cross-NT bugzmanov ch. 7 gotcha) — when scroll wraps a tile into
+     * the other NT, its palette comes from that NT's attribute table.
      */
     private void fetchAttributeByte() {
-        // Calculate attribute table address
-        // Attribute table is at nametable base + 0x3C0
-        int baseAddr = getBaseNametableAddress();
-        int tileX = (cycle - 1) / 8;
-        int tileY = scanline / 8;
-        
-        // Each attribute byte covers a 4x4 tile area (32x32 pixels)
-        int attrX = tileX / 4;
-        int attrY = tileY / 4;
-        int attrAddr = baseAddr + 0x3C0 + (attrY * 8) + attrX;
-        
+        ScrolledFetch f = scrolledFetchAddress();
+        // Attribute table is at NT base + 0x3C0; each attr byte covers a
+        // 4x4 tile area (32x32 pixels).
+        int attrX = f.tileX / 4;
+        int attrY = f.tileY / 4;
+        int attrAddr = f.ntBase + 0x3C0 + (attrY * 8) + attrX;
         if (ppuBus != null) {
             int attrByte = ppuBus.read(attrAddr & 0x3FFF);
-            
-            // Extract the 2-bit palette for this tile within the 4x4 group
-            int quadX = (tileX % 4) / 2;
-            int quadY = (tileY % 4) / 2;
+            // Extract the 2-bit palette for this tile within the 4x4 group.
+            int quadX = (f.tileX % 4) / 2;
+            int quadY = (f.tileY % 4) / 2;
             int shift = (quadY * 4) + (quadX * 2);
             bgNextTileAttr = (attrByte >> shift) & 0x03;
         }
     }
+
+    /**
+     * Mutable scratch object for scrolled-fetch results. Reused across
+     * every fetch call to avoid the ~30K allocations/frame that an
+     * immutable value object would produce. Single-threaded by
+     * construction (PPU.clock is the only caller).
+     */
+    private static final class ScrolledFetch {
+        int ntBase;   // base address of the resolved NT ($2000/$2400/$2800/$2C00)
+        int tileX;    // 0..31 within that NT
+        int tileY;    // 0..29 within that NT
+        int ntAddr;   // computed nametable cell address
+
+        void set(int ntBase, int tileX, int tileY) {
+            this.ntBase = ntBase;
+            this.tileX = tileX;
+            this.tileY = tileY;
+            this.ntAddr = ntBase + (tileY * 32) + tileX;
+        }
+    }
+
+    /** Reusable scratch — see {@link ScrolledFetch} class doc. */
+    private final ScrolledFetch fetchScratch = new ScrolledFetch();
+
+    /**
+     * Resolve the current (cycle, scanline) + scrollX/scrollY +
+     * PPUCTRL base NT into the right NT, tile-X (0..31) and tile-Y
+     * (0..29) within that NT, with cross-NT wrap. The returned
+     * coordinate is what the background fetcher reads from this cycle.
+     *
+     * <p>Returns the shared {@link #fetchScratch} object — caller MUST
+     * read fields immediately and not retain a reference.
+     */
+    private ScrolledFetch scrolledFetchAddress() {
+        // Viewport tile column being fetched (cycles 1..256 → tileX 0..31;
+        // cycles 321..336 → next-scanline tile 0..1 — both still fit the formula).
+        int screenTileX = (cycle - 1) / 8;
+        int screenTileY = scanline / 8;
+
+        // Add scroll (in tile units; sub-tile is fineX/fineY).
+        int virtTileX = screenTileX + (scrollX >> 3);
+        int virtTileY = screenTileY + (scrollY >> 3);
+
+        // PPUCTRL bits 0+1 select the base NT (0..3). We use this as the
+        // starting NT, then wrap horizontally (32 cols) and vertically
+        // (30 visible rows) toggling NT bits accordingly. Use modulo +
+        // parity so any outlier (scroll values combined with large
+        // screen-tile positions) wraps correctly, not just the [32, 63]
+        // / [30, 59] ranges that arise during normal play.
+        int baseNtSelect = registers[0] & 0x03;
+        int ntH = baseNtSelect & 1;
+        int ntV = (baseNtSelect >> 1) & 1;
+
+        int hWraps = virtTileX / 32;
+        virtTileX = virtTileX - (hWraps * 32);
+        ntH ^= (hWraps & 1);
+
+        // Vertical NT is 30 rows visible (rows 0..29); rows 30..31 are
+        // attribute-table memory and should never be addressed as tiles.
+        int vWraps = virtTileY / 30;
+        virtTileY = virtTileY - (vWraps * 30);
+        ntV ^= (vWraps & 1);
+
+        int ntBase = 0x2000 + (ntV << 11) + (ntH << 10);
+        fetchScratch.set(ntBase, virtTileX, virtTileY);
+        return fetchScratch;
+    }
     
     /**
-     * Fetches the low byte of the pattern table for the current tile
+     * Fetches the low byte of the pattern table for the current tile.
+     * Step 7: fineY combines scanline + scrollY so the fetched row is
+     * shifted by sub-tile vertical scroll.
      */
     private void fetchPatternLowByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = scanline % 8;
-        
+        int fineY = (scanline + scrollY) & 0x07;
         // Pattern table address = base + (tile_id * 16) + fine_y
         int addr = patternTableBase + (bgNextTileId * 16) + fineY;
-        
         if (ppuBus != null) {
             bgNextTilePatternLow = ppuBus.read(addr & 0x3FFF);
         }
     }
-    
+
     /**
-     * Fetches the high byte of the pattern table for the current tile
+     * Fetches the high byte of the pattern table for the current tile.
+     * Step 7: fineY combines scanline + scrollY so the fetched row is
+     * shifted by sub-tile vertical scroll.
      */
     private void fetchPatternHighByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = scanline % 8;
-        
+        int fineY = (scanline + scrollY) & 0x07;
         // Pattern table high byte is 8 bytes after low byte
         int addr = patternTableBase + (bgNextTileId * 16) + fineY + 8;
-        
         if (ppuBus != null) {
             bgNextTilePatternHigh = ppuBus.read(addr & 0x3FFF);
         }
@@ -854,8 +1148,9 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             return;
         }
         
-        // Extract 2-bit pattern pixel from shift registers using fine X
-        int muxBit = 15 - fineX;  // Select bit position based on fine X scroll
+        // Extract 2-bit pattern pixel from shift registers using fine X.
+        // Step 7: fine X is the low 3 bits of scrollX (sub-tile shift).
+        int muxBit = 15 - (scrollX & 0x07);
         int patternBit0 = (bgShiftPatternLow >> muxBit) & 0x01;
         int patternBit1 = (bgShiftPatternHigh >> muxBit) & 0x01;
         int patternPixel = (patternBit1 << 1) | patternBit0;
@@ -877,9 +1172,14 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         
         // Look up RGB color from palette RAM and color palette
         int color = getColorFromPalette(paletteRamIndex);
-        
+
         // Write to screen buffer (cycle - 1 because cycle is 1-256 but screen is 0-255)
-        screen[scanline][cycle - 1] = color;
+        int x = cycle - 1;
+        screen[scanline][x] = color;
+        // Record the pattern value for sprite-priority compositing (Step 5).
+        if (scanline < VISIBLE_HEIGHT && x < VISIBLE_WIDTH) {
+            bgPatternPixel[scanline][x] = patternPixel;
+        }
     }
     
     /**

@@ -18,6 +18,7 @@ public class CPUBus {
     APU apu;
     Cartridge cartridge;
     Controller controller;
+    DmaController dma;
     FullAddressRam testRam;
     @Builder.Default
     long masterClockCount = 0;// the master clock is the total number of clocks for the system. aligned with
@@ -31,6 +32,7 @@ public class CPUBus {
         Optional.ofNullable(apu).ifPresent(apu -> apu.connectCpuBus(this));
         Optional.ofNullable(cartridge).ifPresent(cartridge -> cartridge.connectCpuBus(this));
         Optional.ofNullable(controller).ifPresent(controller -> controller.connectCpuBus(this));
+        Optional.ofNullable(dma).ifPresent(dma -> dma.connectCpuBus(this));
         return this;
     }
 
@@ -46,6 +48,8 @@ public class CPUBus {
             ppu.cpuBusWrite(addr, value);
         } else if (Optional.ofNullable(controller).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
             controller.cpuBusWrite(addr, value);
+        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
+            dma.cpuBusWrite(addr, value);
         } else {
             log.error("no device found in range of address {}", address);
         }
@@ -76,6 +80,8 @@ public class CPUBus {
             return cartridge.cpuBusRead(addr, readOnly);
         } else if (Optional.ofNullable(controller).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
             return controller.cpuBusRead(addr, readOnly);
+        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
+            return dma.cpuBusRead(addr, readOnly);
         }
         log.error("no device found in range of address {}", address);
         return 0;
@@ -94,7 +100,14 @@ public class CPUBus {
 
         Optional.ofNullable(ppu).ifPresent(ppu -> ppu.clock());
         if (masterClockCount % 3 == 0) {// ppu is 3x faster than the cpu
-            Optional.ofNullable(cpu).ifPresent(cpu -> cpu.clock());
+            // DMA preempts the CPU when active: instead of cpu.clock() this
+            // CPU-turn goes to the DMA state machine. CPU is suspended for
+            // the duration of the DMA burst (513 or 514 CPU cycles).
+            if (dma != null && dma.isActive()) {
+                dma.tickDmaCycle(this, ppu, masterClockCount);
+            } else {
+                Optional.ofNullable(cpu).ifPresent(cpu -> cpu.clock());
+            }
         }
         masterClockCount++;
     }

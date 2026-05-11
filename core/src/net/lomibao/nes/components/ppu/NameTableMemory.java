@@ -14,7 +14,14 @@ import net.lomibao.nes.components.PPUBusComponent;
 public class NameTableMemory implements PPUBusComponent {
     private PPUBus ppuBus;
     private Cartridge cartridge;
-    
+    /**
+     * Optional manual override for the mirroring mode. When non-null,
+     * takes precedence over the cartridge-derived mode. Useful for tests
+     * that exercise scrolling without standing up a full cartridge, and
+     * for future mappers (MMC1+) that can switch mirroring at runtime.
+     */
+    private MirroringMode mirroringOverride;
+
     // 2KB VRAM (2 physical nametables, mirrored to appear as 4)
     private byte[] vram = new byte[2048];
     
@@ -41,14 +48,27 @@ public class NameTableMemory implements PPUBusComponent {
      * @return the mirroring mode, defaults to HORIZONTAL if no cartridge
      */
     private MirroringMode getMirroringMode() {
+        if (mirroringOverride != null) {
+            return mirroringOverride;
+        }
         if (cartridge == null) {
             return MirroringMode.HORIZONTAL;
         }
         // For now, use horizontal mirroring based on header flag
         // TODO: Advanced mappers can change mirroring dynamically
-        return cartridge.isHorizontalMirroring() 
-            ? MirroringMode.HORIZONTAL 
+        return cartridge.isHorizontalMirroring()
+            ? MirroringMode.HORIZONTAL
             : MirroringMode.VERTICAL;
+    }
+
+    /**
+     * Manually set the mirroring mode, bypassing cartridge-derived mode.
+     * Used by tests and (in the future) by mappers like MMC1 that switch
+     * mirroring at runtime via control-register writes. Pass {@code null}
+     * to revert to cartridge-derived mode.
+     */
+    public void setMirroringOverride(MirroringMode mode) {
+        this.mirroringOverride = mode;
     }
     
     /**

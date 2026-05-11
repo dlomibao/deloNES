@@ -1,0 +1,52 @@
+name: Tests
+
+# Runs the JUnit suite on every PR and on every push to master.
+# Designed to be the required PR gate via branch protection.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Cancel an in-flight run if the PR is updated again — saves runner minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: core:test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11 (Temurin)
+        # Project sources target Java 8; JDK 11 matches what we use locally
+        # (where 8 had a broken sdkman setup) and Lombok 1.18.32 supports it.
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Set up Gradle
+        # Caches the wrapper, downloaded jars, and (mostly) configuration cache.
+        # Speeds up subsequent runs from ~2 min to ~30 sec.
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Run tests (full core suite)
+        # Includes NestestTest — the canonical 8992/8992 regression guard.
+        # Streams stdout (showStandardStreams=true in core/build.gradle) so
+        # the suite-summary line is visible in the Actions log.
+        run: ./gradlew core:test --no-daemon
+
+      - name: Upload test report on failure
+        # Makes it easy to download the HTML report instead of scrolling logs.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: core/build/reports/tests/test
+          retention-days: 7
