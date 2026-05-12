@@ -115,7 +115,25 @@ Thumbs.db
 
 ## Temporary files
 /temp/
+/bash.exe.stackdump
+/test_tyx_trace.java
 
 ## Test/runtime logs
 /core/logs/
 /desktop/logs/
+/assets/logs/
+
+## AI / agent scratch
+/.claude/
+/.claire/
+/aiplan/
+
+## Runtime-generated user config (created on first launch with defaults)
+/assets/controls.json
+/desktop/controls.json
+
+## ROMs — fair-use copies for local dev only; no redistribution rights.
+## RomCatalog reads roms/index.txt at runtime, which intentionally lists
+## only nestest.nes (checked-in, freely distributable).
+/core/src/main/resources/roms/*.nes
+!/core/src/main/resources/roms/nestest.nes
