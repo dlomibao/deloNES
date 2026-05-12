@@ -233,4 +233,56 @@ class PPUSpriteZeroHitTest {
                 "bit 6 must not set in leftmost 8 px when sprite-left-8 (bit 2) is off");
     }
 
+    // ---- NESdev corner cases (B10) ----
+
+    /**
+     * Per NESdev: sprite-0 hit never fires at x=255 (the last visible pixel of
+     * a scanline). Place sprite-0 at OAM X=255 so its only in-range overlap
+     * column is x=255, drive the PPU all the way to (and through) cycle 256 on
+     * the sprite's first scanline with both rendering layers fully enabled,
+     * and confirm PPUSTATUS bit 6 stays clear.
+     */
+    @Test
+    void bit6_notSet_atX255_evenWhenBothLayersEnabled() {
+        // OAM X=255 → checkSpriteZeroHit only considers x in [255,262], and only x=255
+        // is on-screen. Cycle 256 maps to x=255 — the gated column.
+        putSprite0(49, 255);
+        enableBothLayers();
+        // Walk through every cycle on scanline 50 up to and including cycle 256.
+        // The only overlap candidate is cycle 256 (x=255), which the x=255 rule must reject.
+        tickTo(50, 256);
+        assertFalse(spriteZeroHit(),
+                "bit 6 must not set at x=255 even when both layers are enabled (NESdev rule)");
+        // And it must stay clear for the rest of the scanline too.
+        tickTo(50, 340);
+        assertFalse(spriteZeroHit(),
+                "bit 6 must remain clear through the remainder of the scanline");
+    }
+
+    /**
+     * If the BG pattern pixel at every sprite-0 overlap cell on a scanline is
+     * transparent (palette index 0), sprite-0 hit must NOT fire on that
+     * scanline — even though both rendering layers are on and the sprite
+     * pixel itself is opaque. Exercises the BG-transparent gate in
+     * {@link PPU#checkSpriteZeroHit()} that consults the bg-pattern shadow.
+     */
+    @Test
+    void bit6_notSet_whenBgPixelIsTransparent_atOverlapCell() {
+        putSprite0(49, 100);            // sprite-0 spans x=100..107 on scanlines 50..57
+        enableBothLayers();
+        // Zero the BG pattern shadow across the full 8-pixel overlap row on scanline 50
+        // (sprite columns x=100..107). With BG transparent here, no overlap cycle on
+        // this scanline may set bit 6.
+        for (int x = 100; x < 108; x++) {
+            ppu.setBgPatternPixelForTest(50, x, 0);
+        }
+        tickTo(50, 256);
+        assertFalse(spriteZeroHit(),
+                "bit 6 must not set when the BG pixel at the overlap cell is transparent");
+        // Sanity: scanline 51's bg-pattern shadow is still opaque, so the hit fires there.
+        tickTo(51, 105);
+        assertTrue(spriteZeroHit(),
+                "bit 6 must fire on the next scanline where BG is opaque again");
+    }
+
 }
