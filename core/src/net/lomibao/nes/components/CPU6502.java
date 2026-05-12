@@ -11,9 +11,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Arrays;
 
 @Builder
 @Data
@@ -214,61 +211,110 @@ public class CPU6502 {
         private String addressingMode;
 
         private CPU6502 cpu;
-        private Method handler;
-        private Method addressingHandler;
 
+        // Dispatch is a hand-rolled string switch (was Method.invoke before
+        // 2026-05-12). Reflection in the hot path is dead-on-arrival for the
+        // web/TeaVM target, and switch-on-string lowers to a hash + branch
+        // table on the JVM/TeaVM so it's a perf win on desktop too.
+        // The string keys come straight from opcodes.csv columns.
         private int runAddressMode() {
-            if (addressingHandler == null) {
-                addressingHandler = Arrays.stream(cpu.getClass().getDeclaredMethods())
-                        .filter(method -> addressingMode.equals(method.getName()))
-                        .findFirst().orElse(null);
+            switch (addressingMode) {
+                case "IMP": return cpu.IMP();
+                case "IMM": return cpu.IMM();
+                case "ZP0": return cpu.ZP0();
+                case "ZPX": return cpu.ZPX();
+                case "ZPY": return cpu.ZPY();
+                case "REL": return cpu.REL();
+                case "ABS": return cpu.ABS();
+                case "ABX": return cpu.ABX();
+                case "ABY": return cpu.ABY();
+                case "IND": return cpu.IND();
+                case "IZX": return cpu.IZX();
+                case "IZY": return cpu.IZY();
+                default:
+                    log.error("no addressing handler configured for {}", addressingMode);
+                    return 0;
             }
-            if (addressingHandler != null) {
-                try {
-                    return (int) addressingHandler.invoke(cpu);
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                } catch (InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                }
-            } else {
-                log.error(() -> String.format("no addressing handler configured for %s", addressingMode));
-            }
-            return 0;
         }
 
         private void initHandlers() {
-            if (handler == null) {
-                handler = Arrays.stream(cpu.getClass().getDeclaredMethods())
-                        .filter(method -> opcodeName.equals(method.getName()))
-                        .findFirst().orElse(null);
-            }
-            if (addressingHandler == null) {
-                addressingHandler = Arrays.stream(cpu.getClass().getDeclaredMethods())
-                        .filter(method -> addressingMode.equals(method.getName()))
-                        .findFirst().orElse(null);
-            }
+            // No-op: dispatch is now a direct string switch in
+            // runInstruction()/runAddressMode(). Retained as a hook for any
+            // future startup-time validation (e.g. asserting every csv name
+            // resolves to a real handler).
         }
 
         private int runInstruction() {
-            if (handler == null) {
-                handler = Arrays.stream(cpu.getClass().getDeclaredMethods())
-                        .filter(method -> opcodeName.equals(method.getName()))
-                        .findFirst().orElse(null);
+            switch (opcodeName) {
+                case "ADC": return cpu.ADC();
+                case "AND": return cpu.AND();
+                case "ASL": return cpu.ASL();
+                case "BCC": return cpu.BCC();
+                case "BCS": return cpu.BCS();
+                case "BEQ": return cpu.BEQ();
+                case "BIT": return cpu.BIT();
+                case "BMI": return cpu.BMI();
+                case "BNE": return cpu.BNE();
+                case "BPL": return cpu.BPL();
+                case "BRK": return cpu.BRK();
+                case "BVC": return cpu.BVC();
+                case "BVS": return cpu.BVS();
+                case "CLC": return cpu.CLC();
+                case "CLD": return cpu.CLD();
+                case "CLI": return cpu.CLI();
+                case "CLV": return cpu.CLV();
+                case "CMP": return cpu.CMP();
+                case "CPX": return cpu.CPX();
+                case "CPY": return cpu.CPY();
+                case "DCP": return cpu.DCP();
+                case "DEC": return cpu.DEC();
+                case "DEX": return cpu.DEX();
+                case "DEY": return cpu.DEY();
+                case "EOR": return cpu.EOR();
+                case "INC": return cpu.INC();
+                case "INX": return cpu.INX();
+                case "INY": return cpu.INY();
+                case "ISB": return cpu.ISB();
+                case "JMP": return cpu.JMP();
+                case "JSR": return cpu.JSR();
+                case "LAX": return cpu.LAX();
+                case "LDA": return cpu.LDA();
+                case "LDX": return cpu.LDX();
+                case "LDY": return cpu.LDY();
+                case "LSR": return cpu.LSR();
+                case "NOP": return cpu.NOP();
+                case "ORA": return cpu.ORA();
+                case "PHA": return cpu.PHA();
+                case "PHP": return cpu.PHP();
+                case "PLA": return cpu.PLA();
+                case "PLP": return cpu.PLP();
+                case "RLA": return cpu.RLA();
+                case "ROL": return cpu.ROL();
+                case "ROR": return cpu.ROR();
+                case "RRA": return cpu.RRA();
+                case "RTI": return cpu.RTI();
+                case "RTS": return cpu.RTS();
+                case "SAX": return cpu.SAX();
+                case "SBC": return cpu.SBC();
+                case "SEC": return cpu.SEC();
+                case "SED": return cpu.SED();
+                case "SEI": return cpu.SEI();
+                case "SLO": return cpu.SLO();
+                case "SRE": return cpu.SRE();
+                case "STA": return cpu.STA();
+                case "STX": return cpu.STX();
+                case "STY": return cpu.STY();
+                case "TAX": return cpu.TAX();
+                case "TAY": return cpu.TAY();
+                case "TSX": return cpu.TSX();
+                case "TXA": return cpu.TXA();
+                case "TXS": return cpu.TXS();
+                case "TYA": return cpu.TYA();
+                case "XXX": return cpu.XXX();
+                default:
+                    log.error("no instruction handler configured for {}", opcodeName);
+                    return 0;
             }
-
-            if (handler != null) {
-                try {
-                    return (int) handler.invoke(cpu);
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                } catch (InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                }
-            } else {
-                log.error(() -> String.format("no instruction handler configured for %s", opcodeName));
-            }
-            return 0;
         }
 
         @Override
@@ -283,8 +329,6 @@ public class CPU6502 {
                     ", clocks=" + clocks +
                     ", addressingMode='" + addressingMode + '\'' +
                     ", cpu=" + (cpu != null) +
-                    ", handler=" + (handler != null) +
-                    ", addHandler=" + (addressingHandler != null) +
                     '}';
         }
     }
