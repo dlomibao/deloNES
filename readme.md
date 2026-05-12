@@ -11,6 +11,7 @@ a Java and LibGDX NES Emulator POC
 ## Devlog
 ### 5-12-2026
 * **Donkey Kong first level playable!** Title screen renders correctly; Mario, Pauline, barrels, oil drum + fire all in place; sprite/BG alignment correct.
+* ![Donkey Kong running on deloNES](repoassets/dk_working.gif)
 * Fixed PPU BG fetcher pipeline:
   * +2 tile lookahead during visible cycles (so the fetcher loads col 2 at cycle 1 while col 0 — pre-fetched on the previous scanline — renders at cycle 1).
   * Cycles 321-337 prefetch correctly reads col 0 and col 1 of the *next* scanline; BG shifters now shift during prefetch too, so col 0 ends in the HIGH byte by start of next scanline. Previously the leftmost ~16 pixels of every scanline rendered stale shifter data.
