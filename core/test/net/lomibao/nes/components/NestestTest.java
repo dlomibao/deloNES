@@ -28,8 +28,8 @@ public class NestestTest {
                 cpu.reset();
                 // Nestest auto-mode: set PC to 0xC000 to skip menu
                 cpu.setPc(0xC000);
-                // cpu.reset() sets cycles = 8. We need to clear them so the next clock() starts
-                // the instruction at 0xC000.
+                // cpu.reset() sets cycles = 7 (per nestest convention). Drain them so
+                // the next clock() starts the first instruction at 0xC000 with CYC:7.
                 while (!cpu.complete()) {
                         cpu.clock();
                 }
@@ -72,11 +72,9 @@ public class NestestTest {
                         assertEquals(expA, cpu.getA(), "A mismatch. " + failureMsg);
                         assertEquals(expX, cpu.getX(), "X mismatch. " + failureMsg);
                         assertEquals(expY, cpu.getY(), "Y mismatch. " + failureMsg);
-                        // assertEquals(expP, cpu.getStatus() & 0xFF, "P mismatch. " + failureMsg); // P
-                        // status might have nuances (bit 4/5)
+                        assertEquals(expP, cpu.getStatus() & 0xFF, "P mismatch. " + failureMsg);
                         assertEquals(expSp, cpu.getStkp(), "SP mismatch. " + failureMsg);
-                        // assertEquals(expCyc, (int)cpu.getClockCount(), "Cycle mismatch. " +
-                        // failureMsg);
+                        assertEquals(expCyc, (int) cpu.getClockCount(), "Cycle mismatch. " + failureMsg);
 
                         // Run one instruction
                         // In CPU6502.java, clock() starts a new instruction if cycles == 0.

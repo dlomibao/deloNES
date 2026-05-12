@@ -177,9 +177,9 @@ public class OpcodesTest {
         ram.cpuBusWrite(0xFFFC, (byte) 0x00);
         ram.cpuBusWrite(0xFFFD, (byte) 0x80);
         cpu.reset();
-        
-        // Clock through reset and LDA + PHA
-        for (int i = 0; i < 13; i++) {
+
+        // Clock through reset (7) + LDA #$42 (2) + PHA (3) = 12 cycles
+        for (int i = 0; i < 12; i++) {
             cpu.clock();
         }
         assertEquals(0xFC, cpu.getStkp(), "Stack pointer should decrement after PHA");
