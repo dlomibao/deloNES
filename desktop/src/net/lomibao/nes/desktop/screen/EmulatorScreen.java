@@ -61,6 +61,14 @@ public class EmulatorScreen implements Screen {
     private boolean paused = false;
     private int frameCount = 0;
     private boolean shown = false;
+    /**
+     * Set when {@link #loadROM()} throws inside {@link #show()}. While true,
+     * {@link #render(float)} is a no-op so the half-initialised emulator
+     * never executes (no NPEs from null cpu/ppu/nesSystem). The {@code show()}
+     * path also fires {@code onExit} after disposing partial state, bouncing
+     * the user back to the menu rather than bricking the app.
+     */
+    private boolean loadFailed = false;
 
     public EmulatorScreen(RomSource rom, Controller controller, Runnable onExit, boolean debugHud) {
         if (rom == null) {
@@ -130,8 +138,28 @@ public class EmulatorScreen implements Screen {
         }
 
         setupNESSystem();
-        loadROM();
-        initializeTestPattern();
+
+        // Guard against bad-ROM bricking. LibGDX Game.setScreen() has already
+        // swapped this.screen to us *before* calling show(), so if we let
+        // loadROM() throw here the next render() runs on a half-initialised
+        // instance (nesSystem/cpu/ppu may all be null) and NPEs forever —
+        // user has no way back to the menu. Instead: log, mark loadFailed
+        // (render() bails out), dispose any partial GL state, and invoke
+        // onExit to bounce back to the menu.
+        try {
+            loadROM();
+            initializeTestPattern();
+        } catch (RuntimeException e) {
+            loadFailed = true;
+            System.err.println("EmulatorScreen: failed to load ROM '"
+                    + rom.displayName() + "': " + e.getMessage());
+            e.printStackTrace();
+            dispose();
+            if (onExit != null) {
+                onExit.run();
+            }
+            return;
+        }
 
         System.out.println("EmulatorScreen ready");
     }
@@ -191,6 +219,15 @@ public class EmulatorScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        // If the ROM failed to load in show() we've already disposed our
+        // GL state and called onExit — but LibGDX may still drive one more
+        // render() before the screen swap takes effect. Bail out so we
+        // don't NPE on null nesSystem/cpu/ppu.
+        if (loadFailed) {
+            frameCount++;
+            return;
+        }
+
         if (Gdx.gl != null) {
             Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1f);
             Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
