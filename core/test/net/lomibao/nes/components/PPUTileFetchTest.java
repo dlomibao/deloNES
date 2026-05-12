@@ -28,18 +28,19 @@ class PPUTileFetchTest {
     
     @Test
     void testNametableFetchCycle1() {
-        // Set up nametable with tile ID 0x42 at position 0
-        mockBus.write(0x2000, (byte) 0x42);
-        
+        // First visible NT-fetch (cycle 2) reads viewport col 2 → $2002
+        // (PPU pipeline has +2 tile lookahead).
+        mockBus.write(0x2002, (byte) 0x42);
+
         // Enable rendering and advance to cycle 1
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
         advanceToCycle(0, 1);
-        
+
         // After cycle 1, nametable should be fetched
         advanceCycles(1);
-        
+
         // Verify fetch happened (will be loaded into shifters at cycle 8)
-        assertEquals(0x42, ppu.getBgNextTileId(), "Nametable byte should be fetched at cycle 1");
+        assertEquals(0x42, ppu.getBgNextTileId(), "Nametable byte should be fetched at cycle 2");
     }
     
     @Test
@@ -59,8 +60,9 @@ class PPUTileFetchTest {
     
     @Test
     void testShifterLoadingAtCycle8() {
-        // Set up a complete tile fetch sequence
-        mockBus.write(0x2000, (byte) 0x01);  // Tile ID 1
+        // First visible NT-fetch (cycle 2) reads viewport col 2 → $2002
+        // (PPU pipeline has +2 tile lookahead).
+        mockBus.write(0x2002, (byte) 0x01);  // Tile ID 1 at viewport col 2
         mockBus.write(0x23C0, (byte) 0x00);  // Attribute 0
         mockBus.write(0x0010, (byte) 0xF0);  // Pattern low (tile 1, row 0)
         mockBus.write(0x0018, (byte) 0x0F);  // Pattern high (tile 1, row 0)
@@ -103,22 +105,24 @@ class PPUTileFetchTest {
     
     @Test
     void testMultipleTileFetches() {
-        // Set up multiple tiles in nametable
-        mockBus.write(0x2000, (byte) 0x10);  // First tile
-        mockBus.write(0x2001, (byte) 0x20);  // Second tile
-        mockBus.write(0x2002, (byte) 0x30);  // Third tile
-        
+        // First three visible NT-fetches read viewport cols 2, 3, 4 (with +2
+        // pipeline lookahead) at cycles 2, 10, 18. Place markers at the
+        // corresponding nametable addresses.
+        mockBus.write(0x2002, (byte) 0x10);  // First fetch → viewport col 2
+        mockBus.write(0x2003, (byte) 0x20);  // Second fetch → viewport col 3
+        mockBus.write(0x2004, (byte) 0x30);  // Third fetch → viewport col 4
+
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
+
         // Advance through first tile fetch
         advanceToCycle(0, 1);
         advanceCycles(1);
         assertEquals(0x10, ppu.getBgNextTileId(), "First tile should be fetched");
-        
+
         // Advance through second tile fetch (8 cycles later)
         advanceCycles(8);
         assertEquals(0x20, ppu.getBgNextTileId(), "Second tile should be fetched");
-        
+
         // Advance through third tile fetch
         advanceCycles(8);
         assertEquals(0x30, ppu.getBgNextTileId(), "Third tile should be fetched");

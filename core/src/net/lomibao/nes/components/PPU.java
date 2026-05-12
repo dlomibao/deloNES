@@ -296,18 +296,20 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
         // Perform background tile fetching on visible and pre-render scanlines
         if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
+            // Render pixel BEFORE shifting. At cycle 1 the shifter's HIGH byte
+            // holds col 0 (from the previous scanline's prefetch); reading
+            // bit 15 gives col 0's leftmost pixel. Shifting first would
+            // discard that pixel.
+            if (isVisibleScanline() && cycle >= 1 && cycle <= 256) {
+                renderBackgroundPixel();
+            }
+
             // Shift registers during visible cycles (1-256) AND during the
             // pre-fetch window (322-337). The pre-fetch shifts move the first
             // tile (col 0 of the upcoming scanline) from the LOW byte of the
-            // shifter into the HIGH byte, so cycle 1 of the next scanline
-            // renders the correct pixel instead of stale HIGH-byte data.
+            // shifter into the HIGH byte by end of cycle 337.
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 322 && cycle <= 337)) {
                 shiftBackgroundRegisters();
-            }
-
-            // Render pixel during visible scanlines only (not pre-render)
-            if (isVisibleScanline() && cycle >= 1 && cycle <= 256) {
-                renderBackgroundPixel();
             }
 
             // Fetch tiles in 8-cycle pattern.
@@ -1071,10 +1073,23 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * read fields immediately and not retain a reference.
      */
     private ScrolledFetch scrolledFetchAddress() {
-        // Viewport tile column being fetched (cycles 1..256 → tileX 0..31;
-        // cycles 321..336 → next-scanline tile 0..1 — both still fit the formula).
-        int screenTileX = (cycle - 1) / 8;
-        int screenTileY = scanline / 8;
+        // Tile being fetched depends on the cycle phase:
+        //   - Visible fetch (cycles 1..256): we're rendering tile col K right now,
+        //     and the fetcher is preparing tile col K+2 (pipeline lookahead = 2 tiles).
+        //     At cycle 1 the renderer is reading col 0 from the shifter (loaded by
+        //     the previous scanline's prefetch), so the fetcher reads col 2.
+        //   - Prefetch (cycles 321..337): we're done rendering the current scanline
+        //     and prefetching cols 0 and 1 of the NEXT scanline into the shifter.
+        int screenTileX;
+        int screenTileY;
+        if (cycle >= 321 && cycle <= 337) {
+            screenTileX = (cycle - 321) / 8;             // 0 or 1
+            int nextScanline = (scanline + 1) % 262;     // 261 → 0 wraps to next frame's first
+            screenTileY = nextScanline / 8;
+        } else {
+            screenTileX = (cycle - 1) / 8 + 2;           // +2 tile lookahead
+            screenTileY = scanline / 8;
+        }
 
         // Add scroll (in tile units; sub-tile is fineX/fineY).
         int virtTileX = screenTileX + (scrollX >> 3);
@@ -1112,7 +1127,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     private void fetchPatternLowByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = (scanline + scrollY) & 0x07;
+        int fineY = (fetchScanline() + scrollY) & 0x07;
         // Pattern table address = base + (tile_id * 16) + fine_y
         int addr = patternTableBase + (bgNextTileId * 16) + fineY;
         if (ppuBus != null) {
@@ -1127,12 +1142,25 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     private void fetchPatternHighByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = (scanline + scrollY) & 0x07;
+        int fineY = (fetchScanline() + scrollY) & 0x07;
         // Pattern table high byte is 8 bytes after low byte
         int addr = patternTableBase + (bgNextTileId * 16) + fineY + 8;
         if (ppuBus != null) {
             bgNextTilePatternHigh = ppuBus.read(addr & 0x3FFF);
         }
+    }
+
+    /**
+     * The scanline we're currently fetching FOR — same as {@link #scanline}
+     * during visible cycles (1..256), or {@code scanline + 1} during the
+     * prefetch window (cycles 321..337), since prefetch loads tiles for the
+     * NEXT scanline. Wraps 261 → 0 on the frame boundary.
+     */
+    private int fetchScanline() {
+        if (cycle >= 321 && cycle <= 337) {
+            return (scanline + 1) % 262;
+        }
+        return scanline;
     }
     
     /**

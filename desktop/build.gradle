@@ -52,6 +52,20 @@ tasks.register('debug', JavaExec) {
     debug = true
 }
 
+// Headless diagnostic runner — loads DonkeyKong.nes, runs N frames, dumps
+// PPU registers, OAM, nametable summary, palette RAM, and ASCII framebuffer
+// snapshots. Designed for agent-driven debugging.
+//   ./gradlew desktop:traceDK                  → 600 frames (default)
+//   ./gradlew desktop:traceDK --args="1200"    → 1200 frames
+tasks.register('traceDK', JavaExec) {
+    group = 'debugging'
+    description = 'Headless DonkeyKong run for rendering diagnostics'
+    dependsOn classes
+    mainClass = 'net.lomibao.nes.desktop.DKDiagnosticRunner'
+    classpath = sourceSets.main.runtimeClasspath
+    ignoreExitValue = true
+}
+
 // Task to view CHR ROM tiles from nestest.nes using PixelRenderer
 tasks.register('viewCHRTiles', JavaExec) {
     group = 'debugging'

@@ -66,36 +66,40 @@ class PPUControlRegistersTest {
         ppu.connectPPUBus(ppuBus);
         ppu.cpuBusWrite(0x2001, (byte) 0x08);  // Enable rendering
         
+        // The first visible NT-fetch (cycle 2) reads viewport col 2 due to the
+        // PPU pipeline's +2 tile lookahead, so we write the marker at col 2
+        // (offset 0x02 within each nametable's row 0).
+
         // Test nametable 0 (bits 0-1 = 00) -> $2000
         ppu.cpuBusWrite(0x2000, (byte) 0x00);
-        mockBus.write(0x2000, (byte) 0xAA);
+        mockBus.write(0x2002, (byte) 0xAA);
         advanceToCycle(0, 1);
         ppu.clock();
         assertEquals(0xAA, ppu.getBgNextTileId(), "Bits 0-1=00 should select nametable at $2000");
-        
+
         // Test nametable 1 (bits 0-1 = 01) -> $2400
         ppu.reset();
         ppu.cpuBusWrite(0x2000, (byte) 0x01);
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        mockBus.write(0x2400, (byte) 0xBB);
+        mockBus.write(0x2402, (byte) 0xBB);
         advanceToCycle(0, 1);
         ppu.clock();
         assertEquals(0xBB, ppu.getBgNextTileId(), "Bits 0-1=01 should select nametable at $2400");
-        
+
         // Test nametable 2 (bits 0-1 = 10) -> $2800
         ppu.reset();
         ppu.cpuBusWrite(0x2000, (byte) 0x02);
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        mockBus.write(0x2800, (byte) 0xCC);
+        mockBus.write(0x2802, (byte) 0xCC);
         advanceToCycle(0, 1);
         ppu.clock();
         assertEquals(0xCC, ppu.getBgNextTileId(), "Bits 0-1=10 should select nametable at $2800");
-        
+
         // Test nametable 3 (bits 0-1 = 11) -> $2C00
         ppu.reset();
         ppu.cpuBusWrite(0x2000, (byte) 0x03);
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        mockBus.write(0x2C00, (byte) 0xDD);
+        mockBus.write(0x2C02, (byte) 0xDD);
         advanceToCycle(0, 1);
         ppu.clock();
         assertEquals(0xDD, ppu.getBgNextTileId(), "Bits 0-1=11 should select nametable at $2C00");
@@ -128,24 +132,25 @@ class PPUControlRegistersTest {
         PPUBus ppuBus = new PPUBus();
         ppuBus.connect(mockBus);
         ppu.connectPPUBus(ppuBus);
-        mockBus.write(0x2000, (byte) 0x42);
-        
+        // First visible NT-fetch reads viewport col 2 → $2002.
+        mockBus.write(0x2002, (byte) 0x42);
+
         // Disable background rendering (bit 3 = 0)
         ppu.cpuBusWrite(0x2001, (byte) 0x00);
-        
+
         advanceToCycle(0, 1);
         ppu.clock();
-        
+
         // No fetching should occur
         assertEquals(0, ppu.getBgNextTileId(), "Background fetching should be disabled when PPUMASK bit 3 = 0");
-        
+
         // Enable background rendering (bit 3 = 1)
         ppu.reset();
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
+
         advanceToCycle(0, 1);
         ppu.clock();
-        
+
         // Fetching should occur
         assertEquals(0x42, ppu.getBgNextTileId(), "Background fetching should be enabled when PPUMASK bit 3 = 1");
     }
@@ -193,16 +198,17 @@ class PPUControlRegistersTest {
     void testPPUMASKBitsWorkIndependently() {
         // Test that setting other bits doesn't affect background rendering
         ppu.cpuBusWrite(0x2001, (byte) 0x1F);  // All bits set
-        
+
         MockPPUBus mockBus = new MockPPUBus();
         PPUBus ppuBus = new PPUBus();
         ppuBus.connect(mockBus);
         ppu.connectPPUBus(ppuBus);
-        mockBus.write(0x2000, (byte) 0x77);
-        
+        // First visible NT-fetch reads viewport col 2 → $2002.
+        mockBus.write(0x2002, (byte) 0x77);
+
         advanceToCycle(0, 1);
         ppu.clock();
-        
+
         // Fetching should still work with all bits set
         assertEquals(0x77, ppu.getBgNextTileId(), "Other PPUMASK bits should not interfere with fetching");
     }
@@ -214,22 +220,22 @@ class PPUControlRegistersTest {
         ppuBus.connect(mockBus);
         ppu.connectPPUBus(ppuBus);
         
-        // Start with rendering enabled
+        // Start with rendering enabled. First visible NT-fetch reads col 2 → $2002.
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        mockBus.write(0x2000, (byte) 0x11);
-        
+        mockBus.write(0x2002, (byte) 0x11);
+
         advanceToCycle(0, 1);
         ppu.clock();
         assertEquals(0x11, ppu.getBgNextTileId(), "Fetching should work when enabled");
-        
+
         // Disable rendering mid-frame
         ppu.cpuBusWrite(0x2001, (byte) 0x00);
-        
-        // Advance to next tile fetch
+
+        // Advance to next tile fetch (would read col 3 → $2003 if rendering were enabled).
         advanceCycles(8);
-        mockBus.write(0x2001, (byte) 0x22);
+        mockBus.write(0x2003, (byte) 0x22);
         int tileId = ppu.getBgNextTileId();
-        
+
         // Fetch should not update when disabled
         assertEquals(0x11, tileId, "Fetching should stop when rendering disabled mid-frame");
     }
