@@ -212,6 +212,90 @@ class PPUNMITest {
         assertEquals(2, nmiCount, "NMI should trigger again after re-enabling");
     }
 
+    // ---------------------------------------------------------------
+    // Rising-edge NMI inside VBlank (B5).
+    //
+    // On real hardware, writing $2000 with bit 7 set while the
+    // PPUSTATUS VBlank flag (bit 7) is already set asserts NMI — even
+    // if VBlank entry already fired one for this frame. Battletoads
+    // and other titles toggle $2000 bit 7 mid-VBlank to fire a second
+    // NMI. See https://www.nesdev.org/wiki/PPU_registers#PPUCTRL
+    // ---------------------------------------------------------------
+
+    @Test
+    void testSettingNMIEnableDuringVBlankWithPrevClearLatchesNMI() {
+        // Start with NMI disabled so VBlank entry does NOT latch NMI.
+        disableNMI();
+        // Advance to scanline 241, cycle 1 — VBlank entry. No latch
+        // expected because bit 7 of PPUCTRL is clear.
+        tickN(241 * 341 + 1);
+        assertEquals(0, nmiCount, "VBlank entry with NMI disabled must not latch");
+        assertTrue((ppu.cpuBusRead(0x2002, true) & 0x80) != 0,
+                "precondition: PPUSTATUS VBlank flag should be set");
+
+        // Now perform the 0→1 rising edge on PPUCTRL bit 7 while still
+        // inside VBlank. Hardware should latch a fresh NMI.
+        enableNMI();
+        assertTrue(ppu.consumeNmi(),
+                "Setting PPUCTRL bit 7 (0→1) during VBlank must latch NMI");
+    }
+
+    @Test
+    void testSettingNMIEnableDuringVBlankWhenAlreadySetDoesNotReLatch() {
+        // NMI enabled before VBlank entry — once-per-frame entry latches.
+        enableNMI();
+        tickN(241 * 341 + 1);
+        assertEquals(1, nmiCount, "VBlank entry with NMI enabled should latch");
+        assertTrue((ppu.cpuBusRead(0x2002, true) & 0x80) != 0,
+                "precondition: PPUSTATUS VBlank flag should still be set");
+
+        // Writing the same enable bit again is NOT an edge; no new NMI.
+        writePPUCTRL((byte) 0x80);
+        assertFalse(ppu.consumeNmi(),
+                "No rising edge on PPUCTRL bit 7 must not latch NMI");
+    }
+
+    @Test
+    void testSettingNMIEnableOutsideVBlankDoesNotLatch() {
+        // We are at scanline 0, cycle 0 — outside VBlank, PPUSTATUS bit 7 = 0.
+        disableNMI();
+        // Sanity: VBlank flag clear.
+        assertEquals(0, ppu.cpuBusRead(0x2002, true) & 0x80,
+                "precondition: PPUSTATUS VBlank flag should be clear");
+
+        // Enable NMI while outside VBlank — no latch.
+        enableNMI();
+        assertFalse(ppu.consumeNmi(),
+                "Enabling NMI outside VBlank must not latch NMI");
+    }
+
+    @Test
+    void testRisingEdgeProducesSecondNMIInSameFrame() {
+        // Battletoads pattern: NMI handler returns, sets bit 7 high again
+        // mid-VBlank to immediately re-fire NMI. We model the simpler form:
+        // entry latches one NMI; clearing then re-setting bit 7 (still in
+        // VBlank, flag still set since we haven't read $2002) latches a
+        // second NMI within the same VBlank window.
+        //
+        // Note: the {@link #tick()} helper auto-consumes the latch into
+        // {@code nmiCount}, so we observe the entry NMI via the counter,
+        // then directly observe the second NMI by polling consumeNmi.
+        enableNMI();
+        tickN(241 * 341 + 1);     // VBlank entry — first NMI latched & consumed by tick().
+        assertEquals(1, nmiCount, "first NMI of frame (VBlank entry)");
+        assertTrue((ppu.cpuBusRead(0x2002, true) & 0x80) != 0,
+                "precondition: PPUSTATUS VBlank flag should still be set");
+
+        // Clear bit 7, then set it again — rising edge mid-VBlank.
+        disableNMI();
+        // Note: we deliberately do NOT read $2002 (non-readOnly) here; the
+        // VBlank flag stays set, which is the precondition for the edge to
+        // fire.
+        enableNMI();
+        assertTrue(ppu.consumeNmi(),
+                "Second NMI must latch on mid-VBlank rising edge");
+    }
+
     @Test
     void testPPUCTRLBit7ControlsNMI() {
         // Test each bit pattern with bit 7 clear
