@@ -224,4 +224,140 @@ class DmaControllerTest {
         assertEquals((byte) 0, r.ppu.readOam(0), "second DMA should overwrite OAM[0]");
         assertEquals((byte) 255, r.ppu.readOam(255), "second DMA should overwrite OAM[255]");
     }
+
+    // ---------------------------------------------------------------------
+    // B7 — per-burst wait-state + alignment contract
+    //
+    // NESdev (https://www.nesdev.org/wiki/DMA): OAM DMA takes
+    //   halt cycle (1) + optional alignment (0 or 1) + 256 read/write pairs (512)
+    //   = 513 or 514 cycles.
+    //
+    // The alignment cycle is consumed when DMA's first "get" (read) attempt
+    // would otherwise land on a "put" (write) cycle. In this emulator we
+    // model get cycles as even master ticks (read) and put cycles as odd
+    // master ticks (write) — a common simplification since we don't model
+    // the APU's get/put phase relative to the CPU clock.
+    //
+    // The per-burst contract is: every burst independently performs the
+    // halt + maybe-align phase based on the current master clock parity at
+    // the time of the first DMA tick. No state may carry over from a prior
+    // burst.
+    // ---------------------------------------------------------------------
+
+    /** Rig with no CPU — used to count DMA cycles without CPU side effects. */
+    static final class HeadlessRig {
+        final DmaController dma = new DmaController();
+        final PPU ppu = new PPU();
+        final FullAddressRam ram = new FullAddressRam();
+        final CPUBus bus = CPUBus.builder()
+                .ppu(ppu)
+                .testRam(ram)
+                .dma(dma)
+                .build()
+                .connect();
+
+        /** Fill source page so OAM reads succeed. */
+        void fillPage(int page) {
+            for (int i = 0; i < 256; i++) {
+                ram.cpuBusWrite((page << 8) + i, (byte) i);
+            }
+        }
+
+        /**
+         * Drive bus.clock() until DMA finishes; return the number of CPU
+         * cycles consumed (i.e., the count of CPU turns owned by DMA).
+         */
+        long runDmaToCompletion() {
+            long dmaCpuCycles = 0;
+            int safety = 0;
+            while (dma.isActive() && safety++ < 2000) {
+                long mc = bus.getMasterClockCount();
+                // Every bus.clock() at mc%3==0 is a CPU turn. While dma.isActive()
+                // is true ENTERING the tick, that CPU turn belongs to DMA.
+                if (mc % 3 == 0) dmaCpuCycles++;
+                bus.clock();
+            }
+            assertFalse(dma.isActive(), "DMA must complete within the safety window");
+            return dmaCpuCycles;
+        }
+    }
+
+    @Test
+    void dma_singleBurstFromEvenCpuCycle_takes513Cycles() {
+        // Trigger DMA when master clock is at an "even-CPU-turn" position
+        // such that the FIRST DMA tick lands on a master tick where mc%2==1
+        // (i.e., the wait state immediately yields and the first read happens
+        // on the next CPU turn at an even mc). That gives 1 halt + 0 align +
+        // 512 R/W = 513 cycles.
+        HeadlessRig r = new HeadlessRig();
+        r.fillPage(0x05);
+        // Advance bus by 1 tick so the next CPU-turn (mc%3==0) lands at mc=3.
+        // mc=3 is odd → first tickDmaCycle exits waiting on this same tick →
+        // 1 halt cycle, 0 align, 512 R/W = 513 CPU cycles total.
+        r.bus.clock(); // mc 0 -> 1
+        r.dma.cpuBusWrite(0x4014, (byte) 0x05);
+        long cycles = r.runDmaToCompletion();
+        assertEquals(513L, cycles,
+                "burst started so its first DMA tick lands on a get cycle should take exactly 513 cycles");
+    }
+
+    @Test
+    void dma_singleBurstFromOddCpuCycle_takes514Cycles() {
+        // Trigger DMA at mc=0 so the FIRST DMA tick is at mc=0 (even master
+        // tick = put cycle in our model). The halt yields nothing yet; the
+        // next CPU turn at mc=3 (odd = get cycle) is an alignment cycle.
+        // 1 halt + 1 align + 512 R/W = 514 cycles.
+        HeadlessRig r = new HeadlessRig();
+        r.fillPage(0x06);
+        // No pre-advance — bus.masterClockCount is 0, so first tick is at mc=0.
+        r.dma.cpuBusWrite(0x4014, (byte) 0x06);
+        long cycles = r.runDmaToCompletion();
+        assertEquals(514L, cycles,
+                "burst started so its first DMA tick lands on a put cycle should take exactly 514 cycles");
+    }
+
+    @Test
+    void dma_backToBackBursts_eachIndependentlyAlign_noCarryOver() {
+        // Run multiple bursts back-to-back. Each burst MUST independently
+        // perform its own halt + alignment based on the master clock parity
+        // at the time of its first DMA tick — no "waiting" state carries
+        // over from the previous burst's tail.
+        HeadlessRig r = new HeadlessRig();
+        for (int p = 0x07; p <= 0x0A; p++) r.fillPage(p);
+
+        // Burst 1: start at mc=0 → first DMA tick at mc=0 (even, put cycle
+        // in this model) → halt + align + 512 R/W = 514 cycles. After this
+        // the bus mc = 1540 (mc%3=1, next CPU turn at mc=1542, even).
+        r.dma.cpuBusWrite(0x4014, (byte) 0x07);
+        long burst1Cycles = r.runDmaToCompletion();
+        assertEquals(514L, burst1Cycles, "burst 1 from even start should be 514");
+
+        // Burst 2: trigger immediately. Next CPU turn at mc=1542 (even) →
+        // same first-tick parity as burst 1 → 514 cycles again. This
+        // demonstrates the controller doesn't "remember" it just finished —
+        // it independently goes through halt+align.
+        r.dma.cpuBusWrite(0x4014, (byte) 0x08);
+        long burst2Cycles = r.runDmaToCompletion();
+        assertEquals(514L, burst2Cycles,
+                "burst 2 (triggered with no extra ticks between) — first DMA tick at mc=1542 (even) → 514");
+
+        // Burst 3: pre-advance the bus by 3 ticks (one CPU-turn's worth)
+        // to FLIP the next-CPU-turn parity. After burst 2 mc=3082;
+        // 3 bus.clock() calls → mc=3085. Next CPU turn at mc=3087 (odd) → 513 cycles.
+        r.bus.clock();
+        r.bus.clock();
+        r.bus.clock();
+        r.dma.cpuBusWrite(0x4014, (byte) 0x09);
+        long burst3Cycles = r.runDmaToCompletion();
+        assertEquals(513L, burst3Cycles,
+                "burst 3 with one extra CPU turn before it — first DMA tick at mc=3087 (odd) → 513");
+
+        // Final OAM sanity: the third burst's data ($0900 onwards) must
+        // have been correctly transferred — proves the controller still
+        // functions correctly when its alignment behavior is exercised.
+        for (int i = 0; i < 256; i++) {
+            assertEquals((byte) i, r.ppu.readOam(i),
+                    "burst 3 OAM[" + i + "] should equal source byte");
+        }
+    }
 }
