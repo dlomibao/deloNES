@@ -3,6 +3,7 @@ package net.lomibao.nes.desktop.input;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
+import com.badlogic.gdx.utils.SerializationException;
 
 /**
  * Keyboard-to-NES-button mapping configuration.
@@ -124,6 +125,12 @@ public class ControlsConfig {
      * <p>If the file does not exist the defaults are written to {@code path}
      * and returned, so callers always get a valid config.
      *
+     * <p>If the file exists but is malformed (invalid JSON, schema mismatch,
+     * empty, etc.) the bad file is renamed to {@code <name>.bak} so the user
+     * can recover their attempt, a loud warning is logged to {@code stderr},
+     * and {@link #defaults()} is returned. A user-editable config must NEVER
+     * brick the application.
+     *
      * @param path FileHandle pointing at {@code controls.json} (or equivalent)
      * @return the loaded or freshly-defaulted config
      */
@@ -133,8 +140,41 @@ public class ControlsConfig {
             save(path, defaults);
             return defaults;
         }
-        Json json = new Json();
-        return json.fromJson(ControlsConfig.class, path);
+        try {
+            Json json = new Json();
+            ControlsConfig loaded = json.fromJson(ControlsConfig.class, path);
+            if (loaded == null) {
+                // Empty file → fromJson returns null instead of throwing.
+                throw new SerializationException("controls.json is empty");
+            }
+            return loaded;
+        } catch (RuntimeException e) {
+            // RuntimeException covers SerializationException (LibGDX's parse
+            // error) and any other surprise from Json.fromJson — file
+            // disappears mid-read, security-manager interference, etc.
+            // Rename the bad file so the user can recover their attempt, then
+            // fall back to defaults. Do NOT silently swallow — this needs to
+            // be loud enough to find in logs when a user reports "my custom
+            // bindings disappeared".
+            String backupName = path.name() + ".bak";
+            String backupNote;
+            try {
+                FileHandle backup = path.sibling(backupName);
+                if (backup.exists()) {
+                    backup.delete();
+                }
+                path.moveTo(backup);
+                backupNote = "renamed to " + backupName;
+            } catch (RuntimeException renameError) {
+                backupNote = "could NOT be renamed (" + renameError.getMessage() + ")";
+            }
+            System.err.println(
+                    "[ControlsConfig] WARNING: failed to parse " + path.path()
+                            + " — " + e.getMessage()
+                            + "; bad file " + backupNote
+                            + "; falling back to default key bindings.");
+            return defaults();
+        }
     }
 
     /**
