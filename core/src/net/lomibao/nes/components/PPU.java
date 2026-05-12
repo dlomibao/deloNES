@@ -692,6 +692,15 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
+     * Current OAMADDR value ({@code $2003}). Used by {@link DmaController}
+     * at the start of an OAM DMA burst — per NESdev the DMA copies into OAM
+     * starting at this address (with wrap-around at byte 256).
+     */
+    public int getOamAddr() {
+        return Byte.toUnsignedInt(registers[3]);
+    }
+
+    /**
      * Write a byte directly into OAM at the given index. Used by
      * {@link DmaController} to land bytes during an OAM DMA burst —
      * production code should NOT poke OAM through this API outside of DMA;

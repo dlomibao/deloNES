@@ -226,27 +226,24 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
     }
     
     /**
-     * Runs the emulation for approximately one frame
+     * Runs the emulation for approximately one frame.
+     *
+     * <p>Drives the master clock via {@link CPUBus#clock()} so DMA + PPU +
+     * CPU all advance correctly (the hand-rolled cpu.clock + ppu.clock
+     * pattern bypassed DMA's tickDmaCycle entirely — OAM never updated and
+     * sprites never rendered). NMI dispatch is polled here since CPUBus
+     * itself doesn't forward the latch.
      */
     private void runFrame() {
-        // Run until frame is complete
         ppu.clearFrameComplete();
-        
-        int cycles = 0;
-        int maxCycles = CYCLES_PER_FRAME * 2; // Safety limit
-        
-        while (!ppu.isFrameComplete() && cycles < maxCycles) {
-            // Execute one CPU instruction (cpu.clock() returns void)
-            cpu.clock();
-            cycles++;
-            
-            // PPU runs 3x faster than CPU
-            for (int i = 0; i < 3; i++) {
-                ppu.clock();
-                if (ppu.consumeNmi()) {
-                    cpu.nmi();
-                }
+        int maxTicks = 341 * 262 * 3 * 2; // 2x nominal frame ticks as safety
+        int ticks = 0;
+        while (!ppu.isFrameComplete() && ticks < maxTicks) {
+            cpuBus.clock();
+            if (ppu.consumeNmi()) {
+                cpu.nmi();
             }
+            ticks++;
         }
     }
     

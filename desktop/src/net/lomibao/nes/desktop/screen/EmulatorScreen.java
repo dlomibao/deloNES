@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import net.lomibao.nes.NesSystem;
 import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.CPUBus;
 import net.lomibao.nes.components.Cartridge;
@@ -35,8 +36,6 @@ import java.io.InputStream;
  */
 public class EmulatorScreen implements Screen {
 
-    private static final int CYCLES_PER_FRAME = 29780;
-
     private final RomSource rom;
     private final Controller controller;
     private final Runnable onExit;
@@ -50,6 +49,7 @@ public class EmulatorScreen implements Screen {
     private Pixmap palettePixmap;
 
     // Emulator components.
+    private NesSystem nesSystem;
     private CPUBus cpuBus;
     private CPU6502 cpu;
     private PPU ppu;
@@ -147,14 +147,16 @@ public class EmulatorScreen implements Screen {
         cpu = new CPU6502();
         Ram ram = new Ram();
 
-        cpuBus = CPUBus.builder()
+        // NesSystem owns the CPUBus and orchestrates ticks (PPU + CPU + DMA + NMI
+        // dispatch). We hold the bus reference for cartridge wiring in loadROM().
+        nesSystem = NesSystem.builder()
                 .cpu(cpu)
                 .ram(ram)
                 .ppu(ppu)
                 .controller(controller)
                 .dma(new DmaController())
-                .build()
-                .connect();
+                .build();
+        cpuBus = nesSystem.getCpuBus();
 
         // No-op stub kept for parity with NestestBackgroundRenderer (Phase 0).
         ppu.setCPU(cpu);
@@ -238,21 +240,10 @@ public class EmulatorScreen implements Screen {
     }
 
     private void runFrame() {
-        ppu.clearFrameComplete();
-
-        int cycles = 0;
-        int maxCycles = CYCLES_PER_FRAME * 2;
-
-        while (!ppu.isFrameComplete() && cycles < maxCycles) {
-            cpu.clock();
-            cycles++;
-            for (int i = 0; i < 3; i++) {
-                ppu.clock();
-                if (ppu.consumeNmi()) {
-                    cpu.nmi();
-                }
-            }
-        }
+        // NesSystem.runFrame() drives PPU + CPU + DMA + NMI dispatch via
+        // CPUBus.clock(). It throws IllegalStateException if the PPU wedges,
+        // which surfaces as a loud failure rather than silent black-screen.
+        nesSystem.runFrame();
     }
 
     private void updatePaletteDisplay() {
