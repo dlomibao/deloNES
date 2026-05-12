@@ -300,6 +300,70 @@ class PPURenderingTest {
     }
     
     @Test
+    void testTileBoundaryNoPixelDuplication() {
+        // Regression for the cycle-1 LOAD bug.
+        //
+        // Old behaviour: at cycle 1 of every visible scanline,
+        // {@code loadBackgroundShifters()} fired AFTER the cycle-1 shift.
+        // The shift had already propagated col 1's bit 7 from the LOW byte
+        // into HIGH position 8; the LOAD then re-stamped col 1 over the
+        // shifted-out LOW byte, leaving TWO copies of col 1's leading bit
+        // in the shifter. The effect was a 1-pixel stutter at the col 0
+        // → col 1 boundary — pixel 9 lit up identically to pixel 8.
+        //
+        // Setup: every row of tile 1 has pattern (low, high) = (0x80,
+        // 0x80), so the leftmost pixel of each tile is palette idx 3
+        // (lit) and pixels 1..7 are backdrop. Run one full frame to clear
+        // the startup transient (reset puts the PPU at scanline 0 with
+        // empty shifters), then continue partway into the next frame to a
+        // scanline that's well into steady state.
+        ppu.cpuBusWrite(0x2001, (byte) 0x0A);
+        for (int i = 0; i < 1024; i++) {
+            mockBus.write(0x2000 + i, (byte) 0x01);
+        }
+        for (int i = 0; i < 64; i++) {
+            mockBus.write(0x23C0 + i, (byte) 0x00);
+        }
+        for (int row = 0; row < 8; row++) {
+            mockBus.write(0x0010 + row, (byte) 0x80);
+            mockBus.write(0x0018 + row, (byte) 0x80);
+        }
+        ppu.cpuBusWrite(0x2006, (byte) 0x3F);
+        ppu.cpuBusWrite(0x2006, (byte) 0x00);
+        ppu.cpuBusWrite(0x2007, (byte) 0x0F);
+        ppu.cpuBusWrite(0x2007, (byte) 0x01);
+        ppu.cpuBusWrite(0x2007, (byte) 0x02);
+        ppu.cpuBusWrite(0x2007, (byte) 0x20);
+
+        // 1 full frame (262 scanlines * 341 cycles) + 100 more scanlines.
+        int targetCycles = 341 * 262 + 341 * 100;
+        for (int i = 0; i < targetCycles; i++) {
+            ppu.clock();
+        }
+
+        int[][] screen = ppu.getScreen();
+        int backdrop = screen[100][1]; // pixel 1: must be backdrop
+        int bright = screen[100][0];   // pixel 0: must be palette idx 3
+        assertNotEquals(backdrop, bright,
+            "Setup sanity: pixel 0 (lit) must differ from pixel 1 (backdrop). "
+            + "Got bright=" + Integer.toHexString(bright) + " backdrop=" + Integer.toHexString(backdrop));
+
+        // The col 0 → col 1 boundary is the one the cycle-1 LOAD bug
+        // mangled. Without the fix, pixel 9 came out lit (duplicate of
+        // pixel 8) instead of backdrop. We assert the full expected
+        // 8-pixel period across the boundary.
+        assertEquals(bright, screen[100][8],
+            "Col 1 pixel 0 (screen pixel 8) must be lit");
+        assertEquals(backdrop, screen[100][9],
+            "Col 1 pixel 1 (screen pixel 9) must be backdrop. "
+            + "Lit here means the cycle-1 LOAD is duplicating col 1's leading bit.");
+        for (int x = 10; x < 16; x++) {
+            assertEquals(backdrop, screen[100][x],
+                "Col 1 pixel " + (x - 8) + " (screen pixel " + x + ") must be backdrop");
+        }
+    }
+
+    @Test
     void testPreRenderScanlineNoOutput() {
         // Enable background rendering
         ppu.cpuBusWrite(0x2001, (byte) 0x08);

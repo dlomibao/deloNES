@@ -11,15 +11,23 @@ SHA in parens.
 
 ## Tier A — do on `chore/review-cleanup` (this branch)
 
-**Status: COMPLETE.** All 11 items landed; 374/374 tests green (335 core + 39 desktop);
-`HeadlessApplicationTest` ran cleanly 10× in a row. PR opens next.
+**Status: COMPLETE.** All 11 items landed; 375/375 tests green (336 core + 39 desktop)
+including a new regression test for A3; `HeadlessApplicationTest` ran cleanly 10× in a row.
 
-A3 regression test deferred: building a tile-boundary assertion ran into
-the first-scanline startup-transient (empty shifters before any pre-render
-prefetch), which would need invasive harness work to fence off. The fix
-itself is small and self-evident (`if (cycle != 1) loadBackgroundShifters()`)
-— picked up as a Tier B follow-up once the harness has a "boot to
-steady-state frame" helper. See B notes below.
+A3 regression test (`PPURenderingTest.testTileBoundaryNoPixelDuplication`)
+runs a full frame past the empty-shifter startup transient, then inspects
+the col 0 → col 1 boundary on scanline 100. Confirmed to fail when the
+A3 fix is reverted (pixel 9 lights up as a duplicate of pixel 8).
+
+**Side discovery during A3 testing — logged as B17 below:** with the A3
+fix applied, the col 0 → col 1 boundary renders correctly (pixels 0, 8
+lit; the seven between are backdrop) but col 2+ are shifted by 1 pixel
+right (pixel 17, 26, 35, ... lit instead of 16, 24, 32). Caused by
+`loadBackgroundShifters()` running AFTER the per-cycle shift on case 0
+— the freshly-loaded LOW byte's bit 7 needs 8 shifts to reach
+position 15, but only gets 7 before the next render. Not visible in DK
+(blank backgrounds dominate); will matter for SMB and any title with
+non-trivial tile boundaries.
 
 ### Critical correctness fixes
 
@@ -206,6 +214,23 @@ Each item is its own PR. Smaller PRs are easier to review and revert.
 
 - [ ] **B16** — `RomCatalog.scanFilesystem()` swallows all exceptions
   silently. Log at debug so misconfigurations are recoverable.
+
+### Discovered while landing Tier A
+
+- [ ] **B17** — PPU bg shifter LOAD happens *after* the per-cycle shift
+  on case 0 (cycles 9, 17, 25, …). With LOAD-after-shift the newly-loaded
+  LOW byte's bit 7 only gets 7 shifts before the next render, so the
+  leftmost pixel of every tile col 2+ ends up one screen-pixel to the
+  right of where it belongs. Visible as a per-tile +1 offset starting
+  from col 2; col 0 and col 1 (which were prefetched on the prior
+  scanline) render correctly. Two viable fixes: (a) reorder so LOAD
+  runs before SHIFT on case 0; (b) move LOAD from case 0 (cycles 1, 9,
+  17, …) to case 1 (cycles 2, 10, 18, …) matching the OLC reference.
+  Add a regression test covering the col 1→col 2 boundary in addition
+  to the col 0→col 1 one A3 already covers.
+  Source: `core/src/net/lomibao/nes/components/PPU.java:298-336`.
+  Discovered while building the A3 regression test
+  (`PPURenderingTest.testTileBoundaryNoPixelDuplication`).
 
 ### Acceptance for Tier B
 
