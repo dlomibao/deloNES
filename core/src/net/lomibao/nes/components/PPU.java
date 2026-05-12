@@ -1178,10 +1178,20 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Called during visible scanlines at cycles 1-256
      */
     private void renderBackgroundPixel() {
-        if (!isShowBackground()) {
-            // Background rendering disabled, output backdrop color
+        int xPos = cycle - 1;
+        // Hide BG when:
+        //   - PPUMASK bit 3 (show background) is 0, OR
+        //   - we're in the leftmost 8 pixels AND PPUMASK bit 1 (BG-show-left-8) is 0.
+        // Real hardware fills these cells with the backdrop color; failing to honor
+        // bit 1 leaves stale shift-register garbage visible in column 0..7 — the
+        // "leftmost-column artifacts" that most games (DK included) hide.
+        if (!isShowBackground() || (xPos < 8 && !isShowBackgroundLeft())) {
             int backdropColor = getColorFromPalette(0);
-            screen[scanline][cycle - 1] = backdropColor;
+            screen[scanline][xPos] = backdropColor;
+            // BG is transparent here for sprite-priority purposes.
+            if (scanline < VISIBLE_HEIGHT && xPos < VISIBLE_WIDTH) {
+                bgPatternPixel[scanline][xPos] = 0;
+            }
             return;
         }
         
