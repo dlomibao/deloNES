@@ -364,6 +364,79 @@ class PPURenderingTest {
     }
 
     @Test
+    void testTileBoundaryColumn2RendersAlignedToCol8() {
+        // Regression for B17.
+        //
+        // The bg-fetcher block previously ran render → shift → LOAD on
+        // case 0 (cycles 9, 17, 25, ...). With LOAD-after-shift, the
+        // newly-loaded LOW byte's bit 7 only got 7 shifts (cycles
+        // c+1 .. c+7) to reach HIGH bit 15 before the next case-0 render
+        // at cycle c+8 — one shy of the 8 it needs. The visible symptom
+        // was a +1 screen-pixel offset for every tile column from col 2
+        // onward: pixel 16 went dark, pixel 17 lit up with col 2's
+        // leading bit, and so on across the rest of the scanline. Col 0
+        // and col 1 rendered correctly because they came from the prior
+        // scanline's prefetch (cycle 329 / 337 LOADs) and didn't hit the
+        // visible-region case-0 LOAD path.
+        //
+        // The existing A3 test (testTileBoundaryNoPixelDuplication) only
+        // inspected pixels 0..15 (col 0 + col 1), so it never saw this.
+        // This test asserts the full 8-pixel period across the col 1 →
+        // col 2 boundary and beyond.
+        //
+        // Setup matches the A3 test: every row of tile 1 has pattern
+        // (low, high) = (0x80, 0x80), so the leftmost pixel of each tile
+        // is palette idx 3 (lit) and pixels 1..7 are backdrop.
+        ppu.cpuBusWrite(0x2001, (byte) 0x0A);
+        for (int i = 0; i < 1024; i++) {
+            mockBus.write(0x2000 + i, (byte) 0x01);
+        }
+        for (int i = 0; i < 64; i++) {
+            mockBus.write(0x23C0 + i, (byte) 0x00);
+        }
+        for (int row = 0; row < 8; row++) {
+            mockBus.write(0x0010 + row, (byte) 0x80);
+            mockBus.write(0x0018 + row, (byte) 0x80);
+        }
+        ppu.cpuBusWrite(0x2006, (byte) 0x3F);
+        ppu.cpuBusWrite(0x2006, (byte) 0x00);
+        ppu.cpuBusWrite(0x2007, (byte) 0x0F);
+        ppu.cpuBusWrite(0x2007, (byte) 0x01);
+        ppu.cpuBusWrite(0x2007, (byte) 0x02);
+        ppu.cpuBusWrite(0x2007, (byte) 0x20);
+
+        // 1 full frame + 100 more scanlines to land deep in steady state.
+        int targetCycles = 341 * 262 + 341 * 100;
+        for (int i = 0; i < targetCycles; i++) {
+            ppu.clock();
+        }
+
+        int[][] screen = ppu.getScreen();
+        int bright = screen[100][0];
+        int backdrop = screen[100][1];
+        assertNotEquals(backdrop, bright,
+            "Setup sanity: pixel 0 (lit) must differ from pixel 1 (backdrop). "
+            + "Got bright=" + Integer.toHexString(bright) + " backdrop=" + Integer.toHexString(backdrop));
+
+        // Assert the 8-pixel period through col 3 (pixels 0..31).
+        // Cols 0, 1, 2, 3 each: pixel 0 of the col lit, pixels 1..7 backdrop.
+        // Col 2 (pixels 16..23) and col 3 (pixels 24..31) are the
+        // regression case for B17 — the existing A3 test only covers
+        // cols 0 and 1.
+        for (int col = 0; col < 4; col++) {
+            int baseX = col * 8;
+            assertEquals(bright, screen[100][baseX],
+                "Col " + col + " pixel 0 (screen pixel " + baseX + ") must be lit");
+            for (int p = 1; p < 8; p++) {
+                int x = baseX + p;
+                assertEquals(backdrop, screen[100][x],
+                    "Col " + col + " pixel " + p + " (screen pixel " + x + ") must be backdrop. "
+                    + "Lit at p=1 across cols 2+ means LOAD-after-shift is offsetting tile data by 1 screen pixel (B17).");
+            }
+        }
+    }
+
+    @Test
     void testPreRenderScanlineNoOutput() {
         // Enable background rendering
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
