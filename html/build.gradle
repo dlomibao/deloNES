@@ -57,12 +57,41 @@ tasks.named('generateJavaScript').configure {
             }
         }
         
-        // Copy assets to the output directory
+        // Stage webapp assets. gdx-teavm 1.5.x expects everything under
+        // `${jsDir}/assets/` and listed in `${jsDir}/assets/preload.txt`
+        // (5-field colon-delimited manifest: fileType:assetType:url:length:overwrite).
+        // The runtime downloads each listed file at startup; Gdx.files.internal()
+        // then reads from that cache.
         def jsDir = file("${buildDir}/generated/teavm/js")
+        def assetsDir = file("${jsDir}/assets")
+        assetsDir.mkdirs()
+
+        // The root /assets dir holds the gdx-loader startup-logo.png and
+        // misc bundled fonts/images. Keep copying it so the loading screen
+        // works; preload.txt only manifests files we actually need at
+        // runtime via Gdx.files.internal().
         copy {
             from "${project.rootDir}/assets"
-            into jsDir
+            into assetsDir
         }
+
+        // Phase 0: surface core's classpath ROMs under assets/roms/ so the
+        // preload mechanism can pick them up.
+        copy {
+            from "${project(':core').projectDir}/src/main/resources/roms"
+            into "${assetsDir}/roms"
+        }
+
+        // Generate preload.txt manifest. For Phase 0 we only declare the
+        // resource-probe ROM; expand as the real game-glue port lands.
+        // Format per line: i:b:<relpath>:<length>:1
+        // (internal:binary:url:length:overwrite-cached-copy)
+        def manifest = new StringBuilder()
+        def nestest = new File(assetsDir, 'roms/nestest.nes')
+        if (nestest.exists()) {
+            manifest.append("i:b:roms/nestest.nes:${nestest.length()}:1\n")
+        }
+        new File(assetsDir, 'preload.txt').text = manifest.toString()
     }
 }
 
