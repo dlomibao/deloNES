@@ -13,11 +13,4 @@ public class DesktopLauncher {
 		config.setWindowedMode(640, 600);
 		new Lwjgl3Application(new NesGame(), config);
 	}
-
-	// NesEmulator is still wired into the HTML/GWT backend
-	// (html/src/net/lomibao/nes/client/HtmlLauncher.java references it as the
-	// ApplicationListener). The desktop entry point uses NesGame instead, but
-	// NesEmulator must remain on the classpath until the html module migrates
-	// to NesGame. See docs/review-2026-05-12/reports/web-deployment.md.
-
 }
