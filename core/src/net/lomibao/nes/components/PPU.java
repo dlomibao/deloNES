@@ -296,46 +296,38 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
         // Perform background tile fetching on visible and pre-render scanlines
         if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
-            // Shift registers every cycle (except cycle 0 idle cycle)
-            if (cycle >= 1 && cycle <= 256) {
+            // Shift registers during visible cycles (1-256) AND during the
+            // pre-fetch window (322-337). The pre-fetch shifts move the first
+            // tile (col 0 of the upcoming scanline) from the LOW byte of the
+            // shifter into the HIGH byte, so cycle 1 of the next scanline
+            // renders the correct pixel instead of stale HIGH-byte data.
+            if ((cycle >= 1 && cycle <= 256) || (cycle >= 322 && cycle <= 337)) {
                 shiftBackgroundRegisters();
             }
-            
+
             // Render pixel during visible scanlines only (not pre-render)
             if (isVisibleScanline() && cycle >= 1 && cycle <= 256) {
                 renderBackgroundPixel();
             }
-            
-            // Fetch tiles in 8-cycle pattern
-            // Cycles 1-256: Fetch tiles for next scanline (32 tiles)
-            // Cycles 321-336: Fetch first 2 tiles of next scanline
-            if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
+
+            // Fetch tiles in 8-cycle pattern.
+            //   Cycles 1-256: fetch tiles for the SAME scanline that's rendering.
+            //   Cycles 321-337: pre-fetch the first 2 tiles of the NEXT scanline.
+            //     - Cycle 329 (mod 0) loads col 0 into LOW byte, then cycles
+            //       330-337 shift it up into HIGH byte.
+            //     - Cycle 337 (mod 0) loads col 1 into LOW byte. By cycle 1 of
+            //       the next scanline, HIGH byte = col 0 (ready to render).
+            if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 337)) {
                 int cycleMod = (cycle - 1) % 8;
-                
                 switch (cycleMod) {
-                    case 0:
-                        // Cycle 0: Load shift registers with fetched data
-                        loadBackgroundShifters();
-                        break;
-                    case 1:
-                        // Cycle 1: Fetch nametable byte
-                        fetchNametableByte();
-                        break;
-                    case 3:
-                        // Cycle 3: Fetch attribute byte
-                        fetchAttributeByte();
-                        break;
-                    case 5:
-                        // Cycle 5: Fetch pattern table low byte
-                        fetchPatternLowByte();
-                        break;
-                    case 7:
-                        // Cycle 7: Fetch pattern table high byte
-                        fetchPatternHighByte();
-                        break;
+                    case 0: loadBackgroundShifters();   break;
+                    case 1: fetchNametableByte();       break;
+                    case 3: fetchAttributeByte();       break;
+                    case 5: fetchPatternLowByte();      break;
+                    case 7: fetchPatternHighByte();     break;
                 }
             }
-            
+
             // Load shift registers at cycle 257 (after visible area)
             if (cycle == 257) {
                 loadBackgroundShifters();
