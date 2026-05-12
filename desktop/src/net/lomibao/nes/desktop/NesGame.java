@@ -41,9 +41,24 @@ public class NesGame extends Game {
     public void create() {
         controller = new Controller();
         controlsConfig = ControlsConfig.load(Gdx.files.local("controls.json"));
-        keyboardAdapter = new KeyboardInputAdapter(controller, controlsConfig, new GdxKeyState());
+        keyboardAdapter = createKeyboardAdapter(controller, controlsConfig);
 
         returnToMenu();
+    }
+
+    /**
+     * Test seam: tests subclass {@link NesGame} and override this method
+     * to inject a spy/counting {@link KeyboardInputAdapter}. Production
+     * code calls this exactly once from {@link #create()}.
+     *
+     * @param controller the shared NES controller component
+     * @param config     the loaded controls configuration
+     * @return a fresh {@link KeyboardInputAdapter} bound to the given
+     *         controller and config
+     */
+    protected KeyboardInputAdapter createKeyboardAdapter(Controller controller,
+                                                        ControlsConfig config) {
+        return new KeyboardInputAdapter(controller, config, new GdxKeyState());
     }
 
     @Override
