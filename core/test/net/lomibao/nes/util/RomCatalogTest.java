@@ -57,4 +57,25 @@ public class RomCatalogTest {
                 () -> roms.add("fake.nes"),
                 "listRoms() should return an unmodifiable list");
     }
+
+    @Test
+    void listRoms_includesOnlyNesFilesOnFilesystemScan() {
+        // The filesystem scan must filter to *.nes — no stray non-ROM files
+        // (like index.txt) should leak into the catalog.
+        List<String> roms = RomCatalog.listRoms();
+        for (String name : roms) {
+            assertTrue(name.toLowerCase().endsWith(".nes"),
+                    "All catalog entries must be .nes files; got: " + name);
+        }
+    }
+
+    @Test
+    void listRoms_returnsUniqueEntries() {
+        // When a ROM is present both on disk AND in the manifest, it should
+        // appear exactly once (LinkedHashSet dedupes).
+        List<String> roms = RomCatalog.listRoms();
+        long distinct = roms.stream().distinct().count();
+        assertEquals(roms.size(), distinct,
+                "Catalog must dedupe entries between filesystem scan and manifest; got: " + roms);
+    }
 }
