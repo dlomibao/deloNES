@@ -3,11 +3,14 @@ package net.lomibao.nes.desktop.screen;
 /**
  * Validates the first 16 bytes of an iNES ROM header before loading.
  *
- * <p>Performs two checks:
+ * <p>Performs three checks:
  * <ol>
  *   <li>Magic bytes — bytes 0–3 must equal {@code 0x4E 0x45 0x53 0x1A} ("NES\x1A").</li>
- *   <li>Mapper number — derived from bytes 6 and 7 using the standard iNES 1.0 formula;
- *       only mapper 0 (NROM) is currently supported.</li>
+ *   <li>NES 2.0 detection — if {@code (byte7 & 0x0C) == 0x08} the file is NES 2.0,
+ *       which we do not yet support and reject with a specific error.</li>
+ *   <li>Mapper number — derived from bytes 6 and 7 using the standard iNES 1.0 formula,
+ *       with the DiskDude workaround applied (see {@link #validate(byte[])}); only
+ *       mapper 0 (NROM) is currently supported.</li>
  * </ol>
  *
  * <p>Usage:
@@ -27,9 +30,24 @@ public class iNESHeaderValidator {
     /**
      * Validates {@code headerBytes} (must be at least 16 bytes).
      *
+     * <p>Mapper-number derivation follows the iNES spec on the
+     * <a href="https://www.nesdev.org/wiki/INES">NESdev wiki</a>:
+     * <ul>
+     *   <li>If {@code (byte7 & 0x0C) == 0x08} the file is NES 2.0 — bail out with a
+     *       specific error. (The mapper number in NES 2.0 also draws bits from byte 8,
+     *       so the iNES 1.0 formula below is not safe to apply to such files.)</li>
+     *   <li>If any of bytes 12–15 are non-zero, the header was likely written by an
+     *       old tool that stashed a signature like {@code "DiskDude!"} in bytes 7–15.
+     *       In that case byte 7's high nibble is garbage; the
+     *       <a href="https://www.nesdev.org/wiki/INES#Flags_7">NESdev convention</a> is
+     *       to zero it out before computing the mapper. Without this workaround, valid
+     *       NROM dumps are misread as "mapper {@code 0xF...}" and rejected.</li>
+     *   <li>Otherwise apply the iNES 1.0 formula:
+     *       {@code mapper = (byte6 >> 4) | (byte7 & 0xF0)}.</li>
+     * </ul>
+     *
      * @param headerBytes the first 16 bytes of the ROM file
      * @return a {@link ValidationResult} describing pass/fail
-     * @throws IllegalArgumentException if {@code headerBytes} is null or fewer than 16 bytes
      */
     public static ValidationResult validate(byte[] headerBytes) {
         if (headerBytes == null || headerBytes.length < 16) {
@@ -46,10 +64,28 @@ public class iNESHeaderValidator {
             }
         }
 
-        // Compute mapper number from iNES 1.0 spec:
+        // NES 2.0 detection: per NESdev wiki, bits 2-3 of byte 7 equal 0b10 ⇒ NES 2.0.
+        // Mapper bits also come from byte 8 in that format, so the iNES 1.0 formula
+        // would silently misidentify the mapper. Reject explicitly.
+        if ((headerBytes[7] & 0x0C) == 0x08) {
+            return ValidationResult.failure(-1,
+                    "NES 2.0 format not yet supported");
+        }
+
+        // DiskDude workaround: many old dumpers (iNES 0.7 era) stored a signature
+        // such as "DiskDude!" in bytes 7-15. If bytes 12-15 are non-zero, byte 7's
+        // high nibble is unreliable garbage and must be zeroed before computing the
+        // mapper. See https://www.nesdev.org/wiki/INES#Flags_7
+        int byte7HighNibble = headerBytes[7] & 0xF0;
+        if (headerBytes[12] != 0 || headerBytes[13] != 0
+                || headerBytes[14] != 0 || headerBytes[15] != 0) {
+            byte7HighNibble = 0;
+        }
+
+        // iNES 1.0 mapper number:
         //   low nibble  = upper nibble of byte 6
-        //   high nibble = upper nibble of byte 7
-        int mapperNumber = ((headerBytes[6] >> 4) & 0x0F) | (headerBytes[7] & 0xF0);
+        //   high nibble = upper nibble of byte 7 (possibly zeroed above)
+        int mapperNumber = ((headerBytes[6] >> 4) & 0x0F) | byte7HighNibble;
 
         if (mapperNumber != 0) {
             return ValidationResult.failure(mapperNumber,
