@@ -37,6 +37,7 @@ public class NesGameTest {
         // so create() has been called before we inspect screen state.
         final boolean[] didSelect = {false};
         final boolean[] wasOnSelectFirst = {false};
+        final boolean[] wasOnEmulatorAfter = {false};
 
         assertDoesNotThrow(() -> {
             // Boot: create() -> returnToMenu() -> RomSelectScreen
@@ -50,9 +51,11 @@ public class NesGameTest {
                 @Override
                 public void render() {
                     if (!didSelect[0]) {
-                        // Inject a ROM selection via the test hook
-                        game.selectRom(new RomSource.ClasspathRomSource("/roms/DonkeyKong.nes"));
+                        // Use nestest.nes — bundled and always present, unlike DonkeyKong.nes
+                        // which is gitignored and would break CI on a fresh checkout.
+                        game.selectRom(new RomSource.ClasspathRomSource("/roms/nestest.nes"));
                         didSelect[0] = true;
+                        wasOnEmulatorAfter[0] = game.getScreen() instanceof EmulatorScreen;
                     }
                     game.render();
                 }
@@ -66,6 +69,8 @@ public class NesGameTest {
 
         assertTrue(wasOnSelectFirst[0],
                 "After create(), the active screen must be a RomSelectScreen");
+        assertTrue(wasOnEmulatorAfter[0],
+                "After selectRom(), the active screen must be an EmulatorScreen — the actual post-condition this test name implies");
     }
 
     @Test

@@ -322,7 +322,17 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 337)) {
                 int cycleMod = (cycle - 1) % 8;
                 switch (cycleMod) {
-                    case 0: loadBackgroundShifters();   break;
+                    case 0:
+                        // Skip the load at cycle 1. With the +2 prefetch pipeline,
+                        // the previous scanline's cycle 329/337 loads leave col 0
+                        // in HIGH and col 1 in LOW; cycle 1's shift correctly
+                        // propagates col 1's bit 7 into the HIGH byte. Reloading
+                        // LOW here would re-stamp col 1 over the partially-shifted
+                        // state and duplicate that pixel.
+                        if (cycle != 1) {
+                            loadBackgroundShifters();
+                        }
+                        break;
                     case 1: fetchNametableByte();       break;
                     case 3: fetchAttributeByte();       break;
                     case 5: fetchPatternLowByte();      break;

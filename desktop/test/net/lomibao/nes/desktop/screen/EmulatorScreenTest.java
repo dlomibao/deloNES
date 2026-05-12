@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class EmulatorScreenTest {
 
     @Test
-    void emulatorScreen_runsFiveFramesAgainstDonkeyKong() {
+    void emulatorScreen_runsFiveFramesAgainstNestest() {
         AtomicReference<EmulatorScreen> ref = new AtomicReference<>();
         AtomicBoolean exitCalled = new AtomicBoolean(false);
 
@@ -34,7 +34,7 @@ public class EmulatorScreenTest {
                 // own create() callback (which runs on the backend thread).
                 EmulatorScreen screen = ref.get();
                 if (screen == null) {
-                    RomSource rom = new RomSource.ClasspathRomSource("/roms/DonkeyKong.nes");
+                    RomSource rom = new RomSource.ClasspathRomSource("/roms/nestest.nes");
                     Controller controller = new Controller();
                     screen = new EmulatorScreen(
                             rom, controller, () -> exitCalled.set(true), /* debugHud */ false);
@@ -85,7 +85,7 @@ public class EmulatorScreenTest {
                 EmulatorScreen s = ref.get();
                 if (s == null) {
                     s = new EmulatorScreen(
-                            new RomSource.ClasspathRomSource("/roms/DonkeyKong.nes"),
+                            new RomSource.ClasspathRomSource("/roms/nestest.nes"),
                             new Controller(),
                             () -> { /* no-op */ },
                             false);
