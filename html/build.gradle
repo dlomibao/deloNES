@@ -95,6 +95,11 @@ tasks.named('generateJavaScript').configure {
         def manifest = new StringBuilder()
         def manifestPaths = [
                 'roms/nestest.nes',
+                // DonkeyKong.nes is the much more visually meaningful demo and
+                // is the one a dev's local checkout typically has — list it
+                // here so it's preloaded when present. nestest is the always-
+                // committed fallback.
+                'roms/DonkeyKong.nes',
                 'opcodes/opcodes.csv',
         ]
         manifestPaths.each { p ->

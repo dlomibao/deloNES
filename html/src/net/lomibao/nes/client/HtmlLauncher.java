@@ -24,14 +24,18 @@ import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 
 /**
- * Phase 0 web derisking entry point. Renders a moving gradient via
- * Pixmap + Texture upload (the same code path the real emulator will
- * use), logs FPS once a second, probes Gdx.files.internal for ROM
- * access, and logs keyboard events. Used to verify gdx-teavm 1.5.6 +
- * TeaVM 0.14.0 actually deliver a usable browser runtime before any
- * larger porting work begins.
+ * Web entry point. Boots a {@link NesSystem} against a preloaded ROM and
+ * pumps the PPU framebuffer to the canvas every frame. Initial Phase 0
+ * probes (resource access, keyboard input, smoke-test CPU run) still
+ * fire from {@code create()} so a startup regression surfaces in the
+ * console.
  *
- * <p>See {@code docs/web-phase0-findings.md} for results.
+ * <p>If emulator setup fails for any reason (asset missing, decode
+ * error, unsupported mapper, etc.) the launcher falls back to a moving
+ * gradient and logs the cause — keeps the canvas alive and visibly
+ * obviously-not-emulating instead of going black.
+ *
+ * <p>See {@code docs/web-phase0-findings.md} for the per-probe history.
  */
 public class HtmlLauncher {
 
@@ -42,12 +46,15 @@ public class HtmlLauncher {
         config.useGL30 = true;
         config.showDownloadLogs = true;
 
-        new WebApplication(new Phase0Probe(), config);
+        new WebApplication(new WebLauncher(), config);
     }
 
-    private static class Phase0Probe extends ApplicationAdapter {
+    private static class WebLauncher extends ApplicationAdapter {
         private static final int NES_W = 256;
         private static final int NES_H = 240;
+        /** ROM to load. nestest is always available; DonkeyKong only if dev has it locally. */
+        private static final String PRIMARY_ROM = "roms/DonkeyKong.nes";
+        private static final String FALLBACK_ROM = "roms/nestest.nes";
 
         private SpriteBatch batch;
         private Pixmap pixmap;
@@ -55,6 +62,12 @@ public class HtmlLauncher {
         private byte[] frameBytes;
         private int frame;
         private long lastFpsLogMs;
+
+        // Emulator state — null if setup failed; render() falls back to gradient.
+        private NesSystem nes;
+        private CPU6502 cpu;
+        private PPU ppu;
+        private String loadedRom;
 
         @Override
         public void create() {
@@ -64,42 +77,49 @@ public class HtmlLauncher {
             frameBytes = new byte[NES_W * NES_H * 4];
             lastFpsLogMs = System.currentTimeMillis();
 
-            Gdx.app.log("phase0", "render probe up — NES_W=" + NES_W + " NES_H=" + NES_H);
+            Gdx.app.log("web", "boot — NES_W=" + NES_W + " NES_H=" + NES_H);
             probeResources();
             probeInput();
-            probeCpu();
+            setupEmulator();
         }
 
         /**
-         * Smoke-test the post-C1 string-switch CPU dispatch in the browser.
-         * Loads nestest.nes, builds a minimal {@link NesSystem}, resets the
-         * CPU, runs a small number of master ticks, logs PC progress and a
-         * couple of CPU register values. Any thrown exception during ROM
-         * load / reset / clock-loop surfaces as a "CPU PROBE FAIL" log line
-         * — proves whether the refactored dispatch table actually executes
-         * under TeaVM end-to-end.
+         * Build a {@link NesSystem} against the preloaded ROM. Tries
+         * {@link #PRIMARY_ROM} first; falls back to {@link #FALLBACK_ROM} if the
+         * primary file isn't in the asset cache (common case: dev doesn't have
+         * DonkeyKong.nes locally so it never got copied into the webapp).
          */
-        private void probeCpu() {
+        private void setupEmulator() {
             try {
-                byte[] romBytes = Gdx.files.internal("roms/nestest.nes").readBytes();
+                byte[] romBytes = tryLoad(PRIMARY_ROM);
+                if (romBytes == null) {
+                    romBytes = tryLoad(FALLBACK_ROM);
+                    loadedRom = FALLBACK_ROM;
+                } else {
+                    loadedRom = PRIMARY_ROM;
+                }
+                if (romBytes == null) {
+                    Gdx.app.error("web",
+                            "EMULATOR SETUP FAIL: no ROM in asset cache "
+                            + "(tried " + PRIMARY_ROM + " and " + FALLBACK_ROM + ")");
+                    return;
+                }
                 Cartridge cart = new Cartridge(
-                        new ByteArrayInputStream(romBytes), "nestest.nes");
+                        new ByteArrayInputStream(romBytes), loadedRom);
 
-                PPU ppu = new PPU();
+                ppu = new PPU();
                 PPUBus ppuBus = new PPUBus();
                 NameTableMemory nameTableMemory = new NameTableMemory();
                 ppuBus.connect(nameTableMemory);
                 ppu.connectPPUBus(ppuBus);
 
-                // CPU6502 needs the opcode CSV. The no-arg constructor reads
-                // /opcodes/opcodes.csv from the classpath, which TeaVM does not
-                // embed; use the InputStream constructor against the preloaded
-                // asset instead.
+                // TeaVM can't reach raw classpath resources via getResourceAsStream,
+                // so feed CPU6502 the opcode CSV via the InputStream constructor.
                 byte[] csvBytes = Gdx.files.internal("opcodes/opcodes.csv").readBytes();
-                CPU6502 cpu = new CPU6502(new ByteArrayInputStream(csvBytes));
+                cpu = new CPU6502(new ByteArrayInputStream(csvBytes));
                 Ram ram = new Ram();
 
-                NesSystem nes = NesSystem.builder()
+                nes = NesSystem.builder()
                         .cpu(cpu).ram(ram).ppu(ppu)
                         .dma(new DmaController())
                         .build();
@@ -112,38 +132,46 @@ public class HtmlLauncher {
                 cpu.reset();
                 ppu.reset();
 
-                int initialPc = cpu.getPc();
-                int ticksToRun = 1000;
-                for (int i = 0; i < ticksToRun; i++) {
-                    nes.tick();
-                }
-                int finalPc = cpu.getPc();
+                // Seed a default palette + enable BG rendering so screens look
+                // sensible before the cart programs the PPU itself (matches
+                // EmulatorScreen.initializeTestPattern on desktop).
+                ppu.cpuBusWrite(0x2001, (byte) 0x08);
+                ppu.cpuBusWrite(0x2006, (byte) 0x3F);
+                ppu.cpuBusWrite(0x2006, (byte) 0x00);
+                ppu.cpuBusWrite(0x2007, (byte) 0x0F);
+                ppu.cpuBusWrite(0x2007, (byte) 0x00);
+                ppu.cpuBusWrite(0x2007, (byte) 0x10);
+                ppu.cpuBusWrite(0x2007, (byte) 0x30);
 
-                Gdx.app.log("phase0",
-                        "CPU PROBE OK after " + ticksToRun + " ticks: "
-                        + "initialPC=0x" + Integer.toHexString(initialPc)
-                        + " finalPC=0x" + Integer.toHexString(finalPc)
-                        + " A=0x" + Integer.toHexString(cpu.getA())
-                        + " X=0x" + Integer.toHexString(cpu.getX())
-                        + " Y=0x" + Integer.toHexString(cpu.getY())
-                        + " SP=0x" + Integer.toHexString(cpu.getStkp())
-                        + " status=0x" + Integer.toHexString(cpu.getStatus() & 0xff)
-                        + " clockCount=" + cpu.getClockCount());
-
-                if (finalPc == initialPc) {
-                    Gdx.app.error("phase0",
-                            "CPU PROBE WARN: PC did not advance — dispatch may "
-                            + "be returning silently. Check string-switch defaults.");
-                }
+                Gdx.app.log("web",
+                        "EMULATOR READY rom=" + loadedRom
+                        + " mapper=" + cart.header.getMapperNumber()
+                        + " prgBanks=" + cart.header.getPRGROMSize()
+                        + " chrBanks=" + cart.header.getCHRROMSize()
+                        + " initialPC=0x" + Integer.toHexString(cpu.getPc()));
             } catch (Throwable t) {
-                Gdx.app.error("phase0", "CPU PROBE FAIL: " + t.getMessage(), t);
+                Gdx.app.error("web", "EMULATOR SETUP FAIL: " + t.getMessage(), t);
+                nes = null;
+                cpu = null;
+                ppu = null;
+            }
+        }
+
+        private byte[] tryLoad(String path) {
+            try {
+                if (!Gdx.files.internal(path).exists()) {
+                    return null;
+                }
+                return Gdx.files.internal(path).readBytes();
+            } catch (Throwable t) {
+                return null;
             }
         }
 
         private void probeResources() {
             try {
                 byte[] bytes = Gdx.files.internal("roms/nestest.nes").readBytes();
-                Gdx.app.log("phase0",
+                Gdx.app.log("web",
                         "RESOURCE PROBE OK: nestest.nes loaded, " + bytes.length + " bytes, "
                         + "first 4 = "
                         + Integer.toHexString(bytes[0] & 0xff) + " "
@@ -152,7 +180,7 @@ public class HtmlLauncher {
                         + Integer.toHexString(bytes[3] & 0xff)
                         + " (expect 4e 45 53 1a)");
             } catch (Throwable t) {
-                Gdx.app.error("phase0", "RESOURCE PROBE FAIL: " + t.getMessage(), t);
+                Gdx.app.error("web", "RESOURCE PROBE FAIL: " + t.getMessage(), t);
             }
         }
 
@@ -160,7 +188,7 @@ public class HtmlLauncher {
             Gdx.input.setInputProcessor(new InputAdapter() {
                 @Override
                 public boolean keyDown(int keycode) {
-                    Gdx.app.log("phase0", "INPUT keyDown=" + keycode
+                    Gdx.app.log("web", "INPUT keyDown=" + keycode
                             + " (" + Input.Keys.toString(keycode) + ")");
                     return true;
                 }
@@ -171,19 +199,12 @@ public class HtmlLauncher {
         public void render() {
             frame++;
 
-            // Fast path: fill a byte[] then bulk-put into the pixmap's
-            // ByteBuffer. drawPixel() per-pixel crawls at ~3 FPS on
-            // gdx-teavm because of the JS call-per-pixel overhead.
-            int offset = frame & 0xff;
-            int idx = 0;
-            for (int y = 0; y < NES_H; y++) {
-                for (int x = 0; x < NES_W; x++) {
-                    frameBytes[idx++] = (byte) ((x + offset) & 0xff);
-                    frameBytes[idx++] = (byte) ((y + offset) & 0xff);
-                    frameBytes[idx++] = (byte) ((x ^ y) & 0xff);
-                    frameBytes[idx++] = (byte) 0xff;
-                }
+            if (nes != null) {
+                renderEmulatorFrame();
+            } else {
+                renderFallbackGradient();
             }
+
             ByteBuffer pixels = pixmap.getPixels();
             pixels.rewind();
             pixels.put(frameBytes);
@@ -200,10 +221,55 @@ public class HtmlLauncher {
 
             long now = System.currentTimeMillis();
             if (now - lastFpsLogMs >= 1000) {
-                Gdx.app.log("phase0",
+                String state = nes != null
+                        ? ("rom=" + loadedRom + " pc=0x" + Integer.toHexString(cpu.getPc()))
+                        : "fallback-gradient";
+                Gdx.app.log("web",
                         "FPS=" + Gdx.graphics.getFramesPerSecond()
-                        + " frame=" + frame);
+                        + " frame=" + frame + " " + state);
                 lastFpsLogMs = now;
+            }
+        }
+
+        /**
+         * Run one NES frame and copy the visible 256x240 portion of the PPU
+         * framebuffer into {@link #frameBytes}. PPU stores pixels as ARGB
+         * ints; the pixmap is RGBA8888 so we re-order on the fly. The hot
+         * inner loop avoids any per-pixel allocations.
+         */
+        private void renderEmulatorFrame() {
+            try {
+                nes.runFrame();
+            } catch (RuntimeException e) {
+                Gdx.app.error("web", "runFrame threw: " + e.getMessage(), e);
+                nes = null;
+                return;
+            }
+            int[][] screen = ppu.getScreen();
+            int idx = 0;
+            for (int y = 0; y < NES_H; y++) {
+                int[] row = screen[y];
+                for (int x = 0; x < NES_W; x++) {
+                    int argb = row[x];
+                    frameBytes[idx++] = (byte) ((argb >> 16) & 0xff); // R
+                    frameBytes[idx++] = (byte) ((argb >> 8) & 0xff);  // G
+                    frameBytes[idx++] = (byte) (argb & 0xff);         // B
+                    frameBytes[idx++] = (byte) ((argb >> 24) & 0xff); // A
+                }
+            }
+        }
+
+        /** Used when no ROM is available — keep the canvas visibly alive. */
+        private void renderFallbackGradient() {
+            int offset = frame & 0xff;
+            int idx = 0;
+            for (int y = 0; y < NES_H; y++) {
+                for (int x = 0; x < NES_W; x++) {
+                    frameBytes[idx++] = (byte) ((x + offset) & 0xff);
+                    frameBytes[idx++] = (byte) ((y + offset) & 0xff);
+                    frameBytes[idx++] = (byte) ((x ^ y) & 0xff);
+                    frameBytes[idx++] = (byte) 0xff;
+                }
             }
         }
 
