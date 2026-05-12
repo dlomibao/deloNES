@@ -9,6 +9,23 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 5-12-2026
+* **Donkey Kong first level playable!** Title screen renders correctly; Mario, Pauline, barrels, oil drum + fire all in place; sprite/BG alignment correct.
+* Fixed PPU BG fetcher pipeline:
+  * +2 tile lookahead during visible cycles (so the fetcher loads col 2 at cycle 1 while col 0 — pre-fetched on the previous scanline — renders at cycle 1).
+  * Cycles 321-337 prefetch correctly reads col 0 and col 1 of the *next* scanline; BG shifters now shift during prefetch too, so col 0 ends in the HIGH byte by start of next scanline. Previously the leftmost ~16 pixels of every scanline rendered stale shifter data.
+* Honored PPUMASK bit 1 (BG leftmost-8 clip): leftmost 8 pixels render backdrop when bit is clear.
+* Added `DKDiagnosticRunner` (`./gradlew desktop:traceDK`) — pure-Java headless harness that dumps PPU registers, OAM, nametable summary, palette RAM, and ASCII framebuffer snapshots. The tool that finally pinned down the fetcher pipeline bug after multiple rounds of inconclusive visual-screenshot guessing. Kept in-tree as the canonical agent-friendly debugging entry point.
+### 5-11-2026
+* **ROM startup menu shipped.** Keyboard-navigable `RomSelectScreen` listing bundled ROMs (via `RomCatalog` reading `roms/index.txt`) plus a "Browse filesystem..." option via LWJGL3 `TinyFileDialogs`. Selection transitions to `EmulatorScreen`; Esc returns to menu, F5 resets, P pauses. `NesGame extends Game` glues the screens together.
+* Configurable input via `controls.json` (auto-written with defaults on first run): P1 = Arrows + Z/X/Enter/RShift, P2 = WASD + G/H/LShift/Tab. Two-player keyboard input fully wired.
+* Replaced the open-bus stub `Controller` with a real shift-register implementation (P1 @ $4016, P2 @ $4017). Fixed `CPUBus.read()` to route $4016/$4017 to the controller *before* the APU (real-hardware order).
+* PPU NMI now decoupled via a `nmiPending` latch — `NesSystem.tick()` polls `consumeNmi()` once per master tick and dispatches to `cpu.nmi()`. DK's wait-for-NMI loop now exits.
+* OAM DMA actually runs: `EmulatorScreen` and `NestestBackgroundRenderer` migrated to `NesSystem.runFrame()` so `CPUBus.clock()` drives the DMA state machine on $4014 writes. DMA also respects `OAMADDR` per NESdev.
+* PPU $2004 (OAMDATA) write/read no longer stubbed — they hit `oam[OAMADDR]` with auto-increment on write.
+* Sprite-0 hit: replaced coarse-bounding-box check with per-pixel opacity test (both sprite-0 *and* BG pixel must be opaque), plus leftmost-8 PPUMASK gate and the `x != 255` rule.
+* `EmulatorScreen` extracted from `NestestBackgroundRenderer` as a reusable LibGDX `Screen` taking a `RomSource` (classpath or filesystem).
+* `DonkeyKong.nes` is *not* committed (fair-use copy only — no redistribution rights). `nestest.nes` is the bundled default. Drop your own DK locally + add to `roms/index.txt` to surface it in the menu, or use the filesystem-browse entry.
 ### 1-1-2026
 * fixed background tile rendering (issue with PPU using ARGB vs RGBA causing alpha being read from wrong spot)
 * ![alt text](repoassets/bgrender.gif)
