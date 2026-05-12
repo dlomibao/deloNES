@@ -61,8 +61,32 @@ public class INESHeader {
         return (headerBytes[6] & 0x08) != 0;
     }
 
+    /**
+     * Returns the mapper number per the iNES spec
+     * (<a href="https://www.nesdev.org/wiki/INES">NESdev wiki</a>):
+     * <ul>
+     *   <li>For NES 2.0 headers ({@code (byte7 & 0x0C) == 0x08}) the mapper number
+     *       also includes bits from byte 8. {@link #isNES2Format()} should be
+     *       checked first; this method falls back to the iNES 1.0 layout, which
+     *       is incomplete for NES 2.0.</li>
+     *   <li>For iNES 0.7 / "DiskDude!" era headers, byte 7's high nibble may be
+     *       garbage from an old tool's signature stashed in bytes 7-15. The
+     *       convention is: if any of bytes 12-15 are non-zero, ignore byte 7's
+     *       high nibble before computing the mapper.</li>
+     * </ul>
+     * Formula: {@code mapper = (byte6 >> 4) | (byte7 & 0xF0)}.
+     */
     public int getMapperNumber() {
-        return ((headerBytes[6] >> 4) & 0x0F) | (headerBytes[7] & 0xF0);
+        int byte7HighNibble = headerBytes[7] & 0xF0;
+        // DiskDude workaround: bytes 12-15 carry a stale signature ⇒ byte 7's
+        // upper nibble is unreliable. Treat as iNES 0.7 and zero it.
+        // Skip for NES 2.0 headers — those are handled separately.
+        if (!isNES2Format()
+                && (headerBytes[12] != 0 || headerBytes[13] != 0
+                    || headerBytes[14] != 0 || headerBytes[15] != 0)) {
+            byte7HighNibble = 0;
+        }
+        return ((headerBytes[6] >> 4) & 0x0F) | byte7HighNibble;
     }
 
     public boolean isVSUnisystem() {

@@ -24,8 +24,13 @@ import static org.junit.jupiter.api.Assertions.*;
  *       {@code 1} until the next strobe.</li>
  *   <li><strong>Button shift order</strong>: A, B, Select, Start, Up,
  *       Down, Left, Right. (NESdev wiki standard layout.)</li>
- *   <li><strong>$4017 (controller 2)</strong>: not implemented — reads
- *       return open-bus {@code 0x40}, writes are no-ops.</li>
+ *   <li><strong>$4017 (controller 2)</strong>: full P2 read support — the
+ *       same shift-register protocol as $4016, indexed against player 1's
+ *       live state. Writes to $4017 belong to the APU frame counter and
+ *       are no-ops on this component.</li>
+ *   <li><strong>Shared strobe</strong>: there is a single strobe line on
+ *       real hardware; the 1→0 falling edge on $4016 latches both
+ *       controllers' live state and resets both read indices.</li>
  * </ul>
  */
 class StandardControllerTest {
@@ -223,22 +228,127 @@ class StandardControllerTest {
         assertEquals(1, c.cpuBusRead(0x4016, false) & 1, "START");
     }
 
-    // ---- $4017 (controller 2) ----
+    // ---- $4017 (controller 2 / player 2) ----
 
     @Test
-    void controller2_4017_returnsOpenBus_byDefault() {
+    void controller2_4017_returnsPlayer2ButtonsInOrder() {
+        // P2 follows the same shift-register protocol as P1. Press all 8 P2
+        // buttons; after strobing $4016 (the shared strobe), 8 sequential
+        // reads from $4017 should yield 1,1,1,1,1,1,1,1.
         Controller c = newController();
-        // No real player-2 emulation yet — open-bus 0x40 is the placeholder.
-        assertEquals(0x40, c.cpuBusRead(0x4017, false),
-                "$4017 should return open-bus 0x40 until player 2 is implemented");
+        for (Button b : Button.values()) {
+            c.setButton(1, b, true);
+        }
+        strobeAndLatch(c);
+        for (int i = 0; i < 8; i++) {
+            assertEquals(1, c.cpuBusRead(0x4017, false) & 1,
+                    "P2 all-pressed: $4017 read " + i + " should be 1");
+        }
+    }
+
+    @Test
+    void controller2_4017_returnsExactBitForEachButton_whenOnlySomePressed() {
+        // Press P2's B and START only — expected serial output 0,1,0,1,0,0,0,0.
+        // This is the same pattern used for P1 in the corresponding $4016 test,
+        // so a single regression here pinpoints player-indexing bugs.
+        Controller c = newController();
+        c.setButton(1, Button.B, true);
+        c.setButton(1, Button.START, true);
+        strobeAndLatch(c);
+        int[] expected = {0, 1, 0, 1, 0, 0, 0, 0};
+        for (int i = 0; i < 8; i++) {
+            assertEquals(expected[i], c.cpuBusRead(0x4017, false) & 1,
+                    "P2 $4017 read " + i + " (" + Button.values()[i] + ") mismatch");
+        }
+    }
+
+    @Test
+    void controller2_4017_returnsOneAfterEighthRead_untilNextStrobe() {
+        // After P2's 8 buttons have shifted out, every subsequent $4017 read
+        // returns 1 — same open-bus pull-up behaviour as P1.
+        Controller c = newController();
+        // No P2 buttons pressed.
+        strobeAndLatch(c);
+        for (int i = 0; i < 8; i++) {
+            assertEquals(0, c.cpuBusRead(0x4017, false) & 1,
+                    "P2 read " + i + " should be 0 (no buttons pressed)");
+        }
+        for (int i = 8; i < 16; i++) {
+            assertEquals(1, c.cpuBusRead(0x4017, false) & 1,
+                    "P2 read " + i + " (post-shift) should always be 1");
+        }
     }
 
     @Test
     void controller2_4017_writeIsNoOp() {
         Controller c = newController();
-        // Writes to $4017 are APU frame counter on real hardware; here we
-        // just need to not crash.
+        // Writes to $4017 belong to the APU frame counter on real hardware;
+        // the controller component must ignore them rather than crash.
         assertDoesNotThrow(() -> c.cpuBusWrite(0x4017, (byte) 0xFF));
+    }
+
+    // ---- cross-talk between controllers ----
+
+    @Test
+    void crossTalk_player1ButtonsDoNotAppearOnPlayer2Reads() {
+        // Press every P1 button; P2 has none pressed. After strobe, P2's
+        // 8 reads on $4017 must all be 0.
+        Controller c = newController();
+        c.setButton(Controller.A | Controller.B | Controller.SELECT | Controller.START
+                  | Controller.UP | Controller.DOWN | Controller.LEFT | Controller.RIGHT, true);
+        strobeAndLatch(c);
+        for (int i = 0; i < 8; i++) {
+            assertEquals(0, c.cpuBusRead(0x4017, false) & 1,
+                    "P1 buttons must not bleed into P2 stream at $4017 (read " + i + ")");
+        }
+    }
+
+    @Test
+    void crossTalk_player2ButtonsDoNotAppearOnPlayer1Reads() {
+        // Press every P2 button; P1 has none pressed. P1's 8 reads on $4016
+        // must all be 0.
+        Controller c = newController();
+        for (Button b : Button.values()) {
+            c.setButton(1, b, true);
+        }
+        strobeAndLatch(c);
+        for (int i = 0; i < 8; i++) {
+            assertEquals(0, c.cpuBusRead(0x4016, false) & 1,
+                    "P2 buttons must not bleed into P1 stream at $4016 (read " + i + ")");
+        }
+    }
+
+    // ---- shared strobe semantics ----
+
+    @Test
+    void sharedStrobe_writingToDollar4016_resetsBothPlayersShiftRegisters() {
+        // Real hardware has a single strobe line driven from $4016 bit 0.
+        // The 1→0 falling edge re-latches BOTH controllers' live state and
+        // resets BOTH read indices.
+        Controller c = newController();
+        // P1 presses A only; P2 presses B only.
+        c.setButton(0, Button.A, true);
+        c.setButton(1, Button.B, true);
+        strobeAndLatch(c);
+        // Drain 3 P1 reads and 3 P2 reads so both indices are advanced.
+        for (int i = 0; i < 3; i++) {
+            c.cpuBusRead(0x4016, false);
+            c.cpuBusRead(0x4017, false);
+        }
+        // A fresh strobe pulse on $4016 must reset BOTH players' indices.
+        strobeAndLatch(c);
+        // P1's first post-strobe read should be the A bit (pressed → 1).
+        assertEquals(1, c.cpuBusRead(0x4016, false) & 1,
+                "after shared strobe, P1's first read should be A (pressed)");
+        // P2's first post-strobe read should be A (unpressed → 0). If the
+        // P2 index hadn't reset, this would be the 4th bit (START, also 0)
+        // or 5th (UP, 0) — so to make the assertion unambiguous, also
+        // check the 2nd P2 read is B (pressed → 1), which is only true if
+        // we genuinely restarted at bit 0.
+        assertEquals(0, c.cpuBusRead(0x4017, false) & 1,
+                "after shared strobe, P2's first read should be A (unpressed)");
+        assertEquals(1, c.cpuBusRead(0x4017, false) & 1,
+                "after shared strobe, P2's second read should be B (pressed)");
     }
 
     // ---- bus-wiring sanity ----
