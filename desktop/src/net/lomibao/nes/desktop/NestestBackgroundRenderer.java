@@ -184,8 +184,8 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
                     }
                 }
             }
-            int ppumask = Byte.toUnsignedInt(ppu.registers[1]);
-            int ppuctrl = Byte.toUnsignedInt(ppu.registers[0]);
+            int ppumask = ppu.peekMask();
+            int ppuctrl = ppu.peekCtrl();
             
             // Read some palette colors via PPU bus
             StringBuilder paletteStr = new StringBuilder("Palette: ");

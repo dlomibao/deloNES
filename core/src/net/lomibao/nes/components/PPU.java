@@ -10,7 +10,20 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public int REGISTER_SIZE=8;
     public int CPUBUS_END_ADDRESS =0x4000;//exclusive
 
-    public byte[] registers;
+    /**
+     * The 8-entry register file ($2000-$2007). Kept PRIVATE intentionally:
+     * direct access bypasses the register side-effects that the {@code $200x}
+     * mapping enforces (e.g. reading {@code $2002} clears VBlank + address
+     * latch; reading {@code $2007} is buffered for non-palette addresses;
+     * writing {@code $2000} can retrigger NMI mid-VBlank). All CPU-driven
+     * access MUST go through {@link #cpuBusRead}/{@link #cpuBusWrite}.
+     *
+     * <p>External non-CPU reads (debug renderers, diagnostics) use the
+     * non-destructive {@code peekCtrl()/peekMask()/peekStatus()} helpers.
+     * Tests poke individual registers via the package-private
+     * {@code setRegisterForTest(int, byte)} seam.
+     */
+    private byte[] registers;
     public PPUBus ppuBus;
     private Cartridge cartridge;  // Reference for CHR ROM access
     
@@ -741,6 +754,74 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     public boolean peekNmi() {
         return nmiPending;
+    }
+
+    /**
+     * Non-destructive read of PPUCTRL ({@code $2000}). Unlike the CPU bus
+     * path, this does NOT have side effects — intended for debug renderers,
+     * diagnostics, and the host's introspection. Always returns the raw
+     * 8-bit value (PPUCTRL is write-only on the CPU bus, so this is the
+     * only way to read what was last written).
+     *
+     * @return PPUCTRL bits 0..7 as an unsigned int (0..255)
+     */
+    public int peekCtrl() {
+        return Byte.toUnsignedInt(registers[0]);
+    }
+
+    /**
+     * Non-destructive read of PPUMASK ({@code $2001}). PPUMASK is
+     * write-only on the CPU bus; this is the introspection path.
+     *
+     * @return PPUMASK bits 0..7 as an unsigned int (0..255)
+     */
+    public int peekMask() {
+        return Byte.toUnsignedInt(registers[1]);
+    }
+
+    /**
+     * Non-destructive read of PPUSTATUS ({@code $2002}). Unlike a CPU read,
+     * this does NOT clear bit 7 (VBlank) or reset the address latch.
+     * Intended for diagnostics and tests; production CPU code MUST go
+     * through {@link #cpuBusRead(int, boolean)}.
+     *
+     * @return PPUSTATUS bits 0..7 as an unsigned int (0..255)
+     */
+    public int peekStatus() {
+        return Byte.toUnsignedInt(registers[2]);
+    }
+
+    /**
+     * Test-only seam: write a raw value into the PPU register file by index
+     * without going through the CPU bus side-effect machinery. Lets tests
+     * preload PPUSTATUS (e.g. forcing a VBlank flag without ticking the
+     * clock to scanline 241) or PPUCTRL (e.g. seed an NMI-enable bit
+     * cleanly) before exercising a code path.
+     *
+     * <p>Package-private intentionally — this is NOT production API.
+     * Production code paths MUST use {@link #cpuBusRead(int, boolean)} /
+     * {@link #cpuBusWrite(int, byte)} so the register side effects
+     * (latch reset, VBlank clear, buffered reads, NMI re-trigger) run.
+     *
+     * @param index 0..7 (PPU has 8 memory-mapped registers)
+     * @param value the raw byte to store
+     */
+    void setRegisterForTest(int index, byte value) {
+        registers[index & 0x07] = value;
+    }
+
+    /**
+     * Test-only seam: read the raw value from the PPU register file by index
+     * without triggering CPU bus side effects (no PPUSTATUS VBlank clear,
+     * no PPUDATA buffering, no address-increment). Same package-private
+     * contract as {@link #setRegisterForTest(int, byte)}: this is NOT a
+     * production API.
+     *
+     * @param index 0..7
+     * @return the raw register byte as a Java byte
+     */
+    byte getRegisterForTest(int index) {
+        return registers[index & 0x07];
     }
 
     /**
