@@ -137,3 +137,4 @@ Thumbs.db
 ## only nestest.nes (checked-in, freely distributable).
 /core/src/main/resources/roms/*.nes
 !/core/src/main/resources/roms/nestest.nes
+/gradle.properties.local
