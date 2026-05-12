@@ -141,9 +141,23 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         
         // Handle specific register writes
         switch (index) {
-            case 0: // PPUCTRL (0x2000)
+            case 0: { // PPUCTRL (0x2000)
+                // Rising-edge NMI: if software sets bit 7 of PPUCTRL while
+                // the PPUSTATUS VBlank flag (bit 7) is still set AND bit 7
+                // of PPUCTRL was previously clear, a second NMI is asserted
+                // mid-VBlank. Battletoads (among others) depends on this
+                // behaviour to fire a second NMI per frame.
+                // See https://www.nesdev.org/wiki/PPU_registers#PPUCTRL
+                byte oldCtrl = registers[index];
                 registers[index] = value;
+                boolean oldNmiEnable = (oldCtrl & 0x80) != 0;
+                boolean newNmiEnable = (value & 0x80) != 0;
+                boolean inVBlank = (registers[2] & 0x80) != 0;
+                if (newNmiEnable && !oldNmiEnable && inVBlank) {
+                    nmiPending = true;
+                }
                 break;
+            }
             case 1: // PPUMASK (0x2001)
                 registers[index] = value;
                 break;

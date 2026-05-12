@@ -172,10 +172,19 @@ Each item is its own PR. Smaller PRs are easier to review and revert.
 
 ### Test improvements
 
-- [ ] **B8** — `NestestTest` uncomment the P-flag and cycle-count
+- [x] **B8** — `NestestTest` uncomment the P-flag and cycle-count
   comparisons (currently the claim of "8992/8992 line match" is
   misleading). Fix whatever those comparisons surface.
   Source: `core/test/net/lomibao/nes/components/NestestTest.java:75-79`.
+  Outcome: surfaced two real CPU bugs in `reset()` — (a) the
+  InterruptDisable flag was never set on reset, so P started at 0x20
+  instead of the canonical 0x24; (b) `cycles` was 8 on reset instead
+  of 7, so `clockCount` was off-by-one for the entire run. Both fixed
+  in `CPU6502.reset()`; `clockCount` is also now zeroed in `reset()`
+  so the trace starts at CYC:0. With those two fixes the full 8992
+  lines now match on PC, A, X, Y, **P**, SP, and **CYC**. The
+  pre-existing "8992/8992 line match" claim was misleading by
+  comparing only opcode bytes; it is now a real full-state match.
 
 - [ ] **B9** — `StandardControllerTest` invert the obsolete P2-on-$4017
   tests: assert P2 IS supported, not that it returns open-bus.

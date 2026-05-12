@@ -360,12 +360,16 @@ public class CPU6502 {
         stkp = (byte) 0xFD;
         status = 0x00;// clear flags
         setFlag(Flag.U, true);// u is always true
+        // Real 6502 sets the InterruptDisable flag on reset (nestest expects P=0x24)
+        setFlag(Flag.InterruptDisable, true);
         // clear helpers
         addressRel = 0x0;
         addressAbs = 0x0;
         fetched = 0x0;
-        // reset takes some time
-        cycles = 8;
+        // reset cycle counter — first instruction begins at CYC:7 in nestest.log
+        clockCount = 0;
+        // reset takes 7 cycles (per nestest convention)
+        cycles = 7;
 
     }
 

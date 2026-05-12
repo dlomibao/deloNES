@@ -75,6 +75,59 @@ public class EmulatorScreenTest {
         assertFalse(exitCalled.get(), "onExit must not fire unless requestExit() is invoked");
     }
 
+    /**
+     * Regression for B1: a ROM that fails to load must not brick the app.
+     * Prior behaviour: loadROM() threw RuntimeException straight out of
+     * show(), but LibGDX Game.setScreen() had already swapped this.screen
+     * to the half-initialised EmulatorScreen, so the next render() NPE'd
+     * forever on the null nesSystem/cpu/ppu — user had no way back to
+     * the menu. Fix: show() catches the failure, disposes partial state,
+     * and fires onExit so NesGame bounces back to RomSelectScreen.
+     */
+    @Test
+    void badRom_doesNotBrick_invokesOnExitAndRenderIsSafe() {
+        AtomicReference<EmulatorScreen> ref = new AtomicReference<>();
+        AtomicBoolean exitCalled = new AtomicBoolean(false);
+
+        ApplicationAdapter listener = new ApplicationAdapter() {
+            @Override
+            public void render() {
+                EmulatorScreen screen = ref.get();
+                if (screen == null) {
+                    // ROM source guaranteed to fail: classpath path with no file.
+                    RomSource rom = new RomSource.ClasspathRomSource(
+                            "/roms/this-rom-does-not-exist.nes");
+                    Controller controller = new Controller();
+                    screen = new EmulatorScreen(
+                            rom, controller, () -> exitCalled.set(true), /* debugHud */ false);
+
+                    // 1. show() MUST NOT throw — that's the bug we're fixing.
+                    assertDoesNotThrow(screen::show);
+                    ref.set(screen);
+                }
+                // 3. Subsequent render() calls MUST NOT NPE on the half-initialised
+                //    emulator (nesSystem/cpu/ppu may all be null after a load fail).
+                assertDoesNotThrow(() -> ref.get().render(1f / 60f));
+            }
+
+            @Override
+            public void dispose() {
+                EmulatorScreen screen = ref.get();
+                if (screen != null) {
+                    screen.dispose();
+                }
+            }
+        };
+
+        assertDoesNotThrow(() -> HeadlessTestSupport.runFrames(listener, 3));
+
+        EmulatorScreen screen = ref.get();
+        assertNotNull(screen, "EmulatorScreen must have been created");
+        // 2. onExit must have been invoked so NesGame can return to the menu.
+        assertTrue(exitCalled.get(),
+                "onExit must fire when ROM load fails so user returns to menu");
+    }
+
     @Test
     void togglePauseAndReset_doNotThrow() {
         AtomicReference<EmulatorScreen> ref = new AtomicReference<>();
