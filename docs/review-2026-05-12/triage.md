@@ -212,10 +212,15 @@ Each item is its own PR. Smaller PRs are easier to review and revert.
   ("Phase 2 glue is expected to wire ...") and the `ppu.setCPU(cpu)`
   "no-op stub for parity" comment.
 
-- [ ] **B14** — Delete `NesEmulator` if confirmed dead (no Gradle task
+- [x] **B14** — Delete `NesEmulator` if confirmed dead (no Gradle task
   or class references it). The "retained as dead code" comment is
   unverified.
   Source: `desktop/src/net/lomibao/nes/DesktopLauncher.java:17`.
+  Resolved: `NesEmulator` and the orphaned `PixelRendererTest` (its
+  only consumer outside docs) were deleted; `HtmlLauncher` now boots
+  an inline placeholder `ApplicationAdapter` with a clear comment
+  pointing at C1 for the real web-port work. Also resolves Tier C
+  C12 (misplaced `PixelRendererTest` in `core/src/`).
 
 - [ ] **B15** — `PaletteMemory.java` and `PatternMemory.java` in
   `core/src/.../ppu/` are unused (default `ppuBusRead/Write` from
@@ -316,8 +321,10 @@ high-leverage on its own** (CPU dispatch is in every game's hot loop).
   Currently iNES parsing is exercised only transitively via
   `NestestTest`.
 
-- [ ] **C12** — Move `PixelRendererTest.java` from `core/src/` to
+- [x] **C12** — Move `PixelRendererTest.java` from `core/src/` to
   `core/test/` (it's in the wrong source set).
+  Resolved by B14: file deleted because `NesEmulator` was its only
+  consumer and both went together.
 
 - [ ] **C13** — Replace `SpyController extends Controller` in
   `KeyboardInputAdapterTest` with a `ControllerSink` interface that
