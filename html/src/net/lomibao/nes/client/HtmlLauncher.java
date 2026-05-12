@@ -11,7 +11,16 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplicationConfiguration;
+import net.lomibao.nes.NesSystem;
+import net.lomibao.nes.components.CPU6502;
+import net.lomibao.nes.components.Cartridge;
+import net.lomibao.nes.components.DmaController;
+import net.lomibao.nes.components.PPU;
+import net.lomibao.nes.components.PPUBus;
+import net.lomibao.nes.components.Ram;
+import net.lomibao.nes.components.ppu.NameTableMemory;
 
+import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 
 /**
@@ -58,6 +67,77 @@ public class HtmlLauncher {
             Gdx.app.log("phase0", "render probe up — NES_W=" + NES_W + " NES_H=" + NES_H);
             probeResources();
             probeInput();
+            probeCpu();
+        }
+
+        /**
+         * Smoke-test the post-C1 string-switch CPU dispatch in the browser.
+         * Loads nestest.nes, builds a minimal {@link NesSystem}, resets the
+         * CPU, runs a small number of master ticks, logs PC progress and a
+         * couple of CPU register values. Any thrown exception during ROM
+         * load / reset / clock-loop surfaces as a "CPU PROBE FAIL" log line
+         * — proves whether the refactored dispatch table actually executes
+         * under TeaVM end-to-end.
+         */
+        private void probeCpu() {
+            try {
+                byte[] romBytes = Gdx.files.internal("roms/nestest.nes").readBytes();
+                Cartridge cart = new Cartridge(
+                        new ByteArrayInputStream(romBytes), "nestest.nes");
+
+                PPU ppu = new PPU();
+                PPUBus ppuBus = new PPUBus();
+                NameTableMemory nameTableMemory = new NameTableMemory();
+                ppuBus.connect(nameTableMemory);
+                ppu.connectPPUBus(ppuBus);
+
+                // CPU6502 needs the opcode CSV. The no-arg constructor reads
+                // /opcodes/opcodes.csv from the classpath, which TeaVM does not
+                // embed; use the InputStream constructor against the preloaded
+                // asset instead.
+                byte[] csvBytes = Gdx.files.internal("opcodes/opcodes.csv").readBytes();
+                CPU6502 cpu = new CPU6502(new ByteArrayInputStream(csvBytes));
+                Ram ram = new Ram();
+
+                NesSystem nes = NesSystem.builder()
+                        .cpu(cpu).ram(ram).ppu(ppu)
+                        .dma(new DmaController())
+                        .build();
+
+                nes.getCpuBus().setCartridge(cart);
+                ppu.setCartridge(cart);
+                ppuBus.connectCartridge(cart);
+                ppuBus.connectPPU(ppu);
+
+                cpu.reset();
+                ppu.reset();
+
+                int initialPc = cpu.getPc();
+                int ticksToRun = 1000;
+                for (int i = 0; i < ticksToRun; i++) {
+                    nes.tick();
+                }
+                int finalPc = cpu.getPc();
+
+                Gdx.app.log("phase0",
+                        "CPU PROBE OK after " + ticksToRun + " ticks: "
+                        + "initialPC=0x" + Integer.toHexString(initialPc)
+                        + " finalPC=0x" + Integer.toHexString(finalPc)
+                        + " A=0x" + Integer.toHexString(cpu.getA())
+                        + " X=0x" + Integer.toHexString(cpu.getX())
+                        + " Y=0x" + Integer.toHexString(cpu.getY())
+                        + " SP=0x" + Integer.toHexString(cpu.getStkp())
+                        + " status=0x" + Integer.toHexString(cpu.getStatus() & 0xff)
+                        + " clockCount=" + cpu.getClockCount());
+
+                if (finalPc == initialPc) {
+                    Gdx.app.error("phase0",
+                            "CPU PROBE WARN: PC did not advance — dispatch may "
+                            + "be returning silently. Check string-switch defaults.");
+                }
+            } catch (Throwable t) {
+                Gdx.app.error("phase0", "CPU PROBE FAIL: " + t.getMessage(), t);
+            }
         }
 
         private void probeResources() {

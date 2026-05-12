@@ -75,21 +75,33 @@ tasks.named('generateJavaScript').configure {
             into assetsDir
         }
 
-        // Phase 0: surface core's classpath ROMs under assets/roms/ so the
-        // preload mechanism can pick them up.
+        // Phase 0+: surface core's classpath ROMs + opcode table under
+        // assets/ so the preload mechanism can fetch them and so the
+        // launcher can feed CPU6502 the CSV bytes via Gdx.files.internal
+        // (the no-arg CPU6502() constructor still works for desktop via
+        // classpath; web hosts use CPU6502(InputStream) instead).
         copy {
             from "${project(':core').projectDir}/src/main/resources/roms"
             into "${assetsDir}/roms"
         }
+        copy {
+            from "${project(':core').projectDir}/src/main/resources/opcodes"
+            into "${assetsDir}/opcodes"
+        }
 
-        // Generate preload.txt manifest. For Phase 0 we only declare the
-        // resource-probe ROM; expand as the real game-glue port lands.
-        // Format per line: i:b:<relpath>:<length>:1
+        // Generate preload.txt manifest. Format per line:
+        // i:b:<relpath>:<length>:1
         // (internal:binary:url:length:overwrite-cached-copy)
         def manifest = new StringBuilder()
-        def nestest = new File(assetsDir, 'roms/nestest.nes')
-        if (nestest.exists()) {
-            manifest.append("i:b:roms/nestest.nes:${nestest.length()}:1\n")
+        def manifestPaths = [
+                'roms/nestest.nes',
+                'opcodes/opcodes.csv',
+        ]
+        manifestPaths.each { p ->
+            def f = new File(assetsDir, p)
+            if (f.exists()) {
+                manifest.append("i:b:${p}:${f.length()}:1\n")
+            }
         }
         new File(assetsDir, 'preload.txt').text = manifest.toString()
     }

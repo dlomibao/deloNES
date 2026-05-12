@@ -352,13 +352,27 @@ public class CPU6502 {
     private Instruction[] instructions;
 
     public CPU6502() {
+        this(CPU6502.class.getResourceAsStream("/opcodes/opcodes.csv"));
+    }
 
+    /**
+     * Build a CPU with the opcode table loaded from the given stream. The
+     * no-arg constructor uses {@code /opcodes/opcodes.csv} from the
+     * classpath; web/TeaVM hosts that can't reach raw classpath resources
+     * (preload.txt cache) should use this constructor with bytes fetched
+     * via {@code Gdx.files.internal(...)} (or any other backend-specific
+     * loader).
+     */
+    public CPU6502(InputStream opcodeCsv) {
         instructions = new Instruction[256];
-        InputStream stream = this.getClass().getResourceAsStream("/opcodes/opcodes.csv");
-        if (stream == null) {
-            throw new RuntimeException("Could not find /opcodes/opcodes.csv resource. Ensure it is in the classpath.");
+        if (opcodeCsv == null) {
+            throw new RuntimeException(
+                    "Opcode CSV stream is null. The no-arg constructor reads "
+                    + "/opcodes/opcodes.csv from the classpath — register the "
+                    + "resource for embedding, or call CPU6502(InputStream) "
+                    + "with a stream sourced another way.");
         }
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(opcodeCsv))) {
             reader.readLine(); // Skip header
             String line;
             while ((line = reader.readLine()) != null) {
