@@ -205,7 +205,7 @@ public class PPUTest {
         bus.write(0x2002, (byte) 0x80); // This write should be ignored
         
         // Manually set the status register for testing
-        ppu.registers[2] = (byte) 0x80;
+        ppu.setRegisterForTest(2, (byte) 0x80);
         
         // Read PPUSTATUS
         int status = bus.read(0x2002);
@@ -245,13 +245,13 @@ public class PPUTest {
         bus.write(0x2000, (byte) 0xAB);
         
         // Read from 0x2008 (should mirror to 0x2000)
-        int value1 = ppu.registers[0];
-        
+        int value1 = ppu.getRegisterForTest(0);
+
         // Write to 0x2008
         bus.write(0x2008, (byte) 0xCD);
-        
+
         // Check that 0x2000 was updated
-        int value2 = ppu.registers[0];
+        int value2 = ppu.getRegisterForTest(0);
         
         assertEquals(0xAB, value1 & 0xFF);
         assertEquals(0xCD, value2 & 0xFF);
@@ -306,7 +306,7 @@ public class PPUTest {
         
         // Verify registers are cleared
         for (int i = 0; i < 8; i++) {
-            assertEquals(0, ppu.registers[i] & 0xFF, "Register " + i + " should be 0 after reset");
+            assertEquals(0, ppu.getRegisterForTest(i) & 0xFF, "Register " + i + " should be 0 after reset");
         }
         
         // Verify we can write to palette after reset
