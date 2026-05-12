@@ -1,5 +1,7 @@
 package net.lomibao.nes.util;
 
+import lombok.extern.log4j.Log4j2;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +32,7 @@ import java.util.List;
  * <p>Use {@link #openRom(String)} to obtain an {@link InputStream} for a ROM
  * by its filename (e.g. {@code "nestest.nes"}).
  */
+@Log4j2
 public class RomCatalog {
 
     private static final String INDEX_RESOURCE = "roms/index.txt";
@@ -106,6 +109,9 @@ public class RomCatalog {
             return Collections.emptyList();
         } catch (Exception e) {
             // Any failure (URI parse, security, IO, ...) falls back to the manifest path.
+            // Don't propagate — listRoms() still has the manifest as a second source —
+            // but log at debug so misconfigurations surface when verbose logging is on.
+            log.debug("scanFilesystem failed; falling back to manifest", e);
             return Collections.emptyList();
         }
     }
