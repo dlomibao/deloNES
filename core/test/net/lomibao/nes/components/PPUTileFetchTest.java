@@ -66,21 +66,35 @@ class PPUTileFetchTest {
         mockBus.write(0x23C0, (byte) 0x00);  // Attribute 0
         mockBus.write(0x0010, (byte) 0xF0);  // Pattern low (tile 1, row 0)
         mockBus.write(0x0018, (byte) 0x0F);  // Pattern high (tile 1, row 0)
-        
+
         ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
-        // Advance through full 8-cycle fetch sequence, then load at cycle 9
-        // Cycle 2: fetch nametable, Cycle 4: fetch attr, Cycle 6: fetch pattern low
-        // Cycle 8: fetch pattern high, Cycle 9: LOAD shifters
+
+        // Advance through full 8-cycle fetch sequence, then load at cycle 9.
+        //   Cycle 2: fetch nametable, Cycle 4: fetch attr, Cycle 6: fetch pattern low
+        //   Cycle 8: fetch pattern high
+        //   Cycle 9: render → LOAD → shift (B17 fix ordering: LOAD must run
+        //   before this cycle's shift so the newly-loaded bit 7 gets the
+        //   full 8 shifts before the next case-0 render).
         advanceToCycle(0, 9);
-        
-        // After cycle 9 completes, shifters should be loaded with fetched data
+
+        // After cycle 9 completes the LOAD has run AND one shift has run
+        // on top of it, so the freshly-loaded byte sits one bit higher
+        // than the raw fetch value: bit 7 of the fetched byte is now at
+        // position 8 of the 16-bit shifter, and bits 7..0 hold
+        // (fetched << 1) & 0xFF.
         int shiftLow = ppu.getBgShiftPatternLow();
         int shiftHigh = ppu.getBgShiftPatternHigh();
-        
-        // Lower 8 bits should contain the pattern data
-        assertEquals(0xF0, shiftLow & 0xFF, "Shifter low should be loaded with pattern low");
-        assertEquals(0x0F, shiftHigh & 0xFF, "Shifter high should be loaded with pattern high");
+
+        assertEquals((0xF0 << 1) & 0xFF, shiftLow & 0xFF,
+            "Shifter LOW should be (pattern-low << 1) after the LOAD+shift on cycle 9");
+        assertEquals((0x0F << 1) & 0xFF, shiftHigh & 0xFF,
+            "Shifter HIGH should be (pattern-high << 1) after the LOAD+shift on cycle 9");
+        // Bit 8 = original bit 7 of the fetched byte (the leading pixel
+        // of the loaded tile) — confirms the LOAD itself happened.
+        assertEquals(1, (shiftLow >> 8) & 1,
+            "Bit 8 of LOW shifter should be bit 7 of fetched pattern-low (0xF0)");
+        assertEquals(0, (shiftHigh >> 8) & 1,
+            "Bit 8 of HIGH shifter should be bit 7 of fetched pattern-high (0x0F)");
     }
     
     @Test

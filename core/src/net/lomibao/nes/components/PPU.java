@@ -318,6 +318,39 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
                 renderBackgroundPixel();
             }
 
+            // In the VISIBLE region (cycles 1-256), LOAD must run BEFORE
+            // the per-cycle shift on case 0 (cycles 9, 17, 25, ...). The
+            // case-0 LOAD copies the just-fetched tile bytes into the
+            // LOW byte of the shifter; bit 7 of LOW then needs exactly 8
+            // shifts to propagate up to HIGH bit 15, which is what the
+            // renderer reads at the next case-0 render (cycle c+8).
+            // Putting LOAD AFTER the shift (the old ordering) left only
+            // 7 shifts before that render, displacing every tile col 2+
+            // by one screen pixel (B17). Col 0/col 1 weren't affected
+            // because they come from the prior scanline's prefetch
+            // (cycles 329/337 LOADs).
+            //
+            // At cycle 1 the LOAD is a no-op: cycle 337 of the prior
+            // scanline already loaded col 1's bytes into LOW and no
+            // shift has run since, and bgNextTile* still holds col 1's
+            // values, so re-loading writes the same bits back. No guard
+            // needed.
+            //
+            // The PREFETCH region (cycles 321-337) is the inverse: there
+            // is no render between cycle 329's LOAD and the next render
+            // (cycle 1 of the next scanline), so the LOAD-to-render gap
+            // is 9 shift cycles wide (329..337 inclusive). LOAD-after-
+            // shift gives the right 8-shift count there; LOAD-before-
+            // shift would overshoot by one. We therefore handle the
+            // prefetch case-0 LOAD AFTER shift, inside the existing
+            // fetch switch below.
+            if (cycle >= 1 && cycle <= 256) {
+                int cycleMod = (cycle - 1) % 8;
+                if (cycleMod == 0) {
+                    loadBackgroundShifters();
+                }
+            }
+
             // Shift registers during visible cycles (1-256) AND during the
             // pre-fetch window (322-337). The pre-fetch shifts move the first
             // tile (col 0 of the upcoming scanline) from the LOW byte of the
@@ -328,22 +361,23 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
             // Fetch tiles in 8-cycle pattern.
             //   Cycles 1-256: fetch tiles for the SAME scanline that's rendering.
+            //     Case-0 LOAD here was hoisted above to run before the
+            //     per-cycle shift (see B17 comment).
             //   Cycles 321-337: pre-fetch the first 2 tiles of the NEXT scanline.
-            //     - Cycle 329 (mod 0) loads col 0 into LOW byte, then cycles
-            //       330-337 shift it up into HIGH byte.
+            //     - Cycle 329 (mod 0) loads col 0 into LOW byte AFTER this
+            //       cycle's shift, then cycles 330-337 shift it up into HIGH.
             //     - Cycle 337 (mod 0) loads col 1 into LOW byte. By cycle 1 of
             //       the next scanline, HIGH byte = col 0 (ready to render).
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 337)) {
                 int cycleMod = (cycle - 1) % 8;
                 switch (cycleMod) {
                     case 0:
-                        // Skip the load at cycle 1. With the +2 prefetch pipeline,
-                        // the previous scanline's cycle 329/337 loads leave col 0
-                        // in HIGH and col 1 in LOW; cycle 1's shift correctly
-                        // propagates col 1's bit 7 into the HIGH byte. Reloading
-                        // LOW here would re-stamp col 1 over the partially-shifted
-                        // state and duplicate that pixel.
-                        if (cycle != 1) {
+                        // Prefetch-only LOAD. The visible-region case-0
+                        // LOAD ran above (before shift). Cycle 321 is
+                        // outside the shift range (322-337) so cycle 321
+                        // LOADs garbage that gets clobbered by cycle 329
+                        // before anything renders — harmless.
+                        if (cycle >= 321) {
                             loadBackgroundShifters();
                         }
                         break;
