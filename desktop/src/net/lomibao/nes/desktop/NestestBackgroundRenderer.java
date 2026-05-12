@@ -83,6 +83,7 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
                 .ram(ram)
                 .ppu(ppu)
                 .controller(controller)
+                .dma(new DmaController())
                 .build()
                 .connect();
         

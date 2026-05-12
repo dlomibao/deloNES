@@ -12,6 +12,7 @@ import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.CPUBus;
 import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.Controller;
+import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.Ram;
@@ -151,6 +152,7 @@ public class EmulatorScreen implements Screen {
                 .ram(ram)
                 .ppu(ppu)
                 .controller(controller)
+                .dma(new DmaController())
                 .build()
                 .connect();
 

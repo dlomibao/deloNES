@@ -153,9 +153,10 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             case 3: // OAMADDR (0x2003)
                 registers[index] = value;
                 break;
-            case 4: // OAMDATA (0x2004)
-                registers[index] = value;
-                // TODO: Write to OAM
+            case 4: // OAMDATA (0x2004): write to OAM at OAMADDR, auto-increment OAMADDR.
+                int oamAddrW = Byte.toUnsignedInt(registers[3]);
+                oam[oamAddrW & 0xFF] = value;
+                registers[3] = (byte) ((oamAddrW + 1) & 0xFF);
                 break;
             case 5: // PPUSCROLL (0x2005)
                 registers[index] = value;
@@ -220,9 +221,8 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
                 return status;
             case 3: // OAMADDR (0x2003) - write-only
                 return 0;
-            case 4: // OAMDATA (0x2004)
-                // TODO: Read from OAM
-                return Byte.toUnsignedInt(registers[index]);
+            case 4: // OAMDATA (0x2004): read OAM at OAMADDR (no auto-increment on read).
+                return Byte.toUnsignedInt(oam[Byte.toUnsignedInt(registers[3]) & 0xFF]);
             case 5: // PPUSCROLL (0x2005) - write-only
                 return 0;
             case 6: // PPUADDR (0x2006) - write-only
@@ -289,10 +289,10 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             clearBgPatternShadow();
         }
         
-        // Coarse sprite-0 hit (Step 6): see {@link #checkSpriteZeroHitCoarse()}.
+        // Sprite-0 hit (per-pixel opacity): see {@link #checkSpriteZeroHit()}.
         // Called unconditionally; the helper does its own gating so the
         // contract lives in one place.
-        checkSpriteZeroHitCoarse();
+        checkSpriteZeroHit();
 
         // Perform background tile fetching on visible and pre-render scanlines
         if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
@@ -445,47 +445,75 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
-     * Coarse sprite-0 hit detection (Step 6 of the playable-gen1 plan).
-     * Sets PPUSTATUS bit 6 when sprite 0's bounding box overlaps the
-     * current (scanline, cycle) AND both background and sprite rendering
-     * are enabled. Per bugzmanov ch. 7 this is intentionally loose — no
-     * pixel-opacity test, no per-pixel walk. Most games that poll bit 6
-     * (SMB, Ice Climber, Excitebike) only need to know "the raster has
-     * reached the status-bar split line" and the coarse box test is
-     * sufficient.
+     * Per-pixel sprite-0 hit detection. Sets PPUSTATUS bit 6 the first cycle
+     * an opaque sprite-0 pixel coincides with an opaque background pixel,
+     * provided both rendering layers are enabled and the leftmost-8 / x=255
+     * gating rules are honored.
      *
-     * <p>Performs all its own gating (visible-scanline / visible-cycle /
-     * both-layers-enabled / not-already-set) — safe to call every PPU tick
-     * unconditionally. Bit 6 is cleared at the pre-render scanline
-     * (261, cycle 1) by the existing reset path.
-     *
-     * <p>Note: "sprite 0" is by convention OAM bytes [0..3] regardless of
-     * OAMADDR — OAMADDR shuffles where CPU writes/reads land in OAM but
-     * does not redefine which sprite is "sprite 0".
+     * <p>Safe to call every PPU tick unconditionally — fully self-gated.
+     * Bit 6 is cleared at the pre-render scanline (261, cycle 1) by the
+     * existing reset path.
      */
-    private void checkSpriteZeroHitCoarse() {
-        // Visible-area + both-layers gate. Combined with the early-return
-        // for the already-set case, this short-circuits ~99% of calls
-        // outside the brief sprite-0 window each frame.
+    private void checkSpriteZeroHit() {
         if (!isVisibleScanline() || cycle < 1 || cycle > 256
                 || !isShowBackground() || !isShowSprites()) {
             return;
         }
-        // Already set this frame? Nothing more to do.
-        if ((registers[2] & 0x40) != 0) return;
+        if ((registers[2] & 0x40) != 0) return; // already set this frame
+
+        int x = cycle - 1;
+        if (x == 255) return; // NESdev: bit 6 never sets at x=255
 
         int oamY = Byte.toUnsignedInt(oam[0]);
         int oamX = Byte.toUnsignedInt(oam[3]);
-        int spriteTop = oamY + 1;                                  // OAM Y is "top - 1"
-        int spriteHeight = getSpriteSize();                        // 8 or 16 from PPUCTRL bit 5
-        int spriteBottom = spriteTop + spriteHeight;               // exclusive
+        int spriteTop = oamY + 1;
+        int spriteHeight = getSpriteSize();
+        int spriteBottom = spriteTop + spriteHeight;
+        if (scanline < spriteTop || scanline >= spriteBottom) return;
+        if (x < oamX || x >= oamX + 8) return;
 
-        // The sprite's screen X covers [oamX, oamX+8); cycle 1 maps to x=0.
-        int x = cycle - 1;
-        if (scanline >= spriteTop && scanline < spriteBottom
-                && x >= oamX && x < oamX + 8) {
-            registers[2] |= 0x40; // set PPUSTATUS bit 6 (sprite-0 hit)
+        // Leftmost-8 mask: needs BOTH bg-show-left-8 (bit 1) AND sprite-show-left-8 (bit 2).
+        if (x < 8) {
+            int mask = Byte.toUnsignedInt(registers[1]);
+            if ((mask & 0x02) == 0 || (mask & 0x04) == 0) return;
         }
+
+        if (bgPatternPixel[scanline][x] == 0) return; // background transparent here
+
+        int tileId = Byte.toUnsignedInt(oam[1]);
+        int attr   = Byte.toUnsignedInt(oam[2]);
+        boolean hflip = (attr & 0x40) != 0;
+        boolean vflip = (attr & 0x80) != 0;
+
+        int rowInSprite = scanline - spriteTop;
+        if (vflip) rowInSprite = spriteHeight - 1 - rowInSprite;
+        int colInSprite = x - oamX;
+        int colInTile   = hflip ? colInSprite : (7 - colInSprite);
+
+        int patternTableBase;
+        int tileForRow;
+        int rowInTile;
+        if (spriteHeight == 16) {
+            patternTableBase = (tileId & 0x01) != 0 ? 0x1000 : 0x0000;
+            int topTile = tileId & 0xFE;
+            if (rowInSprite >= 8) { tileForRow = topTile + 1; rowInTile = rowInSprite - 8; }
+            else                  { tileForRow = topTile;     rowInTile = rowInSprite;     }
+        } else {
+            patternTableBase = getSpritePatternTableAddress();
+            tileForRow = tileId;
+            rowInTile = rowInSprite;
+        }
+
+        if (ppuBus == null) return;
+        int patternAddr = patternTableBase + tileForRow * 16 + rowInTile;
+        int patternLow  = ppuBus.read(patternAddr);
+        int patternHigh = ppuBus.read(patternAddr + 8);
+        int p0 = (patternLow  >> colInTile) & 0x01;
+        int p1 = (patternHigh >> colInTile) & 0x01;
+        int spritePixel = (p1 << 1) | p0;
+        if (spritePixel == 0) return; // sprite transparent here
+
+        registers[2] |= 0x40; // sprite-0 hit
     }
 
     /**

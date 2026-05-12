@@ -1,44 +1,65 @@
 package net.lomibao.nes.components;
 
+import net.lomibao.nes.components.ppu.NameTableMemory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the coarse sprite-0 hit detection (Step 6 of the playable-gen1
- * plan). The real PPU sets PPUSTATUS bit 6 when a non-transparent pixel of
- * sprite 0 overlaps a non-transparent pixel of the background. Many games
- * (most famously SMB) poll this to time their status-bar split.
+ * Tests for per-pixel sprite-0 hit detection. Real-hardware semantics:
+ * PPUSTATUS bit 6 sets when an opaque sprite-0 pixel overlaps an opaque
+ * background pixel — both rendering layers must be on, the cycle must be
+ * 1..256 (and never 256, i.e. x != 255), and if the overlap is in the
+ * leftmost 8 pixels then both PPUMASK bit 1 AND bit 2 must be set.
  *
- * <p>This MVP implements the bugzmanov ch. 7 approximation: bit 6 is set
- * when the current scanline+cycle falls inside sprite 0's bounding box
- * AND both background and sprite rendering are enabled. Pixel opacity is
- * NOT checked — that is the exact-pixel test ROM territory and a future
- * upgrade.
- *
- * <h2>Contract covered</h2>
- * <ul>
- *   <li>Bit 6 sets when (scanline ∈ [Y+1, Y+1+height)) AND (cycle-1 ≥ X)
- *       AND background AND sprites are both enabled AND we're in the
- *       visible cycle window (cycle 1..256).</li>
- *   <li>Bit 6 stays cleared if either rendering layer is disabled.</li>
- *   <li>Bit 6 stays cleared before the predicate is satisfied (cycle below
- *       sprite-0 X, or scanline outside sprite-0 Y range).</li>
- *   <li>Bit 6 is cleared at the pre-render scanline (261, cycle 1) — this
- *       is the existing reset path, asserted here for regression cover.</li>
- * </ul>
+ * <p>Setup populates an 8x16-aware CHR pattern table for sprite-0 tile 0
+ * (all pixels opaque) and seeds the BG pattern shadow with non-zero across
+ * the entire frame so existing-shape tests need no per-case priming.
  */
 class PPUSpriteZeroHitTest {
 
     private PPU ppu;
+    private FakeChr chr;
+
+    /** 8KB CHR provider on the PPU bus at $0000-$1FFF. */
+    static class FakeChr implements PPUBusComponent {
+        final byte[] data = new byte[0x2000];
+        @Override public void connectPPUBus(PPUBus ppuBus) {}
+        @Override public PPUBus getPPUBus() { return null; }
+        @Override public int ppuBusRead(int address, boolean readOnly) { return Byte.toUnsignedInt(data[address & 0x1FFF]); }
+        @Override public void ppuBusWrite(int address, byte value) { data[address & 0x1FFF] = value; }
+        @Override public int getPPUBusStartAddress() { return 0x0000; }
+        @Override public int getPPUBusEndAddress() { return 0x2000; }
+    }
 
     @BeforeEach
     void setUp() {
         ppu = new PPU();
+        chr = new FakeChr();
+        PPUBus ppuBus = new PPUBus();
+        ppuBus.connect(chr);
+        ppuBus.connect(new NameTableMemory());
+        ppu.connectPPUBus(ppuBus);
+        ppuBus.connectPPU(ppu);
+
+        // Make sprite-0 tile 0 fully opaque (low plane = 0xFF, high plane = 0x00 → pattern pixel = 1).
+        // Tile 0: bytes [0..7] = low plane, [8..15] = high plane. Tile 1 (8x16 bottom): [16..23], [24..31].
+        for (int row = 0; row < 8; row++) {
+            chr.data[row]      = (byte) 0xFF; // tile 0 low plane
+            chr.data[8 + row]  = 0x00;        // tile 0 high plane
+            chr.data[16 + row] = (byte) 0xFF; // tile 1 low plane (8x16 bottom half)
+            chr.data[24 + row] = 0x00;        // tile 1 high plane
+        }
+        // Seed BG pattern shadow with non-zero across the visible frame.
+        for (int y = 0; y < PPU.VISIBLE_HEIGHT; y++) {
+            for (int x = 0; x < PPU.VISIBLE_WIDTH; x++) {
+                ppu.setBgPatternPixelForTest(y, x, 1);
+            }
+        }
     }
 
-    /** Place sprite 0 at (X, Y) in OAM. tile-id and attr default to 0. */
+    /** Place sprite 0 at (X, Y) in OAM. tile-id 0, attr 0. */
     private void putSprite0(int oamY, int x) {
         ppu.writeOam(0, (byte) oamY);
         ppu.writeOam(1, (byte) 0);
@@ -46,18 +67,11 @@ class PPUSpriteZeroHitTest {
         ppu.writeOam(3, (byte) x);
     }
 
-    /** Enable background AND sprites in PPUMASK (bits 3 and 4). */
+    /** Enable both BG and sprite rendering AND left-8 masks (PPUMASK bits 1..4). */
     private void enableBothLayers() {
-        ppu.cpuBusWrite(0x2001, (byte) (0x08 | 0x10));
+        ppu.cpuBusWrite(0x2001, (byte) (0x02 | 0x04 | 0x08 | 0x10));
     }
 
-    /**
-     * Tick PPU forward until it reaches (targetScanline, targetCycle).
-     * Idempotent across multiple calls in the same test — uses the PPU's
-     * own scanline/cycle accessors as the loop condition rather than
-     * tracking ticks externally. Stops with a safety cap to prevent
-     * infinite loops on bad target coords.
-     */
     private void tickTo(int targetScanline, int targetCycle) {
         int safety = 0;
         while ((ppu.getScanline() != targetScanline || ppu.getCycle() != targetCycle)
@@ -76,13 +90,10 @@ class PPUSpriteZeroHitTest {
 
     @Test
     void bit6_setWhenSprite0_overlapsScanlineAndCycle_andBothLayersEnabled() {
-        // Sprite 0 at OAM (Y=49, X=100) → occupies scanlines 50..57, cols 100..107
         putSprite0(49, 100);
         enableBothLayers();
-        // Tick to (scanline 50, cycle 105) — well inside the box
         tickTo(50, 105);
-        assertTrue(spriteZeroHit(),
-                "bit 6 should be set when both layers are on and (scanline, cycle) is inside sprite 0 box");
+        assertTrue(spriteZeroHit());
     }
 
     // ---- gating by PPUMASK ----
@@ -90,21 +101,17 @@ class PPUSpriteZeroHitTest {
     @Test
     void bit6_notSet_whenSpritesDisabled() {
         putSprite0(49, 100);
-        // Background ON (bit 3), sprites OFF (bit 4 clear)
-        ppu.cpuBusWrite(0x2001, (byte) 0x08);
+        ppu.cpuBusWrite(0x2001, (byte) 0x08); // BG on, sprites off
         tickTo(50, 105);
-        assertFalse(spriteZeroHit(),
-                "bit 6 must not be set when sprites are disabled");
+        assertFalse(spriteZeroHit());
     }
 
     @Test
     void bit6_notSet_whenBackgroundDisabled() {
         putSprite0(49, 100);
-        // Sprites ON (bit 4), background OFF (bit 3 clear)
-        ppu.cpuBusWrite(0x2001, (byte) 0x10);
+        ppu.cpuBusWrite(0x2001, (byte) 0x10); // sprites on, BG off
         tickTo(50, 105);
-        assertFalse(spriteZeroHit(),
-                "bit 6 must not be set when background is disabled");
+        assertFalse(spriteZeroHit());
     }
 
     @Test
@@ -121,103 +128,109 @@ class PPUSpriteZeroHitTest {
     void bit6_notSet_beforeCycleReachesSprite0X() {
         putSprite0(49, 100);
         enableBothLayers();
-        // Tick only as far as cycle 50 of the right scanline — before X=100
         tickTo(50, 50);
-        assertFalse(spriteZeroHit(),
-                "bit 6 must not be set when cycle is to the left of sprite-0 X");
+        assertFalse(spriteZeroHit());
     }
 
     @Test
     void bit6_notSet_whenWalkedOnlyToScanlineAboveSprite0() {
-        putSprite0(49, 100); // sprite occupies scanlines 50..57
+        putSprite0(49, 100);
         enableBothLayers();
-        // Stop at scanline 49, cycle 200 — above the sprite. We never
-        // walk through scanlines 50+ so the predicate is never satisfied.
         tickTo(49, 200);
-        assertFalse(spriteZeroHit(),
-                "bit 6 must not be set when we've walked only to a scanline above sprite 0");
+        assertFalse(spriteZeroHit());
     }
 
     @Test
     void bit6_notSet_whenSpriteYIsBelowVisibleArea() {
-        // OAM Y >= 239 puts sprite top at scanline 240+, which is post-render
-        // and never visible. Walk through the entire visible frame; the
-        // predicate should never fire.
-        // (Note: we can't test "scanline > spriteBottom" directly without
-        // first WALKING through the in-range scanlines, where the bit
-        // would correctly fire and stay set — that's covered by the
-        // persistence test instead.)
-        putSprite0(239, 100); // top scanline = 240 (off-screen)
+        putSprite0(239, 100);
         enableBothLayers();
-        tickTo(239, 256); // last visible cell
-        assertFalse(spriteZeroHit(),
-                "off-screen sprite Y must not trigger sprite-0 hit anywhere in the visible frame");
+        tickTo(239, 256);
+        assertFalse(spriteZeroHit());
     }
 
     @Test
     void bit6_setOnFirstScanlineOfSprite0() {
-        // OAM Y=49 → top scanline = 50. Bit should set there.
         putSprite0(49, 50);
         enableBothLayers();
         tickTo(50, 100);
-        assertTrue(spriteZeroHit(),
-                "bit 6 should set on the first scanline (Y+1) of sprite 0");
+        assertTrue(spriteZeroHit());
     }
 
     @Test
     void bit6_setOnLastScanlineOfSprite0() {
-        // Y=49, 8x8 → scanlines 50..57. Bit should still set on scanline 57.
         putSprite0(49, 50);
         enableBothLayers();
         tickTo(57, 100);
-        assertTrue(spriteZeroHit(),
-                "bit 6 should set on the bottom scanline of sprite 0");
+        assertTrue(spriteZeroHit());
     }
 
     @Test
     void bit6_setOnLastScanlineOfSprite0_in8x16Mode() {
-        // PPUCTRL bit 5 = 1 → 8x16 sprites. Y=49 → scanlines 50..65.
         ppu.cpuBusWrite(0x2000, (byte) 0x20);
         putSprite0(49, 50);
         enableBothLayers();
-        // Walk to scanline 65 (last row of an 8x16 sprite that an 8x8
-        // sprite would no longer cover). Cycle 100 is in the X range.
         tickTo(65, 100);
-        assertTrue(spriteZeroHit(),
-                "bit 6 should set on scanline 65 in 8x16 mode (would be past end if 8x8)");
+        assertTrue(spriteZeroHit());
     }
 
     // ---- clear at pre-render ----
 
     @Test
     void bit6_clearedAt_preRender_scanline261_cycle1() {
-        // Set the bit, then tick into pre-render and assert it cleared.
         putSprite0(49, 50);
         enableBothLayers();
         tickTo(50, 100);
-        assertTrue(spriteZeroHit(), "precondition: bit 6 set");
-
-        // Walk to scanline 261, cycle 1 (the exact reset point).
+        assertTrue(spriteZeroHit(), "precondition");
         tickTo(261, 1);
-
-        assertFalse(spriteZeroHit(),
-                "bit 6 must be cleared at pre-render scanline (261, cycle 1)");
+        assertFalse(spriteZeroHit());
     }
-
-    // ---- persistence ----
 
     @Test
     void bit6_persists_acrossSubsequentVisibleCycles_until_preRender() {
-        // Set the bit early, tick forward a bunch within visible area.
         putSprite0(49, 50);
         enableBothLayers();
         tickTo(50, 100);
-        assertTrue(spriteZeroHit(), "precondition: bit 6 set");
-
-        // Tick forward to scanline 200, cycle 100 — still in visible area,
-        // not yet at pre-render. Bit must still be set.
+        assertTrue(spriteZeroHit(), "precondition");
         tickTo(200, 100);
-        assertTrue(spriteZeroHit(),
-                "bit 6 must persist through visible scanlines once set");
+        assertTrue(spriteZeroHit());
     }
+
+    // ---- opacity gates (new in per-pixel impl) ----
+
+    @Test
+    void bit6_notSet_whenSpritePixelIsTransparent_atTopRowButSetsLater() {
+        // Zero the top row of sprite-0's pattern; rows 1..7 remain opaque.
+        chr.data[0] = 0x00;  // low plane row 0
+        putSprite0(49, 50);  // sprite occupies scanlines 50..57
+        enableBothLayers();
+        // Top row of sprite at scanline 50 → must NOT trigger
+        tickTo(50, 100);
+        assertFalse(spriteZeroHit(),
+                "transparent sprite row at scanline 50 must not trigger bit 6");
+        // Row 1 (scanline 51) is opaque → must trigger
+        tickTo(51, 100);
+        assertTrue(spriteZeroHit(),
+                "opaque sprite row at scanline 51 must trigger bit 6");
+    }
+
+    @Test
+    void bit6_notSet_inLeftmost8Pixels_whenBgLeft8Disabled() {
+        putSprite0(49, 2);                            // sprite at X=2 → covers x=2..9
+        // Sprites on (bit 4) + sprite-left-8 on (bit 2) + BG on (bit 3), BUT bg-left-8 (bit 1) OFF.
+        ppu.cpuBusWrite(0x2001, (byte) (0x04 | 0x08 | 0x10));
+        tickTo(50, 5);                                // cycle 5 → x = 4 (in leftmost 8)
+        assertFalse(spriteZeroHit(),
+                "bit 6 must not set in leftmost 8 px when BG-left-8 (bit 1) is off");
+    }
+
+    @Test
+    void bit6_notSet_inLeftmost8Pixels_whenSpriteLeft8Disabled() {
+        putSprite0(49, 2);
+        // BG-left-8 (bit 1) + BG (bit 3) + sprites (bit 4), but sprite-left-8 (bit 2) OFF.
+        ppu.cpuBusWrite(0x2001, (byte) (0x02 | 0x08 | 0x10));
+        tickTo(50, 5);
+        assertFalse(spriteZeroHit(),
+                "bit 6 must not set in leftmost 8 px when sprite-left-8 (bit 2) is off");
+    }
+
 }
