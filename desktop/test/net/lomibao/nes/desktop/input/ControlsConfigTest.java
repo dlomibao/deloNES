@@ -165,4 +165,106 @@ class ControlsConfigTest {
         assertEquals(Input.Keys.NUM_2,  loaded.player2.start);
         assertEquals(Input.Keys.SPACE,  loaded.hotkeyPause);
     }
+
+    // -----------------------------------------------------------------------
+    // Malformed input must not brick the app (B4)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Garbage in the config file must not throw — the user's typo should
+     * never crash the emulator at startup. Defaults should be returned and
+     * the bad file renamed out of the way.
+     */
+    @Test
+    void load_malformedJson_returnsDefaultsAndDoesNotThrow(@TempDir Path dir) {
+        FileHandle fh = tempHandle(dir, "controls.json");
+        fh.writeString("{ this is not valid json @@@ ", false);
+
+        ControlsConfig loaded = assertDoesNotThrow(() -> ControlsConfig.load(fh));
+
+        // Returned config must be usable defaults.
+        assertNotNull(loaded);
+        assertNotNull(loaded.player1, "player1 must be populated");
+        assertNotNull(loaded.player2, "player2 must be populated");
+        assertEquals(Input.Keys.Z,      loaded.player1.a);
+        assertEquals(Input.Keys.ESCAPE, loaded.hotkeyExit);
+    }
+
+    /**
+     * The malformed file should be preserved as {@code <name>.bak} so the
+     * user can recover their attempted edits rather than having them silently
+     * deleted.
+     */
+    @Test
+    void load_malformedJson_renamesBadFileToBak(@TempDir Path dir) {
+        FileHandle fh = tempHandle(dir, "controls.json");
+        String badContent = "{ this is not valid json @@@ ";
+        fh.writeString(badContent, false);
+
+        ControlsConfig.load(fh);
+
+        FileHandle bak = tempHandle(dir, "controls.json.bak");
+        assertTrue(bak.exists(), "bad file must be preserved as controls.json.bak");
+        assertEquals(badContent, bak.readString(),
+                "backup must contain the original malformed content");
+    }
+
+    /**
+     * An empty file is technically valid JSON-ish (LibGDX returns null) but
+     * useless; treat it as malformed and fall back to defaults.
+     */
+    @Test
+    void load_emptyFile_returnsDefaults(@TempDir Path dir) {
+        FileHandle fh = tempHandle(dir, "controls.json");
+        fh.writeString("", false);
+        assertTrue(fh.exists());
+        assertEquals(0L, fh.length(), "precondition: file must be empty");
+
+        ControlsConfig loaded = assertDoesNotThrow(() -> ControlsConfig.load(fh));
+
+        assertNotNull(loaded.player1);
+        assertEquals(Input.Keys.UP,    loaded.player1.up);
+        assertEquals(Input.Keys.ENTER, loaded.player1.start);
+    }
+
+    /**
+     * Regression guard: valid JSON that was previously parsing fine must
+     * still parse fine after wrapping the parse in a try/catch.
+     */
+    @Test
+    void load_validJson_stillParsesCorrectly(@TempDir Path dir) {
+        FileHandle fh = tempHandle(dir, "controls.json");
+        ControlsConfig original = ControlsConfig.defaults();
+        original.player1.a   = Input.Keys.J;
+        original.hotkeyPause = Input.Keys.SPACE;
+        ControlsConfig.save(fh, original);
+
+        ControlsConfig loaded = ControlsConfig.load(fh);
+
+        assertEquals(Input.Keys.J,     loaded.player1.a);
+        assertEquals(Input.Keys.SPACE, loaded.hotkeyPause);
+        // Untouched values still match defaults.
+        assertEquals(Input.Keys.UP,    loaded.player1.up);
+        assertEquals(Input.Keys.W,     loaded.player2.up);
+    }
+
+    /**
+     * After a malformed-file recovery the {@code .bak} file is left in place
+     * but the primary file is gone. The next call to {@code load()} should
+     * therefore write a fresh defaults file (since the primary no longer
+     * exists), not throw.
+     */
+    @Test
+    void load_afterRecovery_secondCallWritesFreshDefaults(@TempDir Path dir) {
+        FileHandle fh = tempHandle(dir, "controls.json");
+        fh.writeString("not json", false);
+
+        ControlsConfig.load(fh);                 // first call: rename to .bak
+        assertFalse(fh.exists(), "primary file should have been renamed away");
+
+        ControlsConfig loaded = ControlsConfig.load(fh);   // second call: fresh defaults written
+
+        assertTrue(fh.exists(), "second load() must rewrite a defaults file");
+        assertEquals(Input.Keys.Z, loaded.player1.a);
+    }
 }
