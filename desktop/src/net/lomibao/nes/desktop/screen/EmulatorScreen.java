@@ -222,7 +222,7 @@ public class EmulatorScreen implements Screen {
                     batch.draw(paletteTexture, 50, 15, 640, 20);
                 }
                 if (font != null) {
-                    font.draw(batch, "NES — " + rom.displayName() + (paused ? "  [PAUSED]" : ""), 50, 550);
+                    font.draw(batch, "NES - " + rom.displayName() + (paused ? "  [PAUSED]" : ""), 50, 550);
                     font.draw(batch, "Frame: " + frameCount, 50, 530);
                     font.draw(batch, "CPU PC: 0x" + Integer.toHexString(cpu.getPc()).toUpperCase(), 50, 510);
                     font.draw(batch, "PPU Scanline: " + ppu.getScanline() + " Cycle: " + ppu.getCycle(), 250, 530);
@@ -246,6 +246,9 @@ public class EmulatorScreen implements Screen {
             cycles++;
             for (int i = 0; i < 3; i++) {
                 ppu.clock();
+                if (ppu.consumeNmi()) {
+                    cpu.nmi();
+                }
             }
         }
     }

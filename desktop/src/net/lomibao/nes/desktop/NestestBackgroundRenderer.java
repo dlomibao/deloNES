@@ -186,7 +186,7 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
             // Read some palette colors via PPU bus
             StringBuilder paletteStr = new StringBuilder("Palette: ");
             for (int i = 0; i < 16; i++) {
-                int color = ppu.ppuBusRead(0x3F00 + i, true);
+                int color = ppu.getPaletteColor(i);
                 paletteStr.append(String.format("%02X ", color));
             }
             
@@ -242,6 +242,9 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
             // PPU runs 3x faster than CPU
             for (int i = 0; i < 3; i++) {
                 ppu.clock();
+                if (ppu.consumeNmi()) {
+                    cpu.nmi();
+                }
             }
         }
     }

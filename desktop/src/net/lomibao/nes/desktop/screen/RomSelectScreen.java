@@ -44,8 +44,8 @@ import java.util.function.Consumer;
  */
 public class RomSelectScreen implements Screen {
 
-    private static final String TITLE = "deloNES — Select ROM";
-    private static final String BROWSE_ENTRY = "Browse filesystem…";
+    private static final String TITLE = "deloNES - Select ROM";
+    private static final String BROWSE_ENTRY = "Browse filesystem...";
 
     /** Duration in seconds to display inline validation errors. */
     private static final float ERROR_DISPLAY_SECONDS = 3f;
