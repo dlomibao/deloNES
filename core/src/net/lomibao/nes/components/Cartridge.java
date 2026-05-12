@@ -71,7 +71,7 @@ public class Cartridge extends CPUBusComponent {
             int vPRGSize = nPRGBanks * 16384;
             vPRGMemory = Arrays.copyOfRange(data, offset, offset + vPRGSize);
             offset += vPRGSize;
-            int nCHRBanks = header.getCHRROMSize();
+            nCHRBanks = header.getCHRROMSize();
             int vCHRSize = nCHRBanks == 0 ? 8192 : nCHRBanks * 8192;
             vCHRMemory = Arrays.copyOfRange(data, offset, offset + vCHRSize);
         } else if (fileType == 2) {

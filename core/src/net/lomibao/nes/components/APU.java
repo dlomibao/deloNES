@@ -54,7 +54,7 @@ public class APU  extends CPUBusComponent {
     }
 
     private int getIndex(int address){
-        if(address<START_ADDRESS && address>=END_ADDRESS){
+        if(address<START_ADDRESS || address>=END_ADDRESS){
             log.error("attempting to read memory out of range {}. valid range [{},{}]",address,START_ADDRESS,END_ADDRESS);
             return -1;
         }

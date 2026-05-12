@@ -2,6 +2,7 @@ package net.lomibao.nes.desktop;
 
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Screen;
 import net.lomibao.nes.components.Controller;
 import net.lomibao.nes.desktop.input.ControlsConfig;
 import net.lomibao.nes.desktop.input.GdxKeyState;
@@ -103,8 +104,15 @@ public class NesGame extends Game {
      * @param rom the ROM source chosen by the user
      */
     private void onRomSelected(RomSource rom) {
+        Screen previous = getScreen();
         emulatorScreen = new EmulatorScreen(rom, controller, this::returnToMenu, false);
         setScreen(emulatorScreen);
+        // Game.setScreen() only calls hide() on the prior screen — never
+        // dispose() — so the menu's SpriteBatch / BitmapFont would leak on
+        // every menu->emulator transition. Symmetric with returnToMenu().
+        if (previous != null && previous != emulatorScreen) {
+            previous.dispose();
+        }
     }
 
     /**

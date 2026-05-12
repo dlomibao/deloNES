@@ -28,28 +28,16 @@ public class OpcodesTest {
     private void run(String hexSubroutine, int maxCycles) {
         ram.setByteArray(new byte[ram.MEMORY_SIZE]);
         byte[] program = hexToBytes(hexSubroutine);
+
+        installInfiniteLoopGuard();
+
+        // Write program at $8000. (The previous layout placed the JMP guard's
+        // third byte at $8000 itself, so this writeRange clobbered the high
+        // byte of the JMP target — meaning the IRQ/NMI/BRK landing pad jumped
+        // wherever program[0] happened to point, not back to the guard.)
         ram.writeRange(0x8000, program);
-        
-        // Set up infinite loop at 0x7FFE (JMP $7FFE = 4C FE 7F)
-        ram.cpuBusWrite(0x7FFE, (byte) 0x4C);
-        ram.cpuBusWrite(0x7FFF, (byte) 0xFE);
-        ram.cpuBusWrite(0x8000, (byte) 0x7F);
-        
-        // Write program after the infinite loop setup
-        ram.writeRange(0x8000, program);
-        
-        // Reset vector points to program start
-        ram.cpuBusWrite(0xFFFC, (byte) 0x00);
-        ram.cpuBusWrite(0xFFFD, (byte) 0x80);
-        
-        // IRQ/BRK vector points to infinite loop
-        ram.cpuBusWrite(0xFFFE, (byte) 0xFE);
-        ram.cpuBusWrite(0xFFFF, (byte) 0x7F);
-        
-        // NMI vector points to infinite loop
-        ram.cpuBusWrite(0xFFFA, (byte) 0xFE);
-        ram.cpuBusWrite(0xFFFB, (byte) 0x7F);
-        
+
+        installInterruptVectors();
         cpu.reset();
         for (int i = 0; i < maxCycles; i++) {
             cpu.clock();
@@ -62,32 +50,50 @@ public class OpcodesTest {
     
     private void runWithSetup(String hexSubroutine, Runnable setupMemory, int maxCycles) {
         ram.setByteArray(new byte[ram.MEMORY_SIZE]);
-        
-        // Set up infinite loop at 0x7FFE (JMP $7FFE = 4C FE 7F)
-        ram.cpuBusWrite(0x7FFE, (byte) 0x4C);
-        ram.cpuBusWrite(0x7FFF, (byte) 0xFE);
-        ram.cpuBusWrite(0x8000, (byte) 0x7F);
-        
+
+        installInfiniteLoopGuard();
+
         setupMemory.run(); // Setup test data after memory clear
         byte[] program = hexToBytes(hexSubroutine);
         ram.writeRange(0x8000, program);
-        
-        // Reset vector points to program start
-        ram.cpuBusWrite(0xFFFC, (byte) 0x00);
-        ram.cpuBusWrite(0xFFFD, (byte) 0x80);
-        
-        // IRQ/BRK vector points to infinite loop
-        ram.cpuBusWrite(0xFFFE, (byte) 0xFE);
-        ram.cpuBusWrite(0xFFFF, (byte) 0x7F);
-        
-        // NMI vector points to infinite loop
-        ram.cpuBusWrite(0xFFFA, (byte) 0xFE);
-        ram.cpuBusWrite(0xFFFB, (byte) 0x7F);
+
+        installInterruptVectors();
         
         cpu.reset();
         for (int i = 0; i < maxCycles; i++) {
             cpu.clock();
         }
+    }
+
+    /**
+     * Install a tight infinite-loop guard at $9000 ({@code JMP $9000}).
+     * Used as the landing pad for IRQ / BRK / NMI / runaway PC during tests
+     * so the CPU stops making progress instead of trampling through RAM.
+     *
+     * <p>The guard lives at $9000-$9002 because it's outside the
+     * {@code writeRange(0x8000, program)} clobber zone for every program in
+     * this file (none exceed ~4KB). The previous layout placed the third
+     * byte of the JMP at $8000 itself, so the first byte of the program
+     * silently overwrote the high byte of the jump target — turning the
+     * "infinite loop" into "jump to wherever program[0] points".
+     */
+    private void installInfiniteLoopGuard() {
+        ram.cpuBusWrite(0x9000, (byte) 0x4C); // JMP absolute
+        ram.cpuBusWrite(0x9001, (byte) 0x00);
+        ram.cpuBusWrite(0x9002, (byte) 0x90);
+    }
+
+    /**
+     * Wire the reset vector to $8000 (program start) and the IRQ/BRK/NMI
+     * vectors to the infinite-loop guard at $9000.
+     */
+    private void installInterruptVectors() {
+        ram.cpuBusWrite(0xFFFC, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFD, (byte) 0x80);
+        ram.cpuBusWrite(0xFFFE, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFF, (byte) 0x90);
+        ram.cpuBusWrite(0xFFFA, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFB, (byte) 0x90);
     }
 
     private byte[] hexToBytes(String hex) {

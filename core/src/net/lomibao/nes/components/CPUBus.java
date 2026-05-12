@@ -57,10 +57,14 @@ public class CPUBus {
             if (Optional.ofNullable(apu).map(a -> a.inCPUBusRange(addr)).orElse(false)) {
                 apu.cpuBusWrite(addr, value);
             }
+        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
+            // DMA ($4014 OAM DMA trigger) must be checked before APU because the
+            // APU's address window ($4000-$401F) overlaps $4014. Without this
+            // ordering, sprite DMA writes are silently routed to the APU
+            // register file instead of triggering the OAM transfer.
+            dma.cpuBusWrite(addr, value);
         } else if (Optional.ofNullable(apu).map(a -> a.inCPUBusRange(addr)).orElse(false)) {
             apu.cpuBusWrite(addr, value);
-        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
-            dma.cpuBusWrite(addr, value);
         } else {
             log.error("no device found in range of address {}", address);
         }
@@ -95,12 +99,16 @@ public class CPUBus {
             // the APU frame counter is written via cpuBusWrite in the write()
             // path below.
             return controller.cpuBusRead(addr, readOnly);
+        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
+            // DMA ($4014) before APU: APU's window overlaps but $4014 is the
+            // OAM DMA trigger (write-only; read returns 0). $4015 falls through
+            // to APU below for status reads. Keeps read ordering symmetric with
+            // write().
+            return dma.cpuBusRead(addr, readOnly);
         } else if (Optional.ofNullable(apu).map(a -> a.inCPUBusRange(addr)).orElse(false)) {
             return apu.cpuBusRead(addr, readOnly);
         } else if (Optional.ofNullable(cartridge).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
             return cartridge.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
-            return dma.cpuBusRead(addr, readOnly);
         }
         log.error("no device found in range of address {}", address);
         return 0;

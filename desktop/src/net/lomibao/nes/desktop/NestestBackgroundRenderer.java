@@ -94,14 +94,16 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
     }
     
     /**
-     * Loads the DonkeyKong.nes ROM file
+     * Loads the nestest.nes ROM file used by the headless background-render
+     * smoke task (`./gradlew desktop:runNestest`).
      */
     private void loadROM() {
         try {
-            cartridge = new Cartridge(
-                this.getClass().getResourceAsStream("/roms/DonkeyKong.nes"), 
-                "DonkeyKong.nes"
-            );
+            java.io.InputStream in = this.getClass().getResourceAsStream("/roms/nestest.nes");
+            if (in == null) {
+                throw new RuntimeException("nestest.nes not on classpath");
+            }
+            cartridge = new Cartridge(in, "nestest.nes");
             
             // Connect cartridge to buses
             cpuBus.setCartridge(cartridge);
@@ -115,7 +117,7 @@ public class NestestBackgroundRenderer extends ApplicationAdapter {
             
             System.out.println("System reset complete");
         } catch (Exception e) {
-            System.err.println("Failed to load DonkeyKong.nes: " + e.getMessage());
+            System.err.println("Failed to load nestest.nes: " + e.getMessage());
             e.printStackTrace();
             throw new RuntimeException("Failed to load ROM", e);
         }

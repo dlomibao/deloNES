@@ -10,7 +10,11 @@ import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.Ram;
 import net.lomibao.nes.components.ppu.NameTableMemory;
 
+import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Headless diagnostic runner: loads DonkeyKong.nes, runs N frames using
@@ -49,10 +53,21 @@ public class DKDiagnosticRunner {
 
         ppu.setCPU(cpu);
 
-        // Load ROM.
-        try (InputStream in = DKDiagnosticRunner.class.getResourceAsStream("/roms/DonkeyKong.nes")) {
-            if (in == null) throw new RuntimeException("DonkeyKong.nes not on classpath");
-            Cartridge cart = new Cartridge(in, "DonkeyKong.nes");
+        // Load ROM. Resolution order:
+        //   1. -Drom=<path>  (filesystem path; useful for ad-hoc dumps)
+        //   2. /roms/DonkeyKong.nes on classpath  (DK is the runner's default
+        //      target — gitignored, so users must drop it under
+        //      core/src/main/resources/roms or override via -Drom=...)
+        //   3. /roms/nestest.nes on classpath  (always present; lets the
+        //      diagnostic harness still produce output even without DK)
+        String romOverride = System.getProperty("rom");
+        String romName;
+        try (InputStream in = openRom(romOverride)) {
+            romName = (romOverride != null) ? Paths.get(romOverride).getFileName().toString()
+                    : (DKDiagnosticRunner.class.getResource("/roms/DonkeyKong.nes") != null
+                            ? "DonkeyKong.nes" : "nestest.nes");
+            System.out.println("=== DKDiagnosticRunner: ROM = " + romName + " ===");
+            Cartridge cart = new Cartridge(in, romName);
             nes.getCpuBus().setCartridge(cart);
             ppu.setCartridge(cart);
             ppuBus.connectCartridge(cart);
@@ -69,6 +84,28 @@ public class DKDiagnosticRunner {
         System.out.println("=== Frame " + frames + " complete ===");
 
         dumpState(ppu, ppuBus, frames);
+    }
+
+    private static InputStream openRom(String override) throws Exception {
+        if (override != null && !override.isEmpty()) {
+            Path p = Paths.get(override);
+            if (!Files.isReadable(p)) {
+                throw new RuntimeException("rom override not readable: " + override);
+            }
+            return new FileInputStream(p.toFile());
+        }
+        InputStream in = DKDiagnosticRunner.class.getResourceAsStream("/roms/DonkeyKong.nes");
+        if (in != null) {
+            return in;
+        }
+        in = DKDiagnosticRunner.class.getResourceAsStream("/roms/nestest.nes");
+        if (in == null) {
+            throw new RuntimeException(
+                "Neither /roms/DonkeyKong.nes nor /roms/nestest.nes on classpath. "
+                + "Drop DonkeyKong.nes into core/src/main/resources/roms/ "
+                + "or pass -Drom=<path>");
+        }
+        return in;
     }
 
     private static void dumpState(PPU ppu, PPUBus ppuBus, int frame) {

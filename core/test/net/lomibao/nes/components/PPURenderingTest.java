@@ -9,6 +9,20 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for PPU background pixel rendering (Phase 4)
  */
 class PPURenderingTest {
+
+    /**
+     * Backdrop color used throughout this file. The setup methods write
+     * palette entry 0 = NES color $0F (black), which the PPU's master
+     * palette table maps to {@code 0xFF000000}. The screen buffer is also
+     * pre-filled with {@code 0xFF000000} on construction.
+     *
+     * <p>Tests that want to verify "a tile pixel was actually rendered"
+     * must compare against this constant rather than against {@code 0}
+     * — the buffer is never literally zero, so {@code pixel != 0} is
+     * trivially true and proves nothing.
+     */
+    private static final int BACKDROP = 0xFF000000;
+
     private PPU ppu;
     private MockPPUBus mockBus;
     
@@ -85,27 +99,31 @@ class PPURenderingTest {
     
     @Test
     void testPixelOutputToFramebuffer() {
-        // Enable background rendering
-        ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
+        // PPUMASK: show BG (bit 3) + show BG in leftmost 8 pixels (bit 1).
+        // Without bit 1 the first 8 pixels are forced to backdrop, which
+        // would mask the very output we're trying to inspect.
+        ppu.cpuBusWrite(0x2001, (byte) 0x0A);
+
         setupSimpleTile();
-        
-        // Advance to scanline 0, cycle 10 (should have rendered some pixels)
-        advanceToCycle(0, 10);
-        
-        // Check that screen buffer has been written to
+
+        // Render a full scanline so the pipeline reaches steady state. The
+        // first ~16 pixels of scanline 0 reflect empty shifters (no prior
+        // prefetch from a pre-render pass), so look further in.
+        advanceToCycle(0, 257);
+
+        // At least one pixel must be a real tile pixel — not the backdrop
+        // and not the initial buffer fill. `!= 0` was insufficient because
+        // the buffer is initialized to 0xFF000000.
         int[][] screen = ppu.getScreen();
-        
-        // At least one pixel should be non-zero
-        boolean foundNonZero = false;
-        for (int x = 0; x < 9; x++) {
-            if (screen[0][x] != 0) {
-                foundNonZero = true;
+        boolean foundTilePixel = false;
+        for (int x = 16; x < 256; x++) {
+            if (screen[0][x] != BACKDROP) {
+                foundTilePixel = true;
                 break;
             }
         }
-        
-        assertTrue(foundNonZero, "Screen buffer should have non-zero pixels");
+        assertTrue(foundTilePixel,
+                "Screen buffer should contain at least one tile pixel (non-backdrop)");
     }
     
     @Test
@@ -132,57 +150,50 @@ class PPURenderingTest {
     
     @Test
     void testFullScanlineRendering() {
-        // Enable background rendering
-        ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
+        ppu.cpuBusWrite(0x2001, (byte) 0x0A);
         setupSimpleTile();
-        
-        // Render a full scanline (256 pixels)
+
         advanceToCycle(0, 257);
-        
+
+        // With pattern 0b01010101 every other pixel of each tile should be
+        // palette idx 1 (a non-backdrop tile pixel). Count actual tile
+        // pixels (not just non-zero buffer writes — which the buffer
+        // initialization to 0xFF000000 already satisfies).
         int[][] screen = ppu.getScreen();
-        
-        // Check that all visible pixels have been rendered
-        int nonZeroCount = 0;
-        for (int x = 0; x < 256; x++) {
-            if (screen[0][x] != 0) {
-                nonZeroCount++;
+        int tilePixelCount = 0;
+        for (int x = 16; x < 256; x++) {
+            if (screen[0][x] != BACKDROP) {
+                tilePixelCount++;
             }
         }
-        
-        assertTrue(nonZeroCount > 200, 
-            "Most pixels should be rendered after full scanline (found " + nonZeroCount + "/256)");
+        assertTrue(tilePixelCount > 100,
+                "Should have >100 non-backdrop tile pixels after a full scanline (found "
+                        + tilePixelCount + "/240)");
     }
     
     @Test
     void testMultipleScanlines() {
-        // Enable background rendering
-        ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
+        ppu.cpuBusWrite(0x2001, (byte) 0x0A);
         setupSimpleTile();
-        
-        // Render first 10 scanlines
+
         advanceToCycle(9, 257);
-        
+
+        // Verify each scanline produced at least one non-backdrop tile
+        // pixel — proves the per-scanline pipeline (incl. coarseY / fineY
+        // advance + per-line prefetch) ran for each row, not just frame 0.
         int[][] screen = ppu.getScreen();
-        
-        // Check that multiple scanlines have been rendered
         int renderedScanlines = 0;
         for (int y = 0; y < 10; y++) {
-            boolean hasPixels = false;
-            for (int x = 0; x < 256; x++) {
-                if (screen[y][x] != 0) {
-                    hasPixels = true;
+            for (int x = 16; x < 256; x++) {
+                if (screen[y][x] != BACKDROP) {
+                    renderedScanlines++;
                     break;
                 }
             }
-            if (hasPixels) {
-                renderedScanlines++;
-            }
         }
-        
-        assertTrue(renderedScanlines >= 9, 
-            "Should have rendered at least 9 scanlines (found " + renderedScanlines + ")");
+        assertTrue(renderedScanlines >= 9,
+                "Should have rendered at least 9 scanlines with tile pixels (found "
+                        + renderedScanlines + ")");
     }
     
     @Test
@@ -221,42 +232,38 @@ class PPURenderingTest {
     
     @Test
     void testPatternPixelExtraction() {
-        // Enable background rendering
-        ppu.cpuBusWrite(0x2001, (byte) 0x08);
-        
-        // Fill nametable with different tile indices
+        ppu.cpuBusWrite(0x2001, (byte) 0x0A);
+
         for (int i = 0; i < 1024; i++) {
             mockBus.write(0x2000 + i, (byte) 0x05);
         }
-        
-        // Set up pattern table tile 5 with all pixels = color 1
+        // Pattern tile 5: every pixel of every row = palette index 1.
         for (int i = 0; i < 8; i++) {
-            mockBus.write(0x0050 + i, (byte) 0xFF);  // Low byte all 1s
-            mockBus.write(0x0058 + i, (byte) 0x00);  // High byte all 0s
+            mockBus.write(0x0050 + i, (byte) 0xFF);
+            mockBus.write(0x0058 + i, (byte) 0x00);
         }
-        
-        // Set up palette
+
         ppu.cpuBusWrite(0x2006, (byte) 0x3F);
         ppu.cpuBusWrite(0x2006, (byte) 0x00);
         ppu.cpuBusWrite(0x2007, (byte) 0x0F);
-        ppu.cpuBusWrite(0x2007, (byte) 0x30);  // Color 1 should be visible
-        
-        // Render some pixels
-        advanceToCycle(0, 20);
-        
+        ppu.cpuBusWrite(0x2007, (byte) 0x30);
+
+        advanceToCycle(0, 257);
+
+        // With every pixel = palette idx 1, the post-startup window should
+        // be entirely the same non-backdrop color — the extracted color.
+        // Counting it directly is stronger than "uniqueColors > 0 OR
+        // firstColor != 0", which the buffer init satisfied for free.
         int[][] screen = ppu.getScreen();
-        
-        // Should have rendered some non-background pixels
-        int uniqueColors = 0;
-        int firstColor = screen[0][0];
-        for (int x = 1; x < 19; x++) {
-            if (screen[0][x] != firstColor) {
-                uniqueColors++;
+        int extracted = 0;
+        for (int x = 16; x < 256; x++) {
+            if (screen[0][x] != BACKDROP) {
+                extracted++;
             }
         }
-        
-        assertTrue(uniqueColors > 0 || firstColor != 0, 
-            "Should have extracted pattern data from tiles");
+        assertTrue(extracted > 200,
+                "Tile 5 fills every pixel — expected >200 extracted tile pixels (got "
+                        + extracted + ")");
     }
     
     @Test
