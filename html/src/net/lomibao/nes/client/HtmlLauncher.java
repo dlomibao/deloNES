@@ -62,6 +62,11 @@ public class HtmlLauncher {
         private byte[] frameBytes;
         private int frame;
         private long lastFpsLogMs;
+        // Microbenchmark: cumulative wall-clock time spent inside nes.runFrame()
+        // since the last FPS log. Reveals whether emulation is rAF-throttled
+        // (work < 16ms but FPS low) or CPU-bound (work ≈ 100/FPS ms).
+        private long runFrameNsAccum;
+        private int runFrameSamples;
 
         // Emulator state — null if setup failed; render() falls back to gradient.
         private NesSystem nes;
@@ -221,9 +226,21 @@ public class HtmlLauncher {
 
             long now = System.currentTimeMillis();
             if (now - lastFpsLogMs >= 1000) {
-                String state = nes != null
-                        ? ("rom=" + loadedRom + " pc=0x" + Integer.toHexString(cpu.getPc()))
-                        : "fallback-gradient";
+                String state;
+                if (nes != null) {
+                    double avgRunFrameMs = runFrameSamples == 0 ? 0
+                            : (runFrameNsAccum / (double) runFrameSamples) / 1_000_000.0;
+                    int ceilingFps = avgRunFrameMs == 0 ? 999
+                            : (int) (1000.0 / avgRunFrameMs);
+                    state = "rom=" + loadedRom
+                            + " pc=0x" + Integer.toHexString(cpu.getPc())
+                            + " runFrame=" + String.format("%.2f", avgRunFrameMs) + "ms"
+                            + " ceiling=" + ceilingFps + "fps";
+                    runFrameNsAccum = 0;
+                    runFrameSamples = 0;
+                } else {
+                    state = "fallback-gradient";
+                }
                 Gdx.app.log("web",
                         "FPS=" + Gdx.graphics.getFramesPerSecond()
                         + " frame=" + frame + " " + state);
@@ -238,6 +255,7 @@ public class HtmlLauncher {
          * inner loop avoids any per-pixel allocations.
          */
         private void renderEmulatorFrame() {
+            long t0 = System.nanoTime();
             try {
                 nes.runFrame();
             } catch (RuntimeException e) {
@@ -245,6 +263,8 @@ public class HtmlLauncher {
                 nes = null;
                 return;
             }
+            runFrameNsAccum += System.nanoTime() - t0;
+            runFrameSamples++;
             int[][] screen = ppu.getScreen();
             int idx = 0;
             for (int y = 0; y < NES_H; y++) {

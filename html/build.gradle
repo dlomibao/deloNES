@@ -8,6 +8,10 @@ teavm.js {
     addedToWebApp = true
     mainClass = "net.lomibao.nes.client.HtmlLauncher"
     targetFileName = "classes.js"
+    // Keep readable function names for profiling. Re-enable obfuscation
+    // before any production release.
+    obfuscated = false
+    sourceMap = true
 }
 
 gretty {

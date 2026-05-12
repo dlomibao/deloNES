@@ -38,15 +38,18 @@ public class CPUBus {
 
     public void write(int address, byte value) {
         final int addr = address & 0xFFFF;// mask to 16b
-        if (Optional.ofNullable(testRam).map(r -> r.inCPUBusRange(addr)).orElse(false)) {// test ram gets top priority
-                                                                                         // if set and covers full
-                                                                                         // address range
+        // Per-instruction hot path: plain null-guards instead of
+        // Optional.ofNullable(...).map(...).orElse(false). Profiling on the
+        // TeaVM web build showed ~200k Optional allocations per emulated
+        // frame here + in clock(), dominating GC.
+        if (testRam != null && testRam.inCPUBusRange(addr)) {
+            // test ram gets top priority if set and covers full address range
             testRam.cpuBusWrite(addr, value);
-        } else if (Optional.ofNullable(ram).map(r -> r.inCPUBusRange(addr)).orElse(false)) {
+        } else if (ram != null && ram.inCPUBusRange(addr)) {
             ram.cpuBusWrite(addr, value);
-        } else if (Optional.ofNullable(ppu).map(ppu -> ppu.inCPUBusRange(addr)).orElse(false)) {
+        } else if (ppu != null && ppu.inCPUBusRange(addr)) {
             ppu.cpuBusWrite(addr, value);
-        } else if (Optional.ofNullable(controller).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
+        } else if (controller != null && controller.inCPUBusRange(addr)) {
             // Controller handles $4016 writes (strobe). $4017 writes are a
             // no-op in the controller; the APU frame-counter write is handled
             // below so that both consumers see the write.
@@ -54,16 +57,16 @@ public class CPUBus {
             // Fall through to APU for any address the APU also owns (e.g.
             // $4017 frame counter). The controller no-ops $4017 writes so
             // routing both is safe.
-            if (Optional.ofNullable(apu).map(a -> a.inCPUBusRange(addr)).orElse(false)) {
+            if (apu != null && apu.inCPUBusRange(addr)) {
                 apu.cpuBusWrite(addr, value);
             }
-        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
+        } else if (dma != null && dma.inCPUBusRange(addr)) {
             // DMA ($4014 OAM DMA trigger) must be checked before APU because the
             // APU's address window ($4000-$401F) overlaps $4014. Without this
             // ordering, sprite DMA writes are silently routed to the APU
             // register file instead of triggering the OAM transfer.
             dma.cpuBusWrite(addr, value);
-        } else if (Optional.ofNullable(apu).map(a -> a.inCPUBusRange(addr)).orElse(false)) {
+        } else if (apu != null && apu.inCPUBusRange(addr)) {
             apu.cpuBusWrite(addr, value);
         } else {
             log.error("no device found in range of address {}", address);
@@ -80,16 +83,15 @@ public class CPUBus {
      */
     public int read(int address, boolean readOnly) {
         final int addr = address & 0xFFFF;// mask to 16b
-
-        if (Optional.ofNullable(testRam).map(r -> r.inCPUBusRange(addr)).orElse(false)) {// test ram gets top priority
-                                                                                         // if set and covers full
-                                                                                         // address range
+        // Hot path — plain null-guards; see write() rationale.
+        if (testRam != null && testRam.inCPUBusRange(addr)) {
+            // test ram gets top priority if set and covers full address range
             return testRam.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(ram).map(r -> r.inCPUBusRange(addr)).orElse(false)) {
+        } else if (ram != null && ram.inCPUBusRange(addr)) {
             return ram.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(ppu).map(p -> p.inCPUBusRange(addr)).orElse(false)) {
+        } else if (ppu != null && ppu.inCPUBusRange(addr)) {
             return ppu.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(controller).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
+        } else if (controller != null && controller.inCPUBusRange(addr)) {
             // Controller ($4016-$4017) must be checked before APU: the APU
             // address range includes $4016/$4017 (APU covers $4000-$401F), but
             // on real NES hardware $4016/$4017 reads are routed to the
@@ -99,15 +101,15 @@ public class CPUBus {
             // the APU frame counter is written via cpuBusWrite in the write()
             // path below.
             return controller.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(dma).map(d -> d.inCPUBusRange(addr)).orElse(false)) {
+        } else if (dma != null && dma.inCPUBusRange(addr)) {
             // DMA ($4014) before APU: APU's window overlaps but $4014 is the
             // OAM DMA trigger (write-only; read returns 0). $4015 falls through
             // to APU below for status reads. Keeps read ordering symmetric with
             // write().
             return dma.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(apu).map(a -> a.inCPUBusRange(addr)).orElse(false)) {
+        } else if (apu != null && apu.inCPUBusRange(addr)) {
             return apu.cpuBusRead(addr, readOnly);
-        } else if (Optional.ofNullable(cartridge).map(c -> c.inCPUBusRange(addr)).orElse(false)) {
+        } else if (cartridge != null && cartridge.inCPUBusRange(addr)) {
             return cartridge.cpuBusRead(addr, readOnly);
         }
         log.error("no device found in range of address {}", address);
@@ -124,16 +126,18 @@ public class CPUBus {
     }
 
     public void clock() {
-
-        Optional.ofNullable(ppu).ifPresent(ppu -> ppu.clock());
+        // Called ~89k times per emulated frame. Plain null-guards instead of
+        // Optional.ifPresent(lambda); the lambdas captured each call were the
+        // dominant allocation source on the TeaVM web build.
+        if (ppu != null) ppu.clock();
         if (masterClockCount % 3 == 0) {// ppu is 3x faster than the cpu
             // DMA preempts the CPU when active: instead of cpu.clock() this
             // CPU-turn goes to the DMA state machine. CPU is suspended for
             // the duration of the DMA burst (513 or 514 CPU cycles).
             if (dma != null && dma.isActive()) {
                 dma.tickDmaCycle(this, ppu, masterClockCount);
-            } else {
-                Optional.ofNullable(cpu).ifPresent(cpu -> cpu.clock());
+            } else if (cpu != null) {
+                cpu.clock();
             }
         }
         masterClockCount++;
