@@ -4,19 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.extern.log4j.Log4j2;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Scanner;
 
 @Builder
 @Data
 @AllArgsConstructor
 @Log4j2
 public class CPU6502 {
+    @ToString.Exclude
     private CPUBus cpuBus;
 
     public void connectCpuBus(CPUBus cpuBus) {
@@ -310,24 +314,28 @@ public class CPU6502 {
         if (stream == null) {
             throw new RuntimeException("Could not find /opcodes/opcodes.csv resource. Ensure it is in the classpath.");
         }
-        Scanner scanner = new Scanner(stream);
-        scanner.nextLine();
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine();
-            log.trace("{}", () -> line);
-            String[] s = line.split(",");
-            Instruction instruction = Instruction.builder()
-                    .cpu(this)
-                    .id(Integer.valueOf(s[0]))
-                    .hexOpcode(s[1])
-                    .opcodeName("???".equals(s[2]) ? "XXX" : s[2])
-                    .addressingModeDescription(s[3])
-                    .description(s[4])
-                    .byteCount(Integer.valueOf(s[5]))
-                    .clocks(Integer.valueOf(s[6]))
-                    .addressingMode(s[7])
-                    .build();
-            instructions[instruction.id] = instruction;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            reader.readLine(); // Skip header
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String currentLine = line;
+                log.trace("{}", () -> currentLine);
+                String[] s = line.split(",");
+                Instruction instruction = Instruction.builder()
+                        .cpu(this)
+                        .id(Integer.valueOf(s[0]))
+                        .hexOpcode(s[1])
+                        .opcodeName("???".equals(s[2]) ? "XXX" : s[2])
+                        .addressingModeDescription(s[3])
+                        .description(s[4])
+                        .byteCount(Integer.valueOf(s[5]))
+                        .clocks(Integer.valueOf(s[6]))
+                        .addressingMode(s[7])
+                        .build();
+                instructions[instruction.id] = instruction;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading opcodes.csv", e);
         }
         for (Instruction x : instructions) {
             x.initHandlers();

@@ -2,6 +2,27 @@ sourceCompatibility = 1.8
 sourceSets.main.java.srcDirs = [ "src/" ]
 sourceSets.main.resources.srcDirs = ["../assets"]
 
+sourceSets.test.java.srcDirs = [ "test/" ]
+
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.0"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.0"
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        showStandardStreams = true
+        exceptionFormat = "full"
+    }
+    afterSuite { desc, result ->
+        if (desc.parent == null) {
+            logger.lifecycle("\nTest results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} passed, ${result.failedTestCount} failed, ${result.skippedTestCount} skipped)")
+        }
+    }
+}
+
 project.ext.mainClassName = "net.lomibao.nes.DesktopLauncher"
 project.ext.assetsDir = new File("../assets")
 
@@ -29,6 +50,20 @@ tasks.register('debug', JavaExec) {
     workingDir = project.assetsDir
     ignoreExitValue = true
     debug = true
+}
+
+// Headless diagnostic runner — loads DonkeyKong.nes, runs N frames, dumps
+// PPU registers, OAM, nametable summary, palette RAM, and ASCII framebuffer
+// snapshots. Designed for agent-driven debugging.
+//   ./gradlew desktop:traceDK                  → 600 frames (default)
+//   ./gradlew desktop:traceDK --args="1200"    → 1200 frames
+tasks.register('traceDK', JavaExec) {
+    group = 'debugging'
+    description = 'Headless DonkeyKong run for rendering diagnostics'
+    dependsOn classes
+    mainClass = 'net.lomibao.nes.desktop.DKDiagnosticRunner'
+    classpath = sourceSets.main.runtimeClasspath
+    ignoreExitValue = true
 }
 
 // Task to view CHR ROM tiles from nestest.nes using PixelRenderer

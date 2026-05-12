@@ -47,8 +47,11 @@ public class DmaController extends CPUBusComponent {
     @Getter
     private int page = 0;
 
-    /** Low byte of the current transfer address (0..255, increments after each write). */
-    private int addr = 0;
+    /** Transfer index 0..255 (source byte offset within the page). Increments after each write. */
+    private int srcIndex = 0;
+
+    /** OAMADDR captured at the start of the DMA burst — destination base in OAM. */
+    private int oamAddrBase = 0;
 
     /** Latched byte read on the previous cycle; written to OAM on this cycle. */
     private byte data = 0;
@@ -57,7 +60,13 @@ public class DmaController extends CPUBusComponent {
     public void cpuBusWrite(int address, byte value) {
         if (address == OAMDMA) {
             page = value & 0xFF;
-            addr = 0;
+            srcIndex = 0;
+            // NESdev: DMA writes to OAM starting at OAMADDR, wrapping at byte 256.
+            // Most games write 0 to OAMADDR first so this commonly resolves to 0,
+            // but games that don't depend on this offset for correct sprite layout.
+            CPUBus bus = getBus();
+            PPU ppu = bus != null ? bus.getPpu() : null;
+            oamAddrBase = ppu != null ? ppu.getOamAddr() : 0;
             active = true;
             // Wait at least one cycle, then align to an even master cycle
             // before starting the read/write alternation.
@@ -107,11 +116,11 @@ public class DmaController extends CPUBusComponent {
         }
         // Read on even master ticks, write on odd master ticks.
         if (masterClockCount % 2 == 0) {
-            data = (byte) bus.read((page << 8) | addr, false);
+            data = (byte) bus.read((page << 8) | srcIndex, false);
         } else {
-            ppu.writeOam(addr, data);
-            addr = (addr + 1) & 0xFF;
-            if (addr == 0) {
+            ppu.writeOam((srcIndex + oamAddrBase) & 0xFF, data);
+            srcIndex = (srcIndex + 1) & 0xFF;
+            if (srcIndex == 0) {
                 // Wrapped — all 256 bytes transferred.
                 active = false;
                 waiting = true; // reset for next DMA

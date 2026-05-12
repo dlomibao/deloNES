@@ -1,92 +1,116 @@
-gwt {
-    gwtVersion='2.10.0' // Should match the gwt version used for building the gwt backend
-    maxHeapSize="1G" // Default 256m is not enough for gwt compiler. GWT is HUNGRY
-    minHeapSize="1G"
+apply plugin: "java-library"
+apply plugin: "war"
+apply plugin: "org.gretty"
+apply plugin: "org.teavm"
 
-    src = files(file("src/")) // Needs to be in front of "modules" below.
-    modules 'net.lomibao.nes.GdxDefinition'
-    devModules 'net.lomibao.nes.GdxDefinitionSuperdev'
-    project.webAppDirName = 'webapp'
+// TeaVM configuration
+teavm.js {
+    addedToWebApp = true
+    mainClass = "net.lomibao.nes.client.HtmlLauncher"
+    targetFileName = "classes.js"
+}
 
-    compiler {
-        strict = true;
-        disableCastChecking = true;
+gretty {
+    contextPath = "/"
+    httpPort = 8080
+}
+
+// Task to run nestest.nes with TeaVM/HTML backend  
+tasks.register('runNestestHtml') {
+    group = 'emulator'
+    description = 'Runs nestest.nes ROM using TeaVM/HTML backend'
+    
+    dependsOn 'generateJavaScript'
+    
+    doFirst {
+        println "Starting TeaVM application for Nestest..."
+        println "Compiling Java to JavaScript with TeaVM..."
+    }
+    
+    doLast {
+        println "✅ JavaScript generated successfully at: html/build/generated/teavm/js/classes.js"
+        println ""
+        println "To test the application:"
+        println "1. Copy html/webapp/index.html to html/build/generated/teavm/js/"
+        println "2. Extract gdx-teavm runtime files (gdx.wasm.js, howler.js)"
+        println "3. Serve the html/build/generated/teavm/js/ directory with any web server"
+        println ""
+        println "Note: The application needs to be served from a web server (not file://)"
     }
 }
 
-import org.docstr.gradle.plugins.gwt.GwtSuperDev
-import org.akhikhl.gretty.AppBeforeIntegrationTestTask
-
-gretty.httpPort = 8080
-gretty.resourceBase = project.buildDir.path + "/gwt/draftOut"
-gretty.contextPath = "/"
-gretty.portPropertiesFileName = "TEMP_PORTS.properties"
-
-tasks.register('startHttpServer') {
-    dependsOn draftCompileGwt
-
-    doFirst {
-        copy {
-            from "webapp"
-            into gretty.resourceBase
+// Extract gdx-teavm runtime files after JavaScript generation
+tasks.named('generateJavaScript').configure {
+    doLast {
+        def scriptDir = file("${buildDir}/generated/teavm/js/scripts")
+        scriptDir.mkdirs()
+        
+        // Extract required runtime files from gdx-teavm backend JAR
+        configurations.runtimeClasspath.each { file ->
+            if (file.name.contains('backend-teavm')) {
+                copy {
+                    from zipTree(file)
+                    into scriptDir
+                    include 'gdx.wasm.js'
+                    include 'howler.js'
+                }
+            }
         }
-
+        
+        // Copy assets to the output directory
+        def jsDir = file("${buildDir}/generated/teavm/js")
         copy {
-            from "war"
-            into gretty.resourceBase
+            from "${project.rootDir}/assets"
+            into jsDir
         }
     }
 }
 
-task beforeRun(type: AppBeforeIntegrationTestTask, dependsOn: startHttpServer) {
-    // The next line allows ports to be reused instead of
-    // needing a process to be manually terminated.
-    file("build/TEMP_PORTS.properties").delete()
-    // Somewhat of a hack; uses Gretty's support for wrapping a task in
-    // a start and then stop of a Jetty server that serves files while
-    // also running the SuperDev code server.
-    integrationTestTask 'superDev'
-
-    interactive false
+// Task to build Nestest HTML application for production
+tasks.register('buildNestestHtml') {
+    group = 'emulator'
+    description = 'Builds optimized production version of Nestest for TeaVM/HTML'
+    
+    dependsOn 'generateJavaScript', 'prepareWebapp'
+    
+    doFirst {
+        println "Building optimized TeaVM application for Nestest..."
+        // Switch to production settings
+        teavm.minifying = true
+        teavm.optimizationLevel = "FULL"
+    }
+    
+    doLast {
+        println "Build complete! Output in html/build/dist/"
+    }
 }
 
-tasks.register('superDev', GwtSuperDev) {
-    dependsOn startHttpServer
-    doFirst {
-        gwt.modules = gwt.devModules
+// Copy webapp resources to build directory
+tasks.register('prepareWebapp', Copy) {
+    from 'webapp'
+    into 'build/dist/webapp'
+    
+    doLast {
+        // Update index.html to reference TeaVM generated files
+        def indexFile = file('build/dist/webapp/index.html')
+        if (indexFile.exists()) {
+            def content = indexFile.text
+            // Replace GWT script reference with TeaVM
+            content = content.replaceAll('html/html\\.nocache\\.js', 'classes.js')
+            indexFile.text = content
+        }
     }
 }
 
 tasks.register('dist') {
-    dependsOn clean, compileGwt
+    dependsOn 'buildNestestHtml'
     doLast {
-        file("build/dist").mkdirs()
-        copy {
-            from "build/gwt/out"
-            into "build/dist"
-        }
-        copy {
-            from "webapp"
-            into "build/dist"
-        }
-        copy {
-            from "war"
-            into "build/dist"
-        }
+        println "Distribution built successfully!"
     }
 }
 
-tasks.register('addSource') {
-    doLast {
-        sourceSets.main.compileClasspath += files(project(':core').sourceSets.main.allJava.srcDirs)
-    }
-}
-
-tasks.compileGwt.dependsOn(addSource)
-tasks.draftCompileGwt.dependsOn(addSource)
-tasks.checkGwt.dependsOn(addSource)
-
-sourceCompatibility = 1.8
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
 sourceSets.main.java.srcDirs = [ "src/" ]
 
 eclipse.project.name = appName + "-html"

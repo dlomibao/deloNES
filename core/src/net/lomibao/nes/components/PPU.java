@@ -100,6 +100,18 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
+     * Retained for API compatibility — the PPU does not call the CPU directly.
+     * NMI forwarding is done by the host (e.g. {@code NesSystem}) by polling
+     * {@link #consumeNmi()} after each clock tick. This method is intentionally
+     * a no-op; the {@code cpu} reference is not stored.
+     *
+     * @param cpu ignored
+     */
+    public void setCPU(CPU6502 cpu) {
+        // NMI coupling lives in the host, not in the PPU. See consumeNmi().
+    }
+
+    /**
      * Sets the cartridge reference for CHR ROM access
      * Also updates nametable memory with cartridge reference for mirroring
      * @param cartridge the cartridge with CHR ROM data
@@ -141,9 +153,10 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             case 3: // OAMADDR (0x2003)
                 registers[index] = value;
                 break;
-            case 4: // OAMDATA (0x2004)
-                registers[index] = value;
-                // TODO: Write to OAM
+            case 4: // OAMDATA (0x2004): write to OAM at OAMADDR, auto-increment OAMADDR.
+                int oamAddrW = Byte.toUnsignedInt(registers[3]);
+                oam[oamAddrW & 0xFF] = value;
+                registers[3] = (byte) ((oamAddrW + 1) & 0xFF);
                 break;
             case 5: // PPUSCROLL (0x2005)
                 registers[index] = value;
@@ -208,9 +221,8 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
                 return status;
             case 3: // OAMADDR (0x2003) - write-only
                 return 0;
-            case 4: // OAMDATA (0x2004)
-                // TODO: Read from OAM
-                return Byte.toUnsignedInt(registers[index]);
+            case 4: // OAMDATA (0x2004): read OAM at OAMADDR (no auto-increment on read).
+                return Byte.toUnsignedInt(oam[Byte.toUnsignedInt(registers[3]) & 0xFF]);
             case 5: // PPUSCROLL (0x2005) - write-only
                 return 0;
             case 6: // PPUADDR (0x2006) - write-only
@@ -277,53 +289,47 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             clearBgPatternShadow();
         }
         
-        // Coarse sprite-0 hit (Step 6): see {@link #checkSpriteZeroHitCoarse()}.
+        // Sprite-0 hit (per-pixel opacity): see {@link #checkSpriteZeroHit()}.
         // Called unconditionally; the helper does its own gating so the
         // contract lives in one place.
-        checkSpriteZeroHitCoarse();
+        checkSpriteZeroHit();
 
         // Perform background tile fetching on visible and pre-render scanlines
         if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
-            // Shift registers every cycle (except cycle 0 idle cycle)
-            if (cycle >= 1 && cycle <= 256) {
-                shiftBackgroundRegisters();
-            }
-            
-            // Render pixel during visible scanlines only (not pre-render)
+            // Render pixel BEFORE shifting. At cycle 1 the shifter's HIGH byte
+            // holds col 0 (from the previous scanline's prefetch); reading
+            // bit 15 gives col 0's leftmost pixel. Shifting first would
+            // discard that pixel.
             if (isVisibleScanline() && cycle >= 1 && cycle <= 256) {
                 renderBackgroundPixel();
             }
-            
-            // Fetch tiles in 8-cycle pattern
-            // Cycles 1-256: Fetch tiles for next scanline (32 tiles)
-            // Cycles 321-336: Fetch first 2 tiles of next scanline
-            if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
+
+            // Shift registers during visible cycles (1-256) AND during the
+            // pre-fetch window (322-337). The pre-fetch shifts move the first
+            // tile (col 0 of the upcoming scanline) from the LOW byte of the
+            // shifter into the HIGH byte by end of cycle 337.
+            if ((cycle >= 1 && cycle <= 256) || (cycle >= 322 && cycle <= 337)) {
+                shiftBackgroundRegisters();
+            }
+
+            // Fetch tiles in 8-cycle pattern.
+            //   Cycles 1-256: fetch tiles for the SAME scanline that's rendering.
+            //   Cycles 321-337: pre-fetch the first 2 tiles of the NEXT scanline.
+            //     - Cycle 329 (mod 0) loads col 0 into LOW byte, then cycles
+            //       330-337 shift it up into HIGH byte.
+            //     - Cycle 337 (mod 0) loads col 1 into LOW byte. By cycle 1 of
+            //       the next scanline, HIGH byte = col 0 (ready to render).
+            if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 337)) {
                 int cycleMod = (cycle - 1) % 8;
-                
                 switch (cycleMod) {
-                    case 0:
-                        // Cycle 0: Load shift registers with fetched data
-                        loadBackgroundShifters();
-                        break;
-                    case 1:
-                        // Cycle 1: Fetch nametable byte
-                        fetchNametableByte();
-                        break;
-                    case 3:
-                        // Cycle 3: Fetch attribute byte
-                        fetchAttributeByte();
-                        break;
-                    case 5:
-                        // Cycle 5: Fetch pattern table low byte
-                        fetchPatternLowByte();
-                        break;
-                    case 7:
-                        // Cycle 7: Fetch pattern table high byte
-                        fetchPatternHighByte();
-                        break;
+                    case 0: loadBackgroundShifters();   break;
+                    case 1: fetchNametableByte();       break;
+                    case 3: fetchAttributeByte();       break;
+                    case 5: fetchPatternLowByte();      break;
+                    case 7: fetchPatternHighByte();     break;
                 }
             }
-            
+
             // Load shift registers at cycle 257 (after visible area)
             if (cycle == 257) {
                 loadBackgroundShifters();
@@ -433,47 +439,75 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
-     * Coarse sprite-0 hit detection (Step 6 of the playable-gen1 plan).
-     * Sets PPUSTATUS bit 6 when sprite 0's bounding box overlaps the
-     * current (scanline, cycle) AND both background and sprite rendering
-     * are enabled. Per bugzmanov ch. 7 this is intentionally loose — no
-     * pixel-opacity test, no per-pixel walk. Most games that poll bit 6
-     * (SMB, Ice Climber, Excitebike) only need to know "the raster has
-     * reached the status-bar split line" and the coarse box test is
-     * sufficient.
+     * Per-pixel sprite-0 hit detection. Sets PPUSTATUS bit 6 the first cycle
+     * an opaque sprite-0 pixel coincides with an opaque background pixel,
+     * provided both rendering layers are enabled and the leftmost-8 / x=255
+     * gating rules are honored.
      *
-     * <p>Performs all its own gating (visible-scanline / visible-cycle /
-     * both-layers-enabled / not-already-set) — safe to call every PPU tick
-     * unconditionally. Bit 6 is cleared at the pre-render scanline
-     * (261, cycle 1) by the existing reset path.
-     *
-     * <p>Note: "sprite 0" is by convention OAM bytes [0..3] regardless of
-     * OAMADDR — OAMADDR shuffles where CPU writes/reads land in OAM but
-     * does not redefine which sprite is "sprite 0".
+     * <p>Safe to call every PPU tick unconditionally — fully self-gated.
+     * Bit 6 is cleared at the pre-render scanline (261, cycle 1) by the
+     * existing reset path.
      */
-    private void checkSpriteZeroHitCoarse() {
-        // Visible-area + both-layers gate. Combined with the early-return
-        // for the already-set case, this short-circuits ~99% of calls
-        // outside the brief sprite-0 window each frame.
+    private void checkSpriteZeroHit() {
         if (!isVisibleScanline() || cycle < 1 || cycle > 256
                 || !isShowBackground() || !isShowSprites()) {
             return;
         }
-        // Already set this frame? Nothing more to do.
-        if ((registers[2] & 0x40) != 0) return;
+        if ((registers[2] & 0x40) != 0) return; // already set this frame
+
+        int x = cycle - 1;
+        if (x == 255) return; // NESdev: bit 6 never sets at x=255
 
         int oamY = Byte.toUnsignedInt(oam[0]);
         int oamX = Byte.toUnsignedInt(oam[3]);
-        int spriteTop = oamY + 1;                                  // OAM Y is "top - 1"
-        int spriteHeight = getSpriteSize();                        // 8 or 16 from PPUCTRL bit 5
-        int spriteBottom = spriteTop + spriteHeight;               // exclusive
+        int spriteTop = oamY + 1;
+        int spriteHeight = getSpriteSize();
+        int spriteBottom = spriteTop + spriteHeight;
+        if (scanline < spriteTop || scanline >= spriteBottom) return;
+        if (x < oamX || x >= oamX + 8) return;
 
-        // The sprite's screen X covers [oamX, oamX+8); cycle 1 maps to x=0.
-        int x = cycle - 1;
-        if (scanline >= spriteTop && scanline < spriteBottom
-                && x >= oamX && x < oamX + 8) {
-            registers[2] |= 0x40; // set PPUSTATUS bit 6 (sprite-0 hit)
+        // Leftmost-8 mask: needs BOTH bg-show-left-8 (bit 1) AND sprite-show-left-8 (bit 2).
+        if (x < 8) {
+            int mask = Byte.toUnsignedInt(registers[1]);
+            if ((mask & 0x02) == 0 || (mask & 0x04) == 0) return;
         }
+
+        if (bgPatternPixel[scanline][x] == 0) return; // background transparent here
+
+        int tileId = Byte.toUnsignedInt(oam[1]);
+        int attr   = Byte.toUnsignedInt(oam[2]);
+        boolean hflip = (attr & 0x40) != 0;
+        boolean vflip = (attr & 0x80) != 0;
+
+        int rowInSprite = scanline - spriteTop;
+        if (vflip) rowInSprite = spriteHeight - 1 - rowInSprite;
+        int colInSprite = x - oamX;
+        int colInTile   = hflip ? colInSprite : (7 - colInSprite);
+
+        int patternTableBase;
+        int tileForRow;
+        int rowInTile;
+        if (spriteHeight == 16) {
+            patternTableBase = (tileId & 0x01) != 0 ? 0x1000 : 0x0000;
+            int topTile = tileId & 0xFE;
+            if (rowInSprite >= 8) { tileForRow = topTile + 1; rowInTile = rowInSprite - 8; }
+            else                  { tileForRow = topTile;     rowInTile = rowInSprite;     }
+        } else {
+            patternTableBase = getSpritePatternTableAddress();
+            tileForRow = tileId;
+            rowInTile = rowInSprite;
+        }
+
+        if (ppuBus == null) return;
+        int patternAddr = patternTableBase + tileForRow * 16 + rowInTile;
+        int patternLow  = ppuBus.read(patternAddr);
+        int patternHigh = ppuBus.read(patternAddr + 8);
+        int p0 = (patternLow  >> colInTile) & 0x01;
+        int p1 = (patternHigh >> colInTile) & 0x01;
+        int spritePixel = (p1 << 1) | p0;
+        if (spritePixel == 0) return; // sprite transparent here
+
+        registers[2] |= 0x40; // sprite-0 hit
     }
 
     /**
@@ -649,6 +683,15 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     public boolean peekNmi() {
         return nmiPending;
+    }
+
+    /**
+     * Current OAMADDR value ({@code $2003}). Used by {@link DmaController}
+     * at the start of an OAM DMA burst — per NESdev the DMA copies into OAM
+     * starting at this address (with wrap-around at byte 256).
+     */
+    public int getOamAddr() {
+        return Byte.toUnsignedInt(registers[3]);
     }
 
     /**
@@ -1030,10 +1073,23 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * read fields immediately and not retain a reference.
      */
     private ScrolledFetch scrolledFetchAddress() {
-        // Viewport tile column being fetched (cycles 1..256 → tileX 0..31;
-        // cycles 321..336 → next-scanline tile 0..1 — both still fit the formula).
-        int screenTileX = (cycle - 1) / 8;
-        int screenTileY = scanline / 8;
+        // Tile being fetched depends on the cycle phase:
+        //   - Visible fetch (cycles 1..256): we're rendering tile col K right now,
+        //     and the fetcher is preparing tile col K+2 (pipeline lookahead = 2 tiles).
+        //     At cycle 1 the renderer is reading col 0 from the shifter (loaded by
+        //     the previous scanline's prefetch), so the fetcher reads col 2.
+        //   - Prefetch (cycles 321..337): we're done rendering the current scanline
+        //     and prefetching cols 0 and 1 of the NEXT scanline into the shifter.
+        int screenTileX;
+        int screenTileY;
+        if (cycle >= 321 && cycle <= 337) {
+            screenTileX = (cycle - 321) / 8;             // 0 or 1
+            int nextScanline = (scanline + 1) % 262;     // 261 → 0 wraps to next frame's first
+            screenTileY = nextScanline / 8;
+        } else {
+            screenTileX = (cycle - 1) / 8 + 2;           // +2 tile lookahead
+            screenTileY = scanline / 8;
+        }
 
         // Add scroll (in tile units; sub-tile is fineX/fineY).
         int virtTileX = screenTileX + (scrollX >> 3);
@@ -1071,7 +1127,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     private void fetchPatternLowByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = (scanline + scrollY) & 0x07;
+        int fineY = (fetchScanline() + scrollY) & 0x07;
         // Pattern table address = base + (tile_id * 16) + fine_y
         int addr = patternTableBase + (bgNextTileId * 16) + fineY;
         if (ppuBus != null) {
@@ -1086,12 +1142,25 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      */
     private void fetchPatternHighByte() {
         int patternTableBase = getBackgroundPatternTableAddress();
-        int fineY = (scanline + scrollY) & 0x07;
+        int fineY = (fetchScanline() + scrollY) & 0x07;
         // Pattern table high byte is 8 bytes after low byte
         int addr = patternTableBase + (bgNextTileId * 16) + fineY + 8;
         if (ppuBus != null) {
             bgNextTilePatternHigh = ppuBus.read(addr & 0x3FFF);
         }
+    }
+
+    /**
+     * The scanline we're currently fetching FOR — same as {@link #scanline}
+     * during visible cycles (1..256), or {@code scanline + 1} during the
+     * prefetch window (cycles 321..337), since prefetch loads tiles for the
+     * NEXT scanline. Wraps 261 → 0 on the frame boundary.
+     */
+    private int fetchScanline() {
+        if (cycle >= 321 && cycle <= 337) {
+            return (scanline + 1) % 262;
+        }
+        return scanline;
     }
     
     /**
@@ -1129,10 +1198,20 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Called during visible scanlines at cycles 1-256
      */
     private void renderBackgroundPixel() {
-        if (!isShowBackground()) {
-            // Background rendering disabled, output backdrop color
+        int xPos = cycle - 1;
+        // Hide BG when:
+        //   - PPUMASK bit 3 (show background) is 0, OR
+        //   - we're in the leftmost 8 pixels AND PPUMASK bit 1 (BG-show-left-8) is 0.
+        // Real hardware fills these cells with the backdrop color; failing to honor
+        // bit 1 leaves stale shift-register garbage visible in column 0..7 — the
+        // "leftmost-column artifacts" that most games (DK included) hide.
+        if (!isShowBackground() || (xPos < 8 && !isShowBackgroundLeft())) {
             int backdropColor = getColorFromPalette(0);
-            screen[scanline][cycle - 1] = backdropColor;
+            screen[scanline][xPos] = backdropColor;
+            // BG is transparent here for sprite-priority purposes.
+            if (scanline < VISIBLE_HEIGHT && xPos < VISIBLE_WIDTH) {
+                bgPatternPixel[scanline][xPos] = 0;
+            }
             return;
         }
         

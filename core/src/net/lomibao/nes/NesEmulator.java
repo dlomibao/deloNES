@@ -8,7 +8,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.java.Log;
 import net.lomibao.nes.components.CPUBus;
 import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.Cartridge;
@@ -19,7 +19,7 @@ import net.lomibao.nes.components.ppu.ColorPalette;
 import net.lomibao.nes.render.PixelRenderer;
 import net.lomibao.nes.render.PixelRendererTest;
 
-@Log4j2
+@Log
 public class NesEmulator extends ApplicationAdapter {
     public static final boolean ENABLE_TEST_RAM = false;// test ram covers the whole address range and gets top priority
                                                         // if enabled
@@ -41,7 +41,7 @@ public class NesEmulator extends ApplicationAdapter {
                 .build()
                 .connect();
 
-        log.info(cpuBus);
+        System.out.println(cpuBus);
         ColorPalette colorPalette = new ColorPalette(this.getClass().getResourceAsStream("/palettes/ntscpalette.pal"),
                 "ntscpalette.pal");
 

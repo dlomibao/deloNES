@@ -66,20 +66,25 @@ class PPUScrolledFetchTest {
     // ---- baseline: no scroll ----
 
     /**
-     * Fetch happens at cycleMod 1 (cycle 2, 10, 18, ...) for the
-     * 8-cycle pattern. cycleMod 0 (cycle 1, 9, 17, ...) is the shifter
-     * load. So for tile column N, observe at cycle = N*8 + 2.
+     * Real-NES PPU pipeline: BG fetcher is +2 tile columns ahead of the
+     * renderer. At cycle 2 of scanline N (the first visible NT-fetch),
+     * the fetcher reads viewport tile col 2. Cols 0 and 1 are fetched
+     * during cycles 322-336 of scanline N-1 (the prefetch window).
+     *
+     * <p>Test convention: {@code firstVisibleFetchCycle()} = cycle 2,
+     * which fetches viewport col 2. To observe what's fetched at viewport
+     * col K (K >= 2), use {@code visibleFetchCycle(K)}.
      */
-    private int firstTileFetchCycle() { return 2; }
-    private int tileColFetchCycle(int tileCol) { return tileCol * 8 + 2; }
+    private int firstVisibleFetchCycle() { return 2; }
+    private int visibleFetchCycle(int viewportCol) { return (viewportCol - 2) * 8 + 2; }
 
     @Test
-    void scrollZero_baseNt0_fetchesNt0Row0Col0_atFirstFetch() {
-        writeMarker(0, 0, 0);
-        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
+    void scrollZero_baseNt0_fetchesNt0Row0Col2_atFirstVisibleFetch() {
+        writeMarker(0, 0, 2); // first visible NT fetch reads viewport col 2
+        int tileId = fetchTileIdAt(0, firstVisibleFetchCycle());
         assertEquals(0, decodeNt(tileId));
         assertEquals(0, decodeRow(tileId));
-        assertEquals(0, decodeCol(tileId));
+        assertEquals(2, decodeCol(tileId));
     }
 
     // ---- horizontal scroll within NT ----
@@ -88,39 +93,38 @@ class PPUScrolledFetchTest {
     void scrollX8_shiftsFetchByOneTileColumn_intoSameNt() {
         ppu.cpuBusWrite(0x2005, (byte) 8);
         ppu.cpuBusWrite(0x2005, (byte) 0);
-        // Marker at NT0 row 0 col 1 — should be the first tile fetched
-        // when scrollX=8 (8 px = 1 tile shift).
-        writeMarker(0, 0, 1);
-        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
+        // First visible fetch = viewport col 2; with scrollX=8 (+1 tile),
+        // fetcher reads NT 0 col 3.
+        writeMarker(0, 0, 3);
+        int tileId = fetchTileIdAt(0, firstVisibleFetchCycle());
         assertEquals(0, decodeNt(tileId), "still in NT 0 (no wrap yet)");
         assertEquals(0, decodeRow(tileId));
-        assertEquals(1, decodeCol(tileId), "scrollX=8 → first fetch should be col 1");
+        assertEquals(3, decodeCol(tileId), "scrollX=8 → col 2 + 1 = col 3");
     }
 
     // ---- horizontal cross-NT wrap (PPUCTRL base NT) ----
 
     @Test
     void ppuCtrlBit0_baseNt1_fetchesFromNt1() {
-        // PPUCTRL bit 0 = 1 → base NT = NT1. With scroll=0, first fetch
-        // should land in NT1 col 0.
+        // PPUCTRL bit 0 = 1 → base NT = NT1. First visible fetch reads
+        // viewport col 2 from NT1.
         ppu.cpuBusWrite(0x2000, (byte) 0x01);
-        writeMarker(1, 0, 0);
-        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
+        writeMarker(1, 0, 2);
+        int tileId = fetchTileIdAt(0, firstVisibleFetchCycle());
         assertEquals(1, decodeNt(tileId), "PPUCTRL bit 0 = 1 → fetches start in NT1");
-        assertEquals(0, decodeCol(tileId));
+        assertEquals(2, decodeCol(tileId));
     }
 
     @Test
     void scrollX_wrappingMidScanline_picksOtherNt() {
-        // scrollX = 64 (= 8 tiles offset) in NT0. The visible row spans
-        // tiles col 8..39. Cols 8..31 come from NT0; cols 32..39 wrap into
-        // NT1 cols 0..7. Viewport col 24 with scrollX=64 → virtTileX = 32
-        // → wraps → NT1 col 0.
+        // scrollX = 64 (= 8 tiles). visibleFetchCycle(24) returns the cycle
+        // where the fetcher reads viewport col 24; with scrollX=8, virtTileX
+        // = 24 + 8 = 32 → wraps to NT1 col 0.
         ppu.cpuBusWrite(0x2005, (byte) 64);
         ppu.cpuBusWrite(0x2005, (byte) 0);
         writeMarker(1, 0, 0);
-        int tileId = fetchTileIdAt(0, tileColFetchCycle(24));
-        assertEquals(1, decodeNt(tileId), "viewport col 24 with scrollX=64 should fetch from NT1 col 0");
+        int tileId = fetchTileIdAt(0, visibleFetchCycle(24));
+        assertEquals(1, decodeNt(tileId), "viewport col 24 with scrollX=64 wraps to NT1 col 0");
         assertEquals(0, decodeCol(tileId));
     }
 
@@ -130,11 +134,11 @@ class PPUScrolledFetchTest {
     void scrollY8_shiftsFetchByOneTileRow_intoSameNt() {
         ppu.cpuBusWrite(0x2005, (byte) 0);
         ppu.cpuBusWrite(0x2005, (byte) 8);
-        writeMarker(0, 1, 0);
-        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
+        writeMarker(0, 1, 2); // row 1 (scrollY=8 = +1 row), col 2 (+2 lookahead)
+        int tileId = fetchTileIdAt(0, firstVisibleFetchCycle());
         assertEquals(0, decodeNt(tileId));
         assertEquals(1, decodeRow(tileId), "scrollY=8 → first fetch should be row 1");
-        assertEquals(0, decodeCol(tileId));
+        assertEquals(2, decodeCol(tileId));
     }
 
     // ---- vertical cross-NT wrap ----
@@ -142,32 +146,28 @@ class PPUScrolledFetchTest {
     @Test
     void scrollY240_wrapsToOtherNt_vertical() {
         // scrollY = 240 → 30 tile rows → exact NT boundary; first fetch
-        // should land in NT2's row 0 (vertical mirroring puts NT2 below
-        // NT0 logically). Note: the test uses VERTICAL mirroring so $2800
-        // mirrors $2000 — so NT2 reads come back from NT0's physical RAM.
-        // To unambiguously test the NT toggle we use HORIZONTAL mirroring
-        // (NT0+NT1 share, NT2+NT3 share — top vs bottom independent).
+        // wraps to NT2's row 0. Use HORIZONTAL mirroring so NT2 != NT0.
         nametables.setMirroringOverride(net.lomibao.nes.components.ppu.MirroringMode.HORIZONTAL);
         ppu.cpuBusWrite(0x2005, (byte) 0);
         ppu.cpuBusWrite(0x2005, (byte) 240);
-        writeMarker(2, 0, 0); // marker in NT2, row 0, col 0
-        int tileId = fetchTileIdAt(0, firstTileFetchCycle());
+        writeMarker(2, 0, 2); // NT2 row 0 col 2 (+2 lookahead)
+        int tileId = fetchTileIdAt(0, firstVisibleFetchCycle());
         assertEquals(2, decodeNt(tileId),
                 "scrollY=240 (= 30 tiles) should wrap from NT0 to NT2");
         assertEquals(0, decodeRow(tileId));
+        assertEquals(2, decodeCol(tileId));
     }
 
     // ---- combined horizontal + vertical scroll ----
 
     @Test
     void combinedScroll_64x16_picksRightNtAndCell() {
-        // scrollX = 64 (8 tiles), scrollY = 16 (2 tiles). At viewport
-        // tile column 24, row 0 → virtTileX = 32 (wrap to NT1 col 0),
-        // virtTileY = 2.
+        // scrollX = 64 (8 tiles), scrollY = 16 (2 tiles). At viewport col 24,
+        // virtTileX = 24+8 = 32 → wrap to NT1 col 0. virtTileY = 0+2 = 2.
         ppu.cpuBusWrite(0x2005, (byte) 64);
         ppu.cpuBusWrite(0x2005, (byte) 16);
         writeMarker(1, 2, 0);
-        int tileId = fetchTileIdAt(0, tileColFetchCycle(24));
+        int tileId = fetchTileIdAt(0, visibleFetchCycle(24));
         assertEquals(1, decodeNt(tileId), "combined scroll should land in NT1 col 0");
         assertEquals(2, decodeRow(tileId), "combined scroll should land in row 2");
         assertEquals(0, decodeCol(tileId));

@@ -1,0 +1,209 @@
+package net.lomibao.nes.desktop;
+
+import net.lomibao.nes.NesSystem;
+import net.lomibao.nes.components.CPU6502;
+import net.lomibao.nes.components.Cartridge;
+import net.lomibao.nes.components.Controller;
+import net.lomibao.nes.components.DmaController;
+import net.lomibao.nes.components.PPU;
+import net.lomibao.nes.components.PPUBus;
+import net.lomibao.nes.components.Ram;
+import net.lomibao.nes.components.ppu.NameTableMemory;
+
+import java.io.InputStream;
+
+/**
+ * Headless diagnostic runner: loads DonkeyKong.nes, runs N frames using
+ * NesSystem.runFrame(), then dumps a detailed snapshot of PPU state and the
+ * rendered framebuffer.
+ *
+ * <p>Designed for agent-driven debugging of rendering issues — output is
+ * compact, structured, and easy to grep/diff. No GL context, no LWJGL window.
+ *
+ * <p>Run with: {@code ./gradlew desktop:traceDK} (frames defaults to 600;
+ * override with {@code -PtraceFrames=N}).
+ */
+public class DKDiagnosticRunner {
+
+    public static void main(String[] args) throws Exception {
+        int frames = args.length > 0 ? Integer.parseInt(args[0]) : 600;
+
+        // Wire NES system identically to EmulatorScreen.
+        PPU ppu = new PPU();
+        PPUBus ppuBus = new PPUBus();
+        NameTableMemory nameTableMemory = new NameTableMemory();
+        ppuBus.connect(nameTableMemory);
+        ppu.connectPPUBus(ppuBus);
+
+        CPU6502 cpu = new CPU6502();
+        Ram ram = new Ram();
+        Controller controller = new Controller();
+
+        NesSystem nes = NesSystem.builder()
+                .cpu(cpu)
+                .ram(ram)
+                .ppu(ppu)
+                .controller(controller)
+                .dma(new DmaController())
+                .build();
+
+        ppu.setCPU(cpu);
+
+        // Load ROM.
+        try (InputStream in = DKDiagnosticRunner.class.getResourceAsStream("/roms/DonkeyKong.nes")) {
+            if (in == null) throw new RuntimeException("DonkeyKong.nes not on classpath");
+            Cartridge cart = new Cartridge(in, "DonkeyKong.nes");
+            nes.getCpuBus().setCartridge(cart);
+            ppu.setCartridge(cart);
+            ppuBus.connectCartridge(cart);
+            ppuBus.connectPPU(ppu);
+        }
+
+        cpu.reset();
+        ppu.reset();
+
+        System.out.println("=== DKDiagnosticRunner: running " + frames + " frames ===");
+        for (int i = 0; i < frames; i++) {
+            nes.runFrame();
+        }
+        System.out.println("=== Frame " + frames + " complete ===");
+
+        dumpState(ppu, ppuBus, frames);
+    }
+
+    private static void dumpState(PPU ppu, PPUBus ppuBus, int frame) {
+        int ctrl = Byte.toUnsignedInt(ppu.registers[0]);
+        int mask = Byte.toUnsignedInt(ppu.registers[1]);
+        int status = Byte.toUnsignedInt(ppu.registers[2]);
+
+        System.out.println();
+        System.out.println("--- PPU registers @ frame " + frame + " ---");
+        System.out.printf("PPUCTRL=0x%02X (NMI=%d 8x16=%d bg-pat=%s spr-pat=%s vinc=%d nt=%d)%n",
+                ctrl,
+                (ctrl >> 7) & 1, (ctrl >> 5) & 1,
+                ((ctrl & 0x10) != 0) ? "$1000" : "$0000",
+                ((ctrl & 0x08) != 0) ? "$1000" : "$0000",
+                ((ctrl & 0x04) != 0) ? 32 : 1,
+                ctrl & 0x03);
+        System.out.printf("PPUMASK=0x%02X (bg-l8=%d spr-l8=%d bg=%d spr=%d)%n",
+                mask, (mask >> 1) & 1, (mask >> 2) & 1, (mask >> 3) & 1, (mask >> 4) & 1);
+        System.out.printf("PPUSTATUS=0x%02X  scrollX=%d scrollY=%d%n",
+                status, ppu.getScrollX(), ppu.getScrollY());
+
+        // --- OAM ---
+        System.out.println();
+        System.out.println("--- OAM (sprites with Y < 240) ---");
+        int activeCount = 0;
+        for (int i = 0; i < 64; i++) {
+            int b = i * 4;
+            int y = Byte.toUnsignedInt(ppu.readOam(b));
+            if (y >= 240) continue;
+            int tile = Byte.toUnsignedInt(ppu.readOam(b + 1));
+            int attr = Byte.toUnsignedInt(ppu.readOam(b + 2));
+            int x = Byte.toUnsignedInt(ppu.readOam(b + 3));
+            System.out.printf("  sprite %2d: Y=%3d X=%3d tile=0x%02X attr=0x%02X%n",
+                    i, y, x, tile, attr);
+            activeCount++;
+        }
+        System.out.println("  (" + activeCount + " active sprites)");
+
+        // --- Nametable summary: which rows have non-blank content ---
+        System.out.println();
+        System.out.println("--- Nametable $2000: rows with non-0x24 (non-blank) tiles ---");
+        int blankTile = 0x24;
+        for (int row = 0; row < 30; row++) {
+            int rowAddr = 0x2000 + row * 32;
+            int nonBlank = 0;
+            for (int col = 0; col < 32; col++) {
+                int tile = ppuBus.read(rowAddr + col) & 0xFF;
+                if (tile != blankTile) nonBlank++;
+            }
+            if (nonBlank > 0) {
+                StringBuilder sb = new StringBuilder(String.format("  row %2d (y=%3d-%3d, %2d non-blank): ",
+                        row, row * 8, row * 8 + 7, nonBlank));
+                for (int col = 0; col < 32; col++) {
+                    int tile = ppuBus.read(rowAddr + col) & 0xFF;
+                    sb.append(String.format("%02X ", tile));
+                }
+                System.out.println(sb);
+            }
+        }
+
+        // --- Palette RAM ---
+        System.out.println();
+        System.out.println("--- Palette RAM ($3F00..$3F1F) ---");
+        StringBuilder palette = new StringBuilder("  bg:  ");
+        for (int i = 0; i < 16; i++) {
+            palette.append(String.format("%02X ", ppu.getPaletteColor(i)));
+        }
+        System.out.println(palette);
+        StringBuilder spritePal = new StringBuilder("  spr: ");
+        for (int i = 16; i < 32; i++) {
+            spritePal.append(String.format("%02X ", ppu.getPaletteColor(i)));
+        }
+        System.out.println(spritePal);
+
+        // --- Framebuffer dump: leftmost 16 pixels of every 8th scanline ---
+        // Renders as ASCII where:
+        //   '.' = backdrop color (palette[0])
+        //   '#' = non-backdrop, opaque color
+        // Plus prints actual RGBA hex values for the first scanline of each row.
+        System.out.println();
+        System.out.println("--- Framebuffer left edge: x=0..15 at every 8th scanline ---");
+        int[][] screen = ppu.getScreen();
+        int backdrop = getBackdropRgba(ppu);
+        System.out.printf("  (backdrop palette[0]=0x%02X → RGBA 0x%08X)%n",
+                ppu.getPaletteColor(0), backdrop);
+        for (int y = 0; y < 240; y += 8) {
+            StringBuilder ascii = new StringBuilder();
+            StringBuilder hex = new StringBuilder();
+            for (int x = 0; x < 16; x++) {
+                int rgba = screen[y][x];
+                ascii.append(rgba == backdrop ? '.' : '#');
+                hex.append(String.format("%08X ", rgba));
+            }
+            System.out.printf("  y=%3d: |%s|  %s%n", y, ascii, hex);
+        }
+
+        // --- Framebuffer right edge for comparison (x=240..255 at same rows) ---
+        System.out.println();
+        System.out.println("--- Framebuffer right edge: x=240..255 at every 8th scanline ---");
+        for (int y = 0; y < 240; y += 8) {
+            StringBuilder ascii = new StringBuilder();
+            for (int x = 240; x < 256; x++) {
+                int rgba = screen[y][x];
+                ascii.append(rgba == backdrop ? '.' : '#');
+            }
+            System.out.printf("  y=%3d: |%s|%n", y, ascii);
+        }
+
+        // --- Full first 32 pixels of scanlines 0, 8, 16, 24, 32 (top of frame) ---
+        System.out.println();
+        System.out.println("--- Top-of-frame detail: x=0..31 at scanlines 0/8/16/24/32 ---");
+        for (int y : new int[]{0, 8, 16, 24, 32}) {
+            StringBuilder ascii = new StringBuilder();
+            for (int x = 0; x < 32; x++) {
+                int rgba = screen[y][x];
+                ascii.append(rgba == backdrop ? '.' : '#');
+            }
+            System.out.printf("  y=%3d: |%s|%n", y, ascii);
+        }
+    }
+
+    private static int getBackdropRgba(PPU ppu) {
+        int nesColor = ppu.getPaletteColor(0) & 0x3F;
+        // Use the same NES master palette the PixelRenderer / EmulatorScreen uses.
+        // We just need a stable value to compare against.
+        int[] nesColorPalette = {
+            0xFF7C7C7C, 0xFF0000FC, 0xFF0000BC, 0xFF4428BC, 0xFF940084, 0xFFA80020, 0xFFA81000, 0xFF881400,
+            0xFF503000, 0xFF007800, 0xFF006800, 0xFF005800, 0xFF004058, 0xFF000000, 0xFF000000, 0xFF000000,
+            0xFFBCBCBC, 0xFF0078F8, 0xFF0058F8, 0xFF6844FC, 0xFFD800CC, 0xFFE40058, 0xFFF83800, 0xFFE45C10,
+            0xFFAC7C00, 0xFF00B800, 0xFF00A800, 0xFF00A844, 0xFF008888, 0xFF000000, 0xFF000000, 0xFF000000,
+            0xFFF8F8F8, 0xFF3CBCFC, 0xFF6888FC, 0xFF9878F8, 0xFFF878F8, 0xFFF85898, 0xFFF87858, 0xFFFCA044,
+            0xFFF8B800, 0xFFB8F818, 0xFF58D854, 0xFF58F898, 0xFF00E8D8, 0xFF787878, 0xFF000000, 0xFF000000,
+            0xFFFCFCFC, 0xFFA4E4FC, 0xFFB8B8F8, 0xFFD8B8F8, 0xFFF8B8F8, 0xFFF8A4C0, 0xFFF0D0B0, 0xFFFCE0A8,
+            0xFFF8D878, 0xFFD8F878, 0xFFB8F8B8, 0xFFB8F8D8, 0xFF00FCFC, 0xFFF8D8F8, 0xFF000000, 0xFF000000
+        };
+        return nesColorPalette[nesColor];
+    }
+}
