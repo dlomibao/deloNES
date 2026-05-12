@@ -110,9 +110,9 @@ public class DKDiagnosticRunner {
     }
 
     private static void dumpState(PPU ppu, PPUBus ppuBus, int frame) {
-        int ctrl = Byte.toUnsignedInt(ppu.registers[0]);
-        int mask = Byte.toUnsignedInt(ppu.registers[1]);
-        int status = Byte.toUnsignedInt(ppu.registers[2]);
+        int ctrl = ppu.peekCtrl();
+        int mask = ppu.peekMask();
+        int status = ppu.peekStatus();
 
         System.out.println();
         System.out.println("--- PPU registers @ frame " + frame + " ---");
