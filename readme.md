@@ -9,6 +9,22 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 5-12-2026 (web port)
+* **Donkey Kong playable in the browser.** Title screen, game-start, level 1 gameplay all running via TeaVM/WebGL in Chrome at sustained 60 FPS (JIT-warmed; emulator headroom is ~115 NES FPS / 8.6ms per `runFrame`). Keyboard → controller wiring: Arrows = D-pad, Z = A, X = B, Enter = START, Right Shift = SELECT.
+* Phase 0 derisking proved gdx-teavm 1.5.6 + TeaVM 0.14.0 is a viable web target ([findings](docs/web-phase0-findings.md)). Bumped both, switched to the renamed `backend-web` artifact, rewrote `HtmlLauncher` against the new `WebApplication`/`WebApplicationConfiguration` API. Surfaced the 1.5.x asset preload manifest (`assets/preload.txt`) so `Gdx.files.internal()` resolves classpath ROMs + opcode table.
+* **C1 (CPU6502 reflection refactor)** landed: per-instruction `Method.invoke` → hand-rolled string switch on opcode name and addressing mode. Same 8992/8992 nestest trace match preserved, mandatory for the web port and a desktop perf win.
+* **Perf pass** to hit 60 FPS web — multi-round profile-and-fix off the running DK build. Findings, in order of impact:
+  * `LogManager` html-stub's `format()` did `String.replaceFirst("\\{\\}", ...)` per call → compiled a regex per `log.trace`. CPU6502.clock() + PPU.clock() trace per instruction. Made trace/debug no-ops on the web build, replaced regex with a plain `indexOf` loop.
+  * `PPU.nesColorToRGB` allocated a 64-int palette **on every call** (~3.7M allocs/sec at 60 FPS). Hoisted to `static final`.
+  * `CPUBus.read/write/clock` wrapped every null-check in `Optional.ofNullable(x).map(f).orElse(false)` → 2 Optional allocs + lambda capture per check, per CPU instruction. Replaced with plain `x != null && x.f()` null-guards.
+  * `Mapper.cpuMapRead/Write` returned `Integer` → boxed every cart access. Switched to primitive `int` with `Mapper.UNMAPPED = -1` sentinel.
+  * `CPUBus.clock` did `masterClockCount % 3 == 0` per master tick → on TeaVM `long` is software-emulated. Added an `int phase` counter cycling 0→1→2; kept `long masterClockCount` for API compat. Same fix on `NesSystem.runFrame`'s safety-cap deadline check.
+  * `PPU.checkSpriteZeroHit` called per tick (89k/frame) → after the hit fires, all remaining calls just return. Skip the call entirely with a `spriteZeroHitChecked` boolean; cleared on the pre-render scanline.
+  * `CPUBus.read/write` did `component.inCPUBusRange(addr)` per component → 3 virtual calls per range check, ~21 per bus access. Inlined the NES hardware address constants ($0000-$1FFF, $2000-$3FFF, ...) directly. **The single biggest win — ~22 FPS → ~33 FPS.**
+  * Also inlined `isShowBackground()` / `isShowBackgroundLeft()` at the per-pixel render call sites in PPU.
+* **DonkeyKong.nes still isn't committed** (fair-use copy). `html/build.gradle` preloads it if the dev has a local copy in `core/src/main/resources/roms/`; falls back to bundled `nestest.nes` cleanly.
+* TeaVM build settings flipped to `obfuscated = false` + `sourceMap = true` so the live console + DevTools profile show real Java symbols. Re-enable obfuscation before any size-sensitive deploy.
+
 ### 5-12-2026
 * **Donkey Kong first level playable!** Title screen renders correctly; Mario, Pauline, barrels, oil drum + fire all in place; sprite/BG alignment correct.
 * ![Donkey Kong running on deloNES](repoassets/dk_working.gif)

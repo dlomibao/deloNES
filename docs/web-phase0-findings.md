@@ -6,6 +6,13 @@
 gdx-teavm + TeaVM pipeline can actually reach a real browser, load
 embedded ROMs, render pixel data, and receive keyboard input.
 
+> **Status post-Phase 0:** the same branch went on to ship C1 (CPU6502
+> reflection refactor), full PPU framebuffer rendering, keyboard →
+> controller wiring, and a multi-round perf pass. End state is Donkey
+> Kong playable in the browser at sustained 60 FPS (JIT-warmed
+> `runFrame` ~8.6ms, headroom ~115 NES FPS). See the devlog in
+> `readme.md` for the full chain of fixes.
+
 ## Verdict
 
 **🟢 Go.** The platform is viable for shipping. Page boots in Chrome,
