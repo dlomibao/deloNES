@@ -126,11 +126,16 @@ public class NesSystem {
      *         within the safety window
      */
     public void runFrame() {
-        long maxTicks = 341L * 262L * 3L; // 3× safety margin
-        long deadline = cpuBus.getMasterClockCount() + maxTicks;
+        // Safety cap to detect a wedged PPU. Count elapsed ticks within
+        // this frame in int rather than comparing long master-clock values
+        // every iteration — that comparison was Long_lt on TeaVM and was
+        // material in the profile (~1.3% of total CPU time, fired every
+        // tick of the loop).
+        final int maxTicks = 341 * 262 * 3; // 3× safety margin
+        int elapsed = 0;
         while (!ppu.isFrameComplete()) {
             tick();
-            if (cpuBus.getMasterClockCount() >= deadline) {
+            if (++elapsed >= maxTicks) {
                 throw new IllegalStateException(
                         "PPU did not signal frame complete within " + maxTicks +
                         " master ticks — rendering state may be wedged");

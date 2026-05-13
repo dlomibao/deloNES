@@ -75,6 +75,13 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     private int cycle = 0;      // Current cycle within scanline (0-340)
     private boolean frameComplete = false;  // Set when frame finishes, cleared when checked
     private boolean oddFrame = false;       // Tracks odd/even frames
+    // Once the sprite-0 hit fires for a frame it can't fire again until the
+    // pre-render scanline clears PPUSTATUS bit 6. Tracking this lets us skip
+    // the entire checkSpriteZeroHit() call (rather than just early-returning
+    // inside it) for the ~89k/frame ticks after the hit has happened. The
+    // function-call overhead alone showed up at ~3.7% of total CPU on the web
+    // build profile.
+    private boolean spriteZeroHitChecked = false;
     
     // NMI latch — set on VBlank entry when PPUCTRL bit 7 is 1, cleared by
     // {@link #consumeNmi()}. Hosts (e.g. NesSystem) poll this after each tick
@@ -311,18 +318,27 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             registers[2] &= ~0x80;  // Clear bit 7 of PPUSTATUS (VBlank flag)
             registers[2] &= ~0x40;  // Clear bit 6 of PPUSTATUS (sprite 0 hit)
             frameComplete = false;
+            spriteZeroHitChecked = false;
             // Reset bg-pattern shadow for the next frame so stale values
             // don't bleed into the next frame's sprite-priority decisions.
             clearBgPatternShadow();
         }
-        
-        // Sprite-0 hit (per-pixel opacity): see {@link #checkSpriteZeroHit()}.
-        // Called unconditionally; the helper does its own gating so the
-        // contract lives in one place.
-        checkSpriteZeroHit();
 
-        // Perform background tile fetching on visible and pre-render scanlines
-        if ((isVisibleScanline() || isPreRenderScanline()) && isRenderingEnabled()) {
+        // Sprite-0 hit (per-pixel opacity): once it's fired we don't re-check
+        // until pre-render scanline clears the flag. The helper still does
+        // its own per-tick visible-cycle gating; this is the outer skip that
+        // avoids paying the function-call cost for the ~89k/frame ticks after
+        // the hit has happened.
+        if (!spriteZeroHitChecked) {
+            checkSpriteZeroHit();
+        }
+
+        // Perform background tile fetching on visible and pre-render scanlines.
+        // Inlined the isVisible/isPreRender/isRenderingEnabled checks — the
+        // method calls were ~3.7% of total CPU on the web profile (TeaVM
+        // doesn't inline these one-liners). Order matters: scanline check
+        // first so the byte-array read short-circuits during VBlank.
+        if ((scanline <= 239 || scanline == 261) && (registers[1] & 0x18) != 0) {
             // Render pixel BEFORE shifting. At cycle 1 the shifter's HIGH byte
             // holds col 0 (from the previous scanline's prefetch); reading
             // bit 15 gives col 0's leftmost pixel. Shifting first would
@@ -504,6 +520,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         cycle = 0;
         frameComplete = false;
         oddFrame = false;
+        spriteZeroHitChecked = false;
         nmiPending = false;
         clearBgPatternShadow();
         clearScreen();
@@ -579,6 +596,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         if (spritePixel == 0) return; // sprite transparent here
 
         registers[2] |= 0x40; // sprite-0 hit
+        spriteZeroHitChecked = true; // skip the call for the rest of this frame
     }
 
     /**
@@ -1324,7 +1342,8 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Called every cycle during visible rendering
      */
     private void shiftBackgroundRegisters() {
-        if (isShowBackground()) {
+        // Inlined isShowBackground() — PPUMASK bit 3 — hot path on the web build.
+        if ((registers[1] & 0x08) != 0) {
             bgShiftPatternLow <<= 1;
             bgShiftPatternHigh <<= 1;
             bgShiftAttrLow <<= 1;
@@ -1344,7 +1363,10 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         // Real hardware fills these cells with the backdrop color; failing to honor
         // bit 1 leaves stale shift-register garbage visible in column 0..7 — the
         // "leftmost-column artifacts" that most games (DK included) hide.
-        if (!isShowBackground() || (xPos < 8 && !isShowBackgroundLeft())) {
+        // Inlined isShowBackground (bit 3) + isShowBackgroundLeft (bit 1) —
+        // called per visible pixel (61k/frame) on the web build hot path.
+        final int mask = registers[1] & 0xff;
+        if ((mask & 0x08) == 0 || (xPos < 8 && (mask & 0x02) == 0)) {
             int backdropColor = getColorFromPalette(0);
             screen[scanline][xPos] = backdropColor;
             // BG is transparent here for sprite-priority purposes.
