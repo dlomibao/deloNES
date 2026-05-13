@@ -118,70 +118,60 @@ public class LogManager {
             }
         }
         
+        // Trace/debug log methods are deliberate no-ops on the web build.
+        // CPU6502.clock() and PPU.clock() call log.trace() per instruction,
+        // and the format(String, Object...) path below uses
+        // String.replaceFirst("\\{\\}", ...) which compiles a regex on every
+        // call — pre-optimization Phase 1 profile showed it dominated the
+        // emulator hot loop (~50% of CPU time). Trace/debug are dev-only
+        // signals; skipping them entirely is the correct shape for a web
+        // build that has no debug log destination anyway.
         @Override
-        public void debug(String message) {
-            if (Gdx.app != null) {
-                Gdx.app.debug(name, message);
-            }
-        }
-        
+        public void debug(String message) { /* no-op */ }
+
         @Override
-        public void debug(String message, Object p0) {
-            debug(format(message, p0));
-        }
-        
+        public void debug(String message, Object p0) { /* no-op */ }
+
         @Override
-        public void debug(String message, Object... params) {
-            debug(format(message, params));
-        }
-        
+        public void debug(String message, Object... params) { /* no-op */ }
+
         @Override
-        public void trace(Object message) {
-            if (Gdx.app != null) {
-                Gdx.app.debug(name, "TRACE: " + String.valueOf(message));
-            }
-        }
-        
+        public void trace(Object message) { /* no-op */ }
+
         @Override
-        public void trace(String message) {
-            if (Gdx.app != null) {
-                Gdx.app.debug(name, "TRACE: " + message);
-            }
-        }
-        
+        public void trace(String message) { /* no-op */ }
+
         @Override
-        public void trace(String message, Object... params) {
-            trace(format(message, params));
-        }
-        
+        public void trace(String message, Object... params) { /* no-op */ }
+
         @Override
-        public void trace(String message, Supplier<?>... paramSuppliers) {
-            if (Gdx.app != null && paramSuppliers != null) {
-                Object[] params = new Object[paramSuppliers.length];
-                for (int i = 0; i < paramSuppliers.length; i++) {
-                    params[i] = paramSuppliers[i].get();
-                }
-                trace(format(message, params));
-            } else {
-                trace(message);
-            }
-        }
-        
+        public void trace(String message, Supplier<?>... paramSuppliers) { /* no-op */ }
+
         @Override
-        public void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7) {
-            trace(format(message, p0, p1, p2, p3, p4, p5, p6, p7));
-        }
+        public void trace(String message, Object p0, Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7) { /* no-op */ }
         
         private String format(String message, Object... params) {
-            if (params == null || params.length == 0) {
+            if (params == null || params.length == 0 || message == null) {
                 return message;
             }
-            // Simple placeholder replacement
-            String result = message;
-            for (int i = 0; i < params.length; i++) {
-                result = result.replaceFirst("\\{\\}", String.valueOf(params[i]));
+            // Plain {} placeholder replacement — no regex. The original
+            // implementation used String.replaceFirst("\\{\\}", ...) which
+            // compiles a regex pattern per call; that single line cost
+            // ~50% of CPU time on the web build's emulator hot loop.
+            StringBuilder sb = new StringBuilder(message.length() + 32);
+            int paramIdx = 0;
+            int from = 0;
+            while (from < message.length()) {
+                int next = message.indexOf("{}", from);
+                if (next < 0 || paramIdx >= params.length) {
+                    sb.append(message, from, message.length());
+                    break;
+                }
+                sb.append(message, from, next);
+                sb.append(String.valueOf(params[paramIdx++]));
+                from = next + 2;
             }
-            return result;
+            return sb.toString();
         }
     }
 }

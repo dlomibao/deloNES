@@ -261,12 +261,14 @@ high-leverage on its own** (CPU dispatch is in every game's hot loop).
 
 ### Web build
 
-- [ ] **C1** — Refactor `CPU6502` dispatch to remove `Method.invoke`.
-  Replace `Method handler` / `Method addressingHandler` fields with
-  `Runnable` (or `IntSupplier`) populated at instruction-table build
-  time via opcode-name `switch`. Gates the entire web port and
-  significantly improves desktop performance.
-  Source: `core/src/net/lomibao/nes/components/CPU6502.java:222,242,247,255`.
+- [x] **C1** — Refactor `CPU6502` dispatch to remove `Method.invoke`.
+  Replaced `Method handler` / `Method addressingHandler` fields with
+  a hand-rolled string switch inside `Instruction.runInstruction()` /
+  `runAddressMode()`. Modern JVMs lower string switch to a hash + branch
+  table so dispatch is O(1); on TeaVM the same lowering applies. Resolved
+  on `feature/web-phase0` along with the rest of the web port — 8992/8992
+  nestest trace match preserved.
+  Source: `core/src/net/lomibao/nes/components/CPU6502.java`.
   See [reports/web-deployment.md § blockers](reports/web-deployment.md).
 
 - [ ] **C2** — Move game-glue classes from `desktop/` to `core/`:

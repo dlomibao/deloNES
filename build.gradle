@@ -15,7 +15,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath 'org.teavm:teavm-gradle-plugin:0.13.0'
+        classpath 'org.teavm:teavm-gradle-plugin:0.14.0'
         classpath 'org.gretty:gretty:4.1.10'
     }
 }
@@ -27,7 +27,7 @@ allprojects {
     ext {
         appName = "nes_emu"
         gdxVersion = '1.14.0'
-        gdxTeaVMVersion = '1.4.0'
+        gdxTeaVMVersion = '1.5.6'
         roboVMVersion = '2.3.20'
         box2DLightsVersion = '1.5'
         ashleyVersion = '1.7.4'
@@ -144,7 +144,7 @@ project(":html") {
 
     dependencies {
         implementation project(":core")
-        implementation "com.github.xpenatan.gdx-teavm:backend-teavm:$gdxTeaVMVersion"
+        implementation "com.github.xpenatan.gdx-teavm:backend-web:$gdxTeaVMVersion"
         implementation "com.github.xpenatan.gdx-teavm:gdx-freetype-teavm:$gdxTeaVMVersion"
         
         // Exclude Log4j from web build - TeaVM doesn't support all Java Time APIs
