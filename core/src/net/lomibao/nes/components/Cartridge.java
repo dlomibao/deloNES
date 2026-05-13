@@ -120,16 +120,16 @@ public class Cartridge extends CPUBusComponent {
 
     @Override
     public void cpuBusWrite(int address, byte value) {
-        Integer mappedAddress = mapper.cpuMapWrite(address);
-        if (mappedAddress != null) {
+        int mappedAddress = mapper.cpuMapWrite(address);
+        if (mappedAddress >= 0) {
             vPRGMemory[mappedAddress] = value;
         }
     }
 
     @Override
     public int cpuBusRead(int address, boolean readOnly) {
-        Integer mappedAddress = mapper.cpuMapRead(address);
-        if (mappedAddress != null) {
+        int mappedAddress = mapper.cpuMapRead(address);
+        if (mappedAddress >= 0) {
             return Byte.toUnsignedInt(vPRGMemory[mappedAddress]);
         }
         return 0;

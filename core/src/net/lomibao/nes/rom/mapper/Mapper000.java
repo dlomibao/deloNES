@@ -13,40 +13,40 @@ public class Mapper000 implements Mapper {
     }
 
     @Override
-    public Integer cpuMapRead(int address) {
+    public int cpuMapRead(int address) {
         if (address >= 0x8000 && address <= 0xFFFF) {
             // If PRG Banks > 1, 32KB mapping, else 16KB mirrored
             return (address - 0x8000) & (nPRGBanks > 1 ? 0x7FFF : 0x3FFF);
         }
-        return null; // Signals address not handled by mapper
+        return UNMAPPED;
     }
 
     @Override
-    public Integer cpuMapWrite(int address) {
+    public int cpuMapWrite(int address) {
         // Mapper 000 usually doesn't have PRG RAM/Registers in the $8000 range
         if (address >= 0x8000 && address <= 0xFFFF) {
             return (address - 0x8000) & (nPRGBanks > 1 ? 0x7FFF : 0x3FFF);
         }
-        return null;
+        return UNMAPPED;
     }
 
     @Override
-    public Integer ppuMapRead(int address) {
+    public int ppuMapRead(int address) {
         if (address >= 0x0000 && address <= 0x1FFF) {
             return address;
         }
-        return null;
+        return UNMAPPED;
     }
 
     @Override
-    public Integer ppuMapWrite(int address) {
+    public int ppuMapWrite(int address) {
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Usually read-only unless it's CHR RAM (which nCHRBanks == 0 indicates)
             if (nCHRBanks == 0) {
                 return address;
             }
         }
-        return null;
+        return UNMAPPED;
     }
 
     @Override
