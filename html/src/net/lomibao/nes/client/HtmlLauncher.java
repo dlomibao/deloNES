@@ -12,8 +12,10 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplicationConfiguration;
 import net.lomibao.nes.NesSystem;
+import net.lomibao.nes.components.APU;
 import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.Cartridge;
+import net.lomibao.nes.components.Controller;
 import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.PPUBus;
@@ -124,8 +126,16 @@ public class HtmlLauncher {
                 cpu = new CPU6502(new ByteArrayInputStream(csvBytes));
                 Ram ram = new Ram();
 
+                // Wire Controller + APU so cart reads of $4015/$4016/$4017
+                // (Donkey Kong polls these every frame) hit real handlers
+                // instead of falling through to CPUBus.read's "no device
+                // found" log.error — that log call goes through the html
+                // log4j stub's format-via-regex path, which was tanking
+                // runFrame from ~16ms back up to ~90ms in profiling.
                 nes = NesSystem.builder()
                         .cpu(cpu).ram(ram).ppu(ppu)
+                        .apu(new APU())
+                        .controller(new Controller())
                         .dma(new DmaController())
                         .build();
 
