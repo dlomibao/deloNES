@@ -13,6 +13,7 @@ import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplicationConfiguration;
 import net.lomibao.nes.NesSystem;
 import net.lomibao.nes.components.APU;
+import net.lomibao.nes.components.Button;
 import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.Controller;
@@ -74,6 +75,7 @@ public class HtmlLauncher {
         private NesSystem nes;
         private CPU6502 cpu;
         private PPU ppu;
+        private Controller controller;
         private String loadedRom;
 
         @Override
@@ -132,10 +134,11 @@ public class HtmlLauncher {
                 // found" log.error — that log call goes through the html
                 // log4j stub's format-via-regex path, which was tanking
                 // runFrame from ~16ms back up to ~90ms in profiling.
+                controller = new Controller();
                 nes = NesSystem.builder()
                         .cpu(cpu).ram(ram).ppu(ppu)
                         .apu(new APU())
-                        .controller(new Controller())
+                        .controller(controller)
                         .dma(new DmaController())
                         .build();
 
@@ -200,14 +203,46 @@ public class HtmlLauncher {
         }
 
         private void probeInput() {
+            // Keyboard → NES controller (player 0). Matches the desktop
+            // ControlsConfig defaults: Arrows = D-pad, Z = A, X = B,
+            // Enter = START, Right Shift = SELECT. Pressing/releasing any
+            // bound key flips the corresponding bit in the live controller
+            // state; the cart polls it via the $4016 shift register.
             Gdx.input.setInputProcessor(new InputAdapter() {
                 @Override
                 public boolean keyDown(int keycode) {
-                    Gdx.app.log("web", "INPUT keyDown=" + keycode
-                            + " (" + Input.Keys.toString(keycode) + ")");
-                    return true;
+                    Button b = mapKey(keycode);
+                    if (b != null && controller != null) {
+                        controller.setButton(0, b, true);
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public boolean keyUp(int keycode) {
+                    Button b = mapKey(keycode);
+                    if (b != null && controller != null) {
+                        controller.setButton(0, b, false);
+                        return true;
+                    }
+                    return false;
                 }
             });
+        }
+
+        private static Button mapKey(int keycode) {
+            switch (keycode) {
+                case Input.Keys.UP:           return Button.UP;
+                case Input.Keys.DOWN:         return Button.DOWN;
+                case Input.Keys.LEFT:         return Button.LEFT;
+                case Input.Keys.RIGHT:        return Button.RIGHT;
+                case Input.Keys.Z:            return Button.A;
+                case Input.Keys.X:            return Button.B;
+                case Input.Keys.ENTER:        return Button.START;
+                case Input.Keys.SHIFT_RIGHT:  return Button.SELECT;
+                default:                      return null;
+            }
         }
 
         @Override
