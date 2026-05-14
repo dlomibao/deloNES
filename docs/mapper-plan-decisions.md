@@ -192,5 +192,110 @@ might be worth investigating with the Claude Code team. Already
 flagged in `shared-agent-findings.md` ENTRY 3 with a "verify HEAD on
 entry" instruction for future agents.
 
+**Lasting workaround adopted for Phase C/D/E:** Stopped using
+`Agent(isolation: "worktree")` and manually pre-created worktrees with
+`git worktree add -b <branch> <path> feature/common-mappers` before
+dispatching each agent. Agent prompts then `cd` into the pre-made
+path. Worked reliably for C, D, and E.
+
 ---
+
+## Phase C/D/E — sequential mapper agents
+
+### Per-commit coverage discipline (logged in shared-findings ENTRY 10 by MMC3 agent)
+
+**Finding:** JaCoCo's `core:check` gate runs on every test invocation,
+which means each sub-stage commit's impl must already be covered by
+the tests landing in that same commit — you can't ship "stub now,
+test later". The MMC3 agent had to be careful that each commit's
+new code paths were exercised before moving to the next sub-stage.
+
+**Recommendation if expanding the plan:** keep the gate but design
+sub-stages so each one's tests really do cover its impl, OR allow a
+per-sub-stage `--no-check` followed by a final coverage pass before
+merge.
+
+### Phase E — `getChrRamSize()` on Mapper interface
+
+**Decision (option c from Phase E spec):** Added
+`default int getChrRamSize() { return 8192; }` to the Mapper interface.
+MapperUNROM512 overrides to return 32768. Cartridge constructor was
+reordered to instantiate the mapper BEFORE allocating vCHRMemory, then
+uses `mapper.getChrRamSize()` for CHR-RAM carts.
+
+**Rationale:** Option (a) — modulo-wrapping into 8KB — would lose bank
+distinctness. Option (b) — mapper-owned CHR array — would break
+`Cartridge.chrRead/chrWrite`'s indexing into vCHRMemory. Option (c) is
+a minimal interface extension; non-CHR-RAM-bank mappers ignore it
+(default 8KB), and CHR-ROM carts (every Mapper 1/2/3/4/7) don't
+consult it at all (size still comes from `nCHRBanks * 8192`).
+
+**Cost:** One Mapper interface method, one extra test in Mapper000Test
+to cover the default body, ~10 lines of reordering in Cartridge.
+
+---
+
+## Phase D — A12 4-clock low filter
+
+**Finding (logged in shared-findings ENTRY 10):** MMC3's IRQ counter
+spec requires that A12 must have been LOW for at least 4 PPU clocks
+before the next rising edge counts. The `tickPpuA12(addr, prevAddr)`
+hook doesn't carry PPU cycle timing.
+
+**Decision:** Approximated by counting consecutive A12-low calls
+since the last counted rising edge. The mapper requires ≥4 such calls
+between counted rising edges; rapid alternation suppresses extra
+clocks. Conservative — under-counts vs real PPU when rendering would
+inject extra A12-low PPU cycles. Matches the FCEUX pattern.
+
+**Verification owed:** Blargg's `mmc3_test_2.nes` exercises edge cases
+(rapid A12 toggle, scanline-boundary timing). Test ROM not in repo
+yet; D7 test is `@Disabled` pending ROM acquisition.
+
+---
+
+## Run-end summary (2026-05-14)
+
+**Status:** All planned phases A-F landed on `feature/common-mappers`.
+
+**Mappers shipped:**
+| # | Name | Iconic game | Lines | Tests |
+|---|---|---|---|---|
+| 0 | NROM | Donkey Kong | existing | 16 |
+| 1 | MMC1 | Zelda 1 | 245 | 33 |
+| 2 | UxROM | Mega Man | 95 | 31 |
+| 3 | CNROM | Adventure Island | 70 | 23 |
+| 4 | MMC3 | SMB3 | 240 | 46 |
+| 7 | AxROM | Battletoads | 110 | 32 |
+| 30 | UNROM-512 | Micro Mages | 165 | 31 |
+
+**Test count progression:**
+- Pre-Phase-A baseline: 362 (core)
+- After A0 (JaCoCo + helper): 401
+- After A1 (CHR-RAM write): 410
+- After A2 (runtime mirroring): 421
+- After A3 (A12 hook): 429
+- After Phase B merges: 515
+- After Phase F merge: 526 (?)
+- After Phase C (MMC1): 559
+- After Phase D (MMC3): 605
+- After Phase E (UNROM-512): **636** (635 passed + 1 deferred Blargg)
+
+Note: a small drift between the agents' baseline counts (e.g. 515 vs
+526) was logged in shared-findings ENTRY 9; cause unknown but
+non-blocking — the final core:check is what matters and it's green.
+
+**Items still pending user verification (manual smoke tests):**
+- Desktop + browser 60-FPS sanity after A3 PPU A12 hook (perf concern logged in A2 entry above)
+- Manual play-test of each iconic game (Zelda, SMB3, Battletoads, Mega Man, Adventure Island, Micro Mages) — none of these ROMs are in-repo per the plan
+- Blargg `mmc3_test_2.nes` acquisition + re-enable of `MMC3BlarggTest`
+- Phase F browser UI manual click-through (Load ROM button + drag-drop)
+
+**Toolchain bump that enabled all of this:**
+- JDK 11 → 25 (Eclipse Temurin via SDKMAN)
+- Gradle 8.5 → 9.1.0
+- Lombok 1.18.32 → 1.18.42
+- LWJGL 3.3.3 → 3.4.1 (forced via resolutionStrategy)
+- JUnit 5.10.0 → 5.11.4 + explicit junit-platform-launcher
+- JaCoCo 0.8.14 wired with ≥0.90 line gate on `rom.mapper.*`
 
