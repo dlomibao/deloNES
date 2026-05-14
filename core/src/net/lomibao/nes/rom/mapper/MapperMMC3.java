@@ -31,16 +31,21 @@ public class MapperMMC3 implements Mapper {
 
     private final int nPRGBanks;     // 16KB units
     private final int nCHRBanks;     // 8KB units
+    /** Total 8KB PRG banks (= nPRGBanks * 2). */
+    private final int prg8kCount;
 
     /** R0..R7, each a 6-bit bank index. */
     private final int[] bankReg = new int[8];
 
     /** Bank-select state from the last $8000-$9FFE even-address write. */
     private int bankSelectIndex;
+    /** PRG mode bit (bit 6 of $8000). false = mode 0, true = mode 1. */
+    private boolean prgMode;
 
     public MapperMMC3(int prgBanks, int chrBanks) {
         this.nPRGBanks = prgBanks;
         this.nCHRBanks = chrBanks;
+        this.prg8kCount = prgBanks * 2;
         reset();
     }
 
@@ -51,19 +56,22 @@ public class MapperMMC3 implements Mapper {
         if (address < 0x8000 || address > 0xFFFF) {
             return UNMAPPED;
         }
-        // D1: PRG mode 0 only. R6 at $8000-$9FFF, R7 at $A000-$BFFF.
-        // $C000-$FFFF is implemented in D2 alongside the mode bit.
+        final int lastBank = prg8kCount - 1;
+        final int penult = prg8kCount - 2;
         int bank;
         int windowBase;
         if (address < 0xA000) {              // $8000-$9FFF
-            bank = bankReg[6];
+            bank = prgMode ? penult : bankReg[6];
             windowBase = 0x8000;
         } else if (address < 0xC000) {       // $A000-$BFFF
             bank = bankReg[7];
             windowBase = 0xA000;
-        } else {
-            // D2 will refine; for D1 fall back to a deterministic mapping.
-            return UNMAPPED;
+        } else if (address < 0xE000) {       // $C000-$DFFF
+            bank = prgMode ? bankReg[6] : penult;
+            windowBase = 0xC000;
+        } else {                             // $E000-$FFFF — always last
+            bank = lastBank;
+            windowBase = 0xE000;
         }
         return bank * PRG_8K + (address - windowBase);
     }
@@ -84,6 +92,7 @@ public class MapperMMC3 implements Mapper {
         if (region == 0) {                   // $8000-$9FFF: bank-select / bank-data
             if (even) {
                 bankSelectIndex = value & 0x07;
+                prgMode = (value & 0x40) != 0;
             } else {
                 bankReg[bankSelectIndex] = value & 0x3F;
             }
@@ -129,6 +138,7 @@ public class MapperMMC3 implements Mapper {
             bankReg[i] = 0;
         }
         bankSelectIndex = 0;
+        prgMode = false;
     }
 
     @Override

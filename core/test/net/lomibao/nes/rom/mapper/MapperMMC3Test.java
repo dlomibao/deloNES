@@ -279,4 +279,84 @@ class MapperMMC3Test {
         m.reset();
         assertEquals(0x0000, m.cpuMapRead(0x8000));
     }
+
+    // =====================================================================
+    // D2 — PRG layout modes
+    // =====================================================================
+
+    /**
+     * PRG mode 0 ($8000 bit 6 = 0):
+     *   $8000-$9FFF = R6
+     *   $A000-$BFFF = R7
+     *   $C000-$DFFF = 2nd-to-last 8KB bank
+     *   $E000-$FFFF = last 8KB bank (fixed always)
+     */
+    @Test
+    void d2_prgMode0_layout() {
+        // 8 PRG-16K banks = 16 PRG-8K banks (last index = 15, second-to-last = 14).
+        MapperMMC3 m = new MapperMMC3(8, 1);
+        m.cpuMapWrite(0x8000, 0x06);   // select R6, mode 0
+        m.cpuMapWrite(0x8001, 0x03);   // R6 = 3
+        m.cpuMapWrite(0x8000, 0x07);
+        m.cpuMapWrite(0x8001, 0x05);   // R7 = 5
+
+        assertEquals(3 * 0x2000, m.cpuMapRead(0x8000));        // R6
+        assertEquals(5 * 0x2000, m.cpuMapRead(0xA000));        // R7
+        assertEquals(14 * 0x2000, m.cpuMapRead(0xC000));       // 2nd-to-last
+        assertEquals(15 * 0x2000, m.cpuMapRead(0xE000));       // last
+        assertEquals(15 * 0x2000 + 0x1FFF, m.cpuMapRead(0xFFFF));
+    }
+
+    /**
+     * PRG mode 1 ($8000 bit 6 = 1):
+     *   $8000-$9FFF = 2nd-to-last
+     *   $A000-$BFFF = R7
+     *   $C000-$DFFF = R6
+     *   $E000-$FFFF = last
+     */
+    @Test
+    void d2_prgMode1_swapsR6AndSecondToLast() {
+        MapperMMC3 m = new MapperMMC3(8, 1);
+        // Mode 0: set R6 = 3, R7 = 5.
+        m.cpuMapWrite(0x8000, 0x06);
+        m.cpuMapWrite(0x8001, 0x03);
+        m.cpuMapWrite(0x8000, 0x07);
+        m.cpuMapWrite(0x8001, 0x05);
+
+        // Flip to mode 1 (bit 6 = 1); keep R-index pointing at R7 (low 3 = 7).
+        m.cpuMapWrite(0x8000, 0x47);
+
+        assertEquals(14 * 0x2000, m.cpuMapRead(0x8000), "2nd-to-last at $8000");
+        assertEquals(5 * 0x2000, m.cpuMapRead(0xA000), "R7 at $A000");
+        assertEquals(3 * 0x2000, m.cpuMapRead(0xC000), "R6 at $C000");
+        assertEquals(15 * 0x2000, m.cpuMapRead(0xE000), "last at $E000");
+    }
+
+    /**
+     * Last 8KB bank is FIXED at $E000-$FFFF in BOTH modes.
+     */
+    @Test
+    void d2_lastBank_alwaysFixedAt_E000() {
+        MapperMMC3 m = new MapperMMC3(8, 1);
+        m.cpuMapWrite(0x8000, 0x06);
+        m.cpuMapWrite(0x8001, 0x00);
+        assertEquals(15 * 0x2000, m.cpuMapRead(0xE000));
+        // Mode 1.
+        m.cpuMapWrite(0x8000, 0x46);
+        assertEquals(15 * 0x2000, m.cpuMapRead(0xE000));
+    }
+
+    /**
+     * R6 walks all PRG 8KB banks.
+     */
+    @Test
+    void d2_r6_acrossAllPrgBanks() {
+        MapperMMC3 m = new MapperMMC3(4, 1);  // 8 PRG 8KB banks
+        for (int b = 0; b < 8; b++) {
+            m.cpuMapWrite(0x8000, 0x06);
+            m.cpuMapWrite(0x8001, b);
+            assertEquals(b * 0x2000, m.cpuMapRead(0x8000),
+                    "PRG bank " + b + " base mismatch");
+        }
+    }
 }
