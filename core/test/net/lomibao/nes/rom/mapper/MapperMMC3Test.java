@@ -499,4 +499,102 @@ class MapperMMC3Test {
         m.cpuMapWrite(0xA000, 0x00);
         assertEquals(Mapper.Mirror.VERTICAL, m.mirror());
     }
+
+    // =====================================================================
+    // D5 — A12 detection (filtered rising edges)
+    // =====================================================================
+
+    /**
+     * A clean rising edge (low→high) after sufficient prior low time
+     * clocks the IRQ counter. With latch=0 and IRQ enabled, the first
+     * rising edge reloads counter to 0 → asserts IRQ immediately (per
+     * NESdev, "if reload makes counter 0, IRQ fires on that clock").
+     */
+    @Test
+    void d5_a12_risingEdge_clocksIRQCounter() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);   // latch = 0
+        m.cpuMapWrite(0xC001, 0x00);   // request reload
+        m.cpuMapWrite(0xE001, 0x00);   // enable IRQ
+
+        m.tickPpuA12(0x1000, 0x0000);
+        assertTrue(m.reqState(), "rising edge with latch=0 should assert IRQ on reload");
+    }
+
+    /**
+     * A falling edge (high→low) alone does not clock the counter and
+     * does not assert IRQ.
+     */
+    @Test
+    void d5_a12_fallingEdge_doesNotClockCounter() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x05);   // latch = 5
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        m.tickPpuA12(0x0000, 0x1000);
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * Two ticks with A12 low on both sides — not an edge.
+     */
+    @Test
+    void d5_a12_noEdge_lowToLow_doesNothing() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        m.tickPpuA12(0x0500, 0x0700);
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * A12 already high — not an edge (no clock).
+     */
+    @Test
+    void d5_a12_noEdge_highToHigh_doesNothing() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        m.tickPpuA12(0x1500, 0x1700);   // high→high
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * 4-PPU-clock low filter: a rising edge that comes too soon (without
+     * 4+ consecutive A12-low ticks since the previous high) does NOT
+     * clock the counter. We can't observe the counter directly, so we
+     * generate one filtered (suppressed) and one valid rising edge and
+     * verify the count of "valid" edges by watching IRQ assertion.
+     */
+    @Test
+    void d5_a12_lowFilter_rapidEdgesCountedOnce() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x02);   // latch = 2
+        m.cpuMapWrite(0xC001, 0x00);   // reload pending
+        m.cpuMapWrite(0xE001, 0x00);   // enable
+
+        // First rising edge: filter is initially "ready" → clocks → reload to 2.
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState());
+
+        // Falling edge, then IMMEDIATE rising edge — filter should suppress
+        // (only 1 low tick between rises).
+        m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);
+
+        // Drain low (≥4 ticks) and rise — this one should clock (counter 2→1).
+        for (int i = 0; i < 5; i++) m.tickPpuA12(0x0000, 0x0000);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState(), "counter must be 1 after exactly 1 valid decrement");
+
+        // Drain again and rise — counter 1→0 → IRQ.
+        for (int i = 0; i < 5; i++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertTrue(m.reqState(), "counter should hit 0 after 2 valid decrements (filter blocked the 3rd)");
+    }
 }

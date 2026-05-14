@@ -29,6 +29,9 @@ public class MapperMMC3 implements Mapper {
     private static final int PRG_8K  = 0x2000;
     private static final int CHR_1K  = 0x0400;
 
+    /** Minimum consecutive A12-low ticks required between rising edges. */
+    private static final int A12_LOW_FILTER_THRESHOLD = 4;
+
     private final int nPRGBanks;     // 16KB units
     private final int nCHRBanks;     // 8KB units
     /** Total 8KB PRG banks (= nPRGBanks * 2). */
@@ -48,6 +51,22 @@ public class MapperMMC3 implements Mapper {
     private int mirrorReg;
     /** $A001 odd-write — bits 6/7 control PRG-RAM protect (tracked only). */
     private int prgRamProtect;
+
+    // ---- IRQ counter -------------------------------------------------
+
+    /** Latch ($C000 even-write). */
+    private int irqLatch;
+    /** Current counter (loaded from latch on a reload-pending rising edge). */
+    private int irqCounter;
+    /** Pending reload — next rising edge replaces counter with latch. */
+    private boolean irqReloadPending;
+    /** IRQ enabled ($E001 enables, $E000 disables + acks). */
+    private boolean irqEnabled;
+    /** Asserted IRQ pending CPU ack. */
+    private boolean irqPending;
+
+    /** Consecutive A12-low ticks since the last A12-high observation. */
+    private int a12LowCount;
 
     public MapperMMC3(int prgBanks, int chrBanks) {
         this.nPRGBanks = prgBanks;
@@ -113,8 +132,24 @@ public class MapperMMC3 implements Mapper {
                     prgRamProtect = value;
                 }
                 break;
-            // $C000-$FFFF wired up in D6.
+            case 2:                          // $C000-$DFFF
+                if (even) {
+                    irqLatch = value & 0xFF;
+                } else {
+                    // Request reload — counter clears so the next rising
+                    // edge reloads from the latch.
+                    irqCounter = 0;
+                    irqReloadPending = true;
+                }
+                break;
+            case 3:                          // $E000-$FFFF
             default:
+                if (even) {
+                    irqEnabled = false;
+                    irqPending = false;      // ACK any pending IRQ
+                } else {
+                    irqEnabled = true;
+                }
                 break;
         }
         return UNMAPPED;
@@ -163,6 +198,47 @@ public class MapperMMC3 implements Mapper {
         return UNMAPPED;
     }
 
+    // ---- A12 / IRQ ---------------------------------------------------
+
+    @Override
+    public void tickPpuA12(int address, int previousAddress) {
+        boolean a12High = (address & 0x1000) != 0;
+        boolean prevA12High = (previousAddress & 0x1000) != 0;
+        if (!a12High) {
+            // Currently low — accumulate low-time for the filter.
+            if (a12LowCount < A12_LOW_FILTER_THRESHOLD) {
+                a12LowCount++;
+            }
+            return;
+        }
+        // a12High is true here.
+        if (prevA12High) {
+            // Still high — not a rising edge.
+            return;
+        }
+        // Rising-edge candidate. Apply the 4-PPU-clock low filter.
+        if (a12LowCount < A12_LOW_FILTER_THRESHOLD) {
+            // Suppress: not enough low-time. Stay at "high" — wait for the
+            // next genuine low-then-high cycle.
+            a12LowCount = 0;
+            return;
+        }
+        a12LowCount = 0;
+        clockIrqCounter();
+    }
+
+    private void clockIrqCounter() {
+        if (irqCounter == 0 || irqReloadPending) {
+            irqCounter = irqLatch;
+            irqReloadPending = false;
+        } else {
+            irqCounter--;
+        }
+        if (irqCounter == 0 && irqEnabled) {
+            irqPending = true;
+        }
+    }
+
     // ---- Lifecycle / metadata ----------------------------------------
 
     @Override
@@ -175,16 +251,23 @@ public class MapperMMC3 implements Mapper {
         chrInvert = false;
         mirrorReg = 0;
         prgRamProtect = 0;
+        irqLatch = 0;
+        irqCounter = 0;
+        irqReloadPending = false;
+        irqEnabled = false;
+        irqPending = false;
+        // Start with filter "ready" so the first valid rising edge clocks.
+        a12LowCount = A12_LOW_FILTER_THRESHOLD;
     }
 
     @Override
     public boolean reqState() {
-        return false;
+        return irqPending;
     }
 
     @Override
     public void irqClear() {
-        // no-op until D6
+        irqPending = false;
     }
 
     @Override
