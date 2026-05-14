@@ -12,16 +12,12 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplication;
 import com.github.xpenatan.gdx.teavm.backends.web.WebApplicationConfiguration;
 import net.lomibao.nes.NesSystem;
-import net.lomibao.nes.components.APU;
 import net.lomibao.nes.components.Button;
 import net.lomibao.nes.components.CPU6502;
-import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.Controller;
-import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
-import net.lomibao.nes.components.PPUBus;
-import net.lomibao.nes.components.Ram;
-import net.lomibao.nes.components.ppu.NameTableMemory;
+import net.lomibao.nes.rom.RomLoader;
+import org.teavm.jso.JSExport;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
@@ -38,9 +34,22 @@ import java.nio.ByteBuffer;
  * gradient and logs the cause — keeps the canvas alive and visibly
  * obviously-not-emulating instead of going black.
  *
+ * <p>Phase F adds a JS bridge: {@link #loadRomBytes(byte[])} is exported
+ * to the global scope via TeaVM {@code @JSExport}, so {@code index.html}'s
+ * file picker and drag-drop handlers can hot-swap the running emulator
+ * without a page reload.
+ *
  * <p>See {@code docs/web-phase0-findings.md} for the per-probe history.
  */
 public class HtmlLauncher {
+
+    /**
+     * Latest constructed {@link WebLauncher} — set in {@code create()}, read by
+     * the {@code @JSExport} bridge {@link #loadRomBytes(byte[])}. Single
+     * static instance because there's exactly one {@code WebApplication} per
+     * page; no thread safety needed (TeaVM has no real threads).
+     */
+    private static WebLauncher INSTANCE;
 
     public static void main(String[] args) {
         WebApplicationConfiguration config = new WebApplicationConfiguration();
@@ -50,6 +59,39 @@ public class HtmlLauncher {
         config.showDownloadLogs = true;
 
         new WebApplication(new WebLauncher(), config);
+    }
+
+    /**
+     * JS bridge — called from the browser ROM picker / drag-drop handlers in
+     * {@code index.html}. The argument is the raw bytes of an iNES file
+     * pushed in via {@code FileReader.readAsArrayBuffer} then converted to a
+     * {@code Uint8Array}/{@code Int8Array} which TeaVM marshals as a Java
+     * {@code byte[]}.
+     *
+     * <p>The actual emulator swap is deferred to the next render tick via
+     * {@link com.badlogic.gdx.Application#postRunnable(Runnable)} so we don't
+     * stomp on a frame mid-tick. Returns true on success, false if no
+     * {@link WebLauncher} has booted yet (i.e. called before
+     * {@code create()}) or if the bytes look obviously wrong before we even
+     * post the runnable — the deferred swap still validates again and logs
+     * any iNES / mapper-construction error.
+     *
+     * @param romBytes raw .nes file bytes
+     * @return {@code true} if the swap was scheduled, {@code false} otherwise
+     */
+    @JSExport
+    public static boolean loadRomBytes(byte[] romBytes) {
+        if (INSTANCE == null) {
+            // Launcher hasn't booted yet — JS picker fired faster than the
+            // gdx-teavm preload loop. The user can just retry; we don't queue.
+            return false;
+        }
+        if (romBytes == null || romBytes.length == 0) {
+            return false;
+        }
+        WebLauncher target = INSTANCE;
+        Gdx.app.postRunnable(() -> target.swapRom(romBytes));
+        return true;
     }
 
     private static class WebLauncher extends ApplicationAdapter {
@@ -78,6 +120,15 @@ public class HtmlLauncher {
         private Controller controller;
         private String loadedRom;
 
+        /**
+         * Cached opcode CSV bytes. Loaded once on boot from the gdx-teavm
+         * preload cache. Phase F's {@link #swapRom(byte[])} re-uses this for
+         * every hot-swap; refetching via {@code Gdx.files.internal(...)} on
+         * each pick would be wasted work and would also make the swap
+         * sensitive to a hypothetical asset-cache eviction.
+         */
+        private byte[] opcodeCsvBytes;
+
         @Override
         public void create() {
             batch = new SpriteBatch();
@@ -89,7 +140,19 @@ public class HtmlLauncher {
             Gdx.app.log("web", "boot — NES_W=" + NES_W + " NES_H=" + NES_H);
             probeResources();
             probeInput();
+            // Cache the opcode CSV before the first emulator build so the
+            // Phase F swap path doesn't have to re-fetch on every ROM pick.
+            try {
+                opcodeCsvBytes = Gdx.files.internal("opcodes/opcodes.csv").readBytes();
+            } catch (Throwable t) {
+                Gdx.app.error("web", "OPCODES CSV LOAD FAIL: " + t.getMessage(), t);
+            }
             setupEmulator();
+
+            // Publish ourselves so the @JSExport bridge can reach the live
+            // launcher. Done LAST so an INSTANCE is never visible in a
+            // half-initialized state.
+            INSTANCE = this;
         }
 
         /**
@@ -99,79 +162,78 @@ public class HtmlLauncher {
          * DonkeyKong.nes locally so it never got copied into the webapp).
          */
         private void setupEmulator() {
+            byte[] romBytes = tryLoad(PRIMARY_ROM);
+            String romName;
+            if (romBytes == null) {
+                romBytes = tryLoad(FALLBACK_ROM);
+                romName = FALLBACK_ROM;
+            } else {
+                romName = PRIMARY_ROM;
+            }
+            if (romBytes == null) {
+                Gdx.app.error("web",
+                        "EMULATOR SETUP FAIL: no ROM in asset cache "
+                        + "(tried " + PRIMARY_ROM + " and " + FALLBACK_ROM + ")");
+                return;
+            }
+            installRom(romBytes, romName);
+        }
+
+        /**
+         * Phase F hot-swap entry point. Replaces the live emulator state
+         * with one built from {@code newRomBytes}. Runs on the GDX render
+         * thread (scheduled via {@link com.badlogic.gdx.Application#postRunnable})
+         * so it never races a render frame.
+         */
+        void swapRom(byte[] newRomBytes) {
+            Gdx.app.log("web",
+                    "ROM swap requested — " + newRomBytes.length + " bytes");
+            // Drop any references to the prior emulator state so the GC can
+            // collect it. PPU/Cartridge/NesSystem are pure Java objects
+            // (no GL handles) — the SpriteBatch/Pixmap/Texture are owned by
+            // this launcher and re-used across ROMs (their sizes never change),
+            // so we don't dispose them here.
+            nes = null;
+            cpu = null;
+            ppu = null;
+            controller = null;
+            installRom(newRomBytes, "user-picked.nes");
+        }
+
+        /**
+         * Construct a {@link NesSystem} from the given iNES bytes and adopt
+         * it as the live emulator. Errors are caught and logged; the
+         * launcher falls back to the gradient until the user picks something
+         * that loads.
+         */
+        private void installRom(byte[] romBytes, String romName) {
+            if (opcodeCsvBytes == null) {
+                Gdx.app.error("web",
+                        "EMULATOR SETUP FAIL: opcodes.csv not available — "
+                        + "preload cache missing the asset?");
+                return;
+            }
             try {
-                byte[] romBytes = tryLoad(PRIMARY_ROM);
-                if (romBytes == null) {
-                    romBytes = tryLoad(FALLBACK_ROM);
-                    loadedRom = FALLBACK_ROM;
-                } else {
-                    loadedRom = PRIMARY_ROM;
-                }
-                if (romBytes == null) {
-                    Gdx.app.error("web",
-                            "EMULATOR SETUP FAIL: no ROM in asset cache "
-                            + "(tried " + PRIMARY_ROM + " and " + FALLBACK_ROM + ")");
-                    return;
-                }
-                Cartridge cart = new Cartridge(
-                        new ByteArrayInputStream(romBytes), loadedRom);
-
-                ppu = new PPU();
-                PPUBus ppuBus = new PPUBus();
-                NameTableMemory nameTableMemory = new NameTableMemory();
-                ppuBus.connect(nameTableMemory);
-                ppu.connectPPUBus(ppuBus);
-
-                // TeaVM can't reach raw classpath resources via getResourceAsStream,
-                // so feed CPU6502 the opcode CSV via the InputStream constructor.
-                byte[] csvBytes = Gdx.files.internal("opcodes/opcodes.csv").readBytes();
-                cpu = new CPU6502(new ByteArrayInputStream(csvBytes));
-                Ram ram = new Ram();
-
-                // Wire Controller + APU so cart reads of $4015/$4016/$4017
-                // (Donkey Kong polls these every frame) hit real handlers
-                // instead of falling through to CPUBus.read's "no device
-                // found" log.error — that log call goes through the html
-                // log4j stub's format-via-regex path, which was tanking
-                // runFrame from ~16ms back up to ~90ms in profiling.
-                controller = new Controller();
-                nes = NesSystem.builder()
-                        .cpu(cpu).ram(ram).ppu(ppu)
-                        .apu(new APU())
-                        .controller(controller)
-                        .dma(new DmaController())
-                        .build();
-
-                nes.getCpuBus().setCartridge(cart);
-                ppu.setCartridge(cart);
-                ppuBus.connectCartridge(cart);
-                ppuBus.connectPPU(ppu);
-
-                cpu.reset();
-                ppu.reset();
-
-                // Seed a default palette + enable BG rendering so screens look
-                // sensible before the cart programs the PPU itself (matches
-                // EmulatorScreen.initializeTestPattern on desktop).
-                ppu.cpuBusWrite(0x2001, (byte) 0x08);
-                ppu.cpuBusWrite(0x2006, (byte) 0x3F);
-                ppu.cpuBusWrite(0x2006, (byte) 0x00);
-                ppu.cpuBusWrite(0x2007, (byte) 0x0F);
-                ppu.cpuBusWrite(0x2007, (byte) 0x00);
-                ppu.cpuBusWrite(0x2007, (byte) 0x10);
-                ppu.cpuBusWrite(0x2007, (byte) 0x30);
-
+                RomLoader.Loaded loaded = RomLoader.loadFromBytes(
+                        romBytes, romName,
+                        new ByteArrayInputStream(opcodeCsvBytes));
+                this.nes = loaded.nes;
+                this.cpu = loaded.cpu;
+                this.ppu = loaded.ppu;
+                this.controller = loaded.controller;
+                this.loadedRom = romName;
                 Gdx.app.log("web",
                         "EMULATOR READY rom=" + loadedRom
-                        + " mapper=" + cart.header.getMapperNumber()
-                        + " prgBanks=" + cart.header.getPRGROMSize()
-                        + " chrBanks=" + cart.header.getCHRROMSize()
+                        + " mapper=" + loaded.cartridge.header.getMapperNumber()
+                        + " prgBanks=" + loaded.cartridge.header.getPRGROMSize()
+                        + " chrBanks=" + loaded.cartridge.header.getCHRROMSize()
                         + " initialPC=0x" + Integer.toHexString(cpu.getPc()));
             } catch (Throwable t) {
                 Gdx.app.error("web", "EMULATOR SETUP FAIL: " + t.getMessage(), t);
                 nes = null;
                 cpu = null;
                 ppu = null;
+                controller = null;
             }
         }
 
