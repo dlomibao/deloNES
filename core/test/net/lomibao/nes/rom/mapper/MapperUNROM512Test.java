@@ -36,6 +36,7 @@ class MapperUNROM512Test {
 
     // 128KB PRG (Micro Mages size) → 8 × 16KB banks; 256KB → 16 banks.
     private static final int PRG_BANKS_8  = 8;
+    private static final int PRG_BANKS_16 = 16;
     private static final int CHR_BANKS    = 0;  // CHR-RAM cart
 
     private static final int PRG_16K = 16 * 1024;
@@ -127,6 +128,54 @@ class MapperUNROM512Test {
         assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x8000));
         assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x6000));
         assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0xFFFF));
+    }
+
+    // =====================================================================
+    // E2 — PRG layout (16KB switchable at $8000-$BFFF, 16KB fixed-last at
+    //                  $C000-$FFFF)
+    // =====================================================================
+
+    @Test
+    void cpuMapRead_lowWindow_followsSwitchableBank() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        m.cpuMapWrite(0x8000, 0x05);  // bank 5
+        // $8000 → bank 5 byte 0 = 5 * 16KB = 0x14000.
+        assertEquals(5 * PRG_16K, m.cpuMapRead(0x8000));
+        // $BFFF → bank 5 last byte = 0x14000 + 0x3FFF = 0x17FFF.
+        assertEquals(5 * PRG_16K + 0x3FFF, m.cpuMapRead(0xBFFF));
+    }
+
+    @Test
+    void cpuMapRead_highWindow_alwaysReturnsLastBank() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        int lastBank = PRG_BANKS_8 - 1;  // 7
+        int lastBase = lastBank * PRG_16K;
+        // Power-on: $C000 → last-bank byte 0.
+        assertEquals(lastBase, m.cpuMapRead(0xC000));
+        assertEquals(lastBase + 0x3FFF, m.cpuMapRead(0xFFFF));
+        // Change low bank — high window stays on last bank.
+        m.cpuMapWrite(0x8000, 0x03);
+        assertEquals(lastBase, m.cpuMapRead(0xC000));
+        assertEquals(lastBase + 0x3FFF, m.cpuMapRead(0xFFFF));
+    }
+
+    @Test
+    void cpuMapRead_boundary_BFFF_C000() {
+        // Verify the $BFFF/$C000 boundary: the byte just below uses the
+        // switchable bank; the byte just above uses the last bank.
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_16, CHR_BANKS);
+        m.cpuMapWrite(0x8000, 0x04);  // bank 4 (low nibble)
+        int lastBase = (PRG_BANKS_16 - 1) * PRG_16K;
+        assertEquals(4 * PRG_16K + 0x3FFF, m.cpuMapRead(0xBFFF));
+        assertEquals(lastBase,             m.cpuMapRead(0xC000));
+    }
+
+    @Test
+    void cpuMapRead_outOfRange_returnsUNMAPPED() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x0000));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x4020));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x7FFF));
     }
 
     // ---- Bookkeeping / lifecycle stubs (no IRQ source on UNROM-512) ----
