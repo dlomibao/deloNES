@@ -1,0 +1,150 @@
+package net.lomibao.nes.rom.mapper;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Behavioural coverage for {@link Mapper000} (NROM). Verifies the
+ * fixed/mirrored PRG layouts, CHR pass-through with CHR-ROM vs CHR-RAM,
+ * out-of-range UNMAPPED sentinel behaviour, and that the
+ * IRQ/scanline/reset stubs are callable as no-ops. This is the canonical
+ * baseline against which Phase B mappers will be compared.
+ */
+class Mapper000Test {
+
+    // ---- PRG mapping (16KB single-bank mirrored, 32KB dual-bank) ----
+
+    @Test
+    void cpuMapRead_16KB_mirrorsLowerHalfIntoUpperHalf() {
+        Mapper000 m = new Mapper000(1, 1);
+        // $8000 → offset 0
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        // $BFFF → offset $3FFF (top of 16KB)
+        assertEquals(0x3FFF, m.cpuMapRead(0xBFFF));
+        // $C000 → mirrors back to offset 0 (16KB mirror)
+        assertEquals(0x0000, m.cpuMapRead(0xC000));
+        // $FFFF → mirrors to $3FFF
+        assertEquals(0x3FFF, m.cpuMapRead(0xFFFF));
+    }
+
+    @Test
+    void cpuMapRead_32KB_flatMappingAcrossFullPRGRange() {
+        Mapper000 m = new Mapper000(2, 1);
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        assertEquals(0x3FFF, m.cpuMapRead(0xBFFF));
+        assertEquals(0x4000, m.cpuMapRead(0xC000));
+        assertEquals(0x7FFF, m.cpuMapRead(0xFFFF));
+    }
+
+    @Test
+    void cpuMapRead_belowPrgRange_returnsUNMAPPED() {
+        Mapper000 m = new Mapper000(1, 1);
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x7FFF));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x0000));
+    }
+
+    @Test
+    void cpuMapWrite_inRange_returnsMappedAddress() {
+        // Mapper 0 has no PRG register; addresses round-trip the same as reads.
+        Mapper000 m = new Mapper000(2, 1);
+        assertEquals(0x4000, m.cpuMapWrite(0xC000));
+    }
+
+    @Test
+    void cpuMapWrite_outOfRange_returnsUNMAPPED() {
+        Mapper000 m = new Mapper000(1, 1);
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x6000));
+    }
+
+    @Test
+    void cpuMapWrite_16KB_mirrorsLikeRead() {
+        Mapper000 m = new Mapper000(1, 1);
+        assertEquals(0x0000, m.cpuMapWrite(0xC000));
+        assertEquals(0x3FFF, m.cpuMapWrite(0xFFFF));
+    }
+
+    // ---- CHR mapping (passthrough) ----
+
+    @Test
+    void ppuMapRead_inCHRRange_passesThrough() {
+        Mapper000 m = new Mapper000(1, 1);
+        assertEquals(0x0000, m.ppuMapRead(0x0000));
+        assertEquals(0x1FFF, m.ppuMapRead(0x1FFF));
+    }
+
+    @Test
+    void ppuMapRead_outOfCHRRange_returnsUNMAPPED() {
+        Mapper000 m = new Mapper000(1, 1);
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(0x2000));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(0x3000));
+    }
+
+    @Test
+    void ppuMapWrite_chrROMcart_returnsUNMAPPED() {
+        // CHR-ROM cart (nCHRBanks > 0) ignores PPU writes to pattern memory.
+        Mapper000 m = new Mapper000(1, 1);
+        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x0100));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x1FFF));
+    }
+
+    @Test
+    void ppuMapWrite_chrRAMcart_passesThrough() {
+        // CHR-RAM cart (nCHRBanks == 0) lets writes through.
+        Mapper000 m = new Mapper000(1, 0);
+        assertEquals(0x0100, m.ppuMapWrite(0x0100));
+        assertEquals(0x1FFF, m.ppuMapWrite(0x1FFF));
+    }
+
+    @Test
+    void ppuMapWrite_outOfCHRRange_returnsUNMAPPED_regardlessOfCHRRAM() {
+        Mapper000 chrRam = new Mapper000(1, 0);
+        Mapper000 chrRom = new Mapper000(1, 1);
+        assertEquals(Mapper.UNMAPPED, chrRam.ppuMapWrite(0x2000));
+        assertEquals(Mapper.UNMAPPED, chrRom.ppuMapWrite(0x2000));
+    }
+
+    // ---- Bank counts and configuration ----
+
+    @Test
+    void numberOfPRGBanks_reflectsConstructorArg() {
+        assertEquals(1, new Mapper000(1, 1).numberOfPRGBanks());
+        assertEquals(2, new Mapper000(2, 1).numberOfPRGBanks());
+    }
+
+    @Test
+    void numberOfCHRBanks_reflectsConstructorArg() {
+        assertEquals(1, new Mapper000(1, 1).numberOfCHRBanks());
+        assertEquals(0, new Mapper000(1, 0).numberOfCHRBanks());
+    }
+
+    @Test
+    void mirror_isAlwaysHARDWARE_forNROM() {
+        assertEquals(Mapper.Mirror.HARDWARE, new Mapper000(1, 1).mirror());
+        assertEquals(Mapper.Mirror.HARDWARE, new Mapper000(2, 0).mirror());
+    }
+
+    // ---- IRQ + lifecycle stubs (no-ops, just exercise for coverage) ----
+
+    @Test
+    void resetAndStubs_doNotThrow() {
+        Mapper000 m = new Mapper000(1, 1);
+        m.reset();
+        m.scanLine();
+        m.irqClear();
+        assertFalse(m.reqState(), "NROM has no IRQ source");
+    }
+
+    // ---- Enum coverage: the Mirror enum's synthetic values()/valueOf() ----
+
+    @Test
+    void mirrorEnum_hasFiveEntries_andRoundTripsByName() {
+        Mapper.Mirror[] values = Mapper.Mirror.values();
+        assertEquals(5, values.length);
+        assertEquals(Mapper.Mirror.HARDWARE, Mapper.Mirror.valueOf("HARDWARE"));
+        assertEquals(Mapper.Mirror.HORIZONTAL, Mapper.Mirror.valueOf("HORIZONTAL"));
+        assertEquals(Mapper.Mirror.VERTICAL, Mapper.Mirror.valueOf("VERTICAL"));
+        assertEquals(Mapper.Mirror.ONESCREEN_LO, Mapper.Mirror.valueOf("ONESCREEN_LO"));
+        assertEquals(Mapper.Mirror.ONESCREEN_HI, Mapper.Mirror.valueOf("ONESCREEN_HI"));
+    }
+}

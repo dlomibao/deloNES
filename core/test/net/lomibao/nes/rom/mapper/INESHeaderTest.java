@@ -131,4 +131,76 @@ class INESHeaderTest {
         assertEquals(0xF0, header.getMapperNumber() & 0xF0,
                 "NES 2.0 must keep byte 7's high nibble even when bytes 12-15 are non-zero");
     }
+
+    // ---------------------------------------------------------------------------
+    // Flag accessors — straight bit reads. Cover both states.
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void prgAndChrRomSizes_readByte4AndByte5() {
+        byte[] h = makeHeader(0);
+        h[4] = 0x08; // 8 x 16KB
+        h[5] = 0x02; // 2 x 8KB
+        INESHeader header = new INESHeader(h);
+        assertEquals(8, header.getPRGROMSize());
+        assertEquals(8, header.getSizeOfPRGRom());
+        assertEquals(2, header.getCHRROMSize());
+    }
+
+    @Test
+    void flags6_mirroringAndBatteryAndTrainerAndFourScreen() {
+        byte[] h = makeHeader(0);
+        h[6] = (byte) 0x0F; // all four low bits set
+        INESHeader header = new INESHeader(h);
+        assertTrue(header.isHorizontalMirroring());
+        assertTrue(header.hasBatteryBackedRAM());
+        assertTrue(header.hasTrainer());
+        assertTrue(header.isFourScreenVRAM());
+        assertEquals(0x0F, header.getFlags6());
+    }
+
+    @Test
+    void flags6_allClear_reportsFalse() {
+        byte[] h = makeHeader(0); // makeHeader clears flags
+        INESHeader header = new INESHeader(h);
+        assertFalse(header.isHorizontalMirroring());
+        assertFalse(header.hasBatteryBackedRAM());
+        assertFalse(header.hasTrainer());
+        assertFalse(header.isFourScreenVRAM());
+    }
+
+    @Test
+    void flags7_vsUnisystemAndPlayChoice10() {
+        byte[] h = makeHeader(0);
+        h[7] = 0x03; // bits 0 and 1
+        INESHeader header = new INESHeader(h);
+        assertTrue(header.isVSUnisystem());
+        assertTrue(header.isPlayChoice10());
+        assertEquals(0x03, header.getFlags7());
+    }
+
+    @Test
+    void flags8_through10_readPRGRAMAndPALAndPRGRAMPresent() {
+        byte[] h = makeHeader(0);
+        h[8] = 0x04;
+        h[9] = 0x01;  // PAL bit
+        h[10] = 0x10; // PRG-RAM present bit
+        INESHeader header = new INESHeader(h);
+        assertEquals(4, header.getPRGRAMSize());
+        assertEquals(4, header.getFlags8());
+        assertTrue(header.isPAL());
+        assertEquals(1, header.getFlags9());
+        assertTrue(header.hasPRGRAMPresent());
+        assertEquals(0x10, header.getFlags10());
+    }
+
+    @Test
+    void getHeaderBytes_returnsBackingArray_andPrintHeaderBytesIsNoOp() {
+        byte[] h = makeHeader(0);
+        INESHeader header = new INESHeader(h);
+        assertSame(h, header.getHeaderBytes());
+        // printHeaderBytes is intentionally a no-op; call it to register
+        // coverage and assert nothing throws.
+        header.printHeaderBytes();
+    }
 }

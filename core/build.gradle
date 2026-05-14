@@ -4,4 +4,48 @@ sourceSets.main.java.srcDirs = [ "src/" ]
 sourceSets.main.resources.srcDirs = [ "src/main/resources" ]
 sourceSets.test.java.srcDirs = [ "test/" ]
 
+// JaCoCo coverage — Phase A0 of docs/mapper-plan.md. Gate enforces
+// ≥90% line coverage on the rom.mapper package so every mapper added
+// in Phase B-E has to ship with real tests, not a stub. Threshold can
+// be relaxed per-class via includes if a specific class is justifiably
+// hard to cover (e.g. defensive branches).
+apply plugin: "jacoco"
+
+jacoco {
+    // 0.8.14 is the first release with official JDK 25 (class file
+    // major v69) support. Earlier 0.8.13 only has experimental support.
+    toolVersion = "0.8.14"
+}
+
+test {
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            element = "CLASS"
+            includes = [
+                "net.lomibao.nes.rom.mapper.*"
+            ]
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = 0.90
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification
+
 eclipse.project.name = appName + "-core"
