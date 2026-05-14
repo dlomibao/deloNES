@@ -441,6 +441,194 @@ class MapperMMC1Test {
         assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x2000));
     }
 
+    // =====================================================================
+    // C4 — PRG bank register
+    // =====================================================================
+
+    /**
+     * PRG mode 3 (default after reset): $8000-$BFFF switchable, $C000-$FFFF
+     * fixed to LAST bank. Walk the low window across all available PRG banks.
+     */
+    @Test
+    void prgMode3_lowSwitchable_highFixedToLast() {
+        MapperMMC1 m = new MapperMMC1(8, 1);
+        // Default control = 0x0C (mode 3). High window stays on last bank (7).
+        final int LAST_BASE = 7 * 0x4000;
+        assertEquals(LAST_BASE, m.cpuMapRead(0xC000));
+        assertEquals(LAST_BASE + 0x3FFF, m.cpuMapRead(0xFFFF));
+
+        for (int b = 0; b < 8; b++) {
+            commitFiveBitValue(m, 0xE000, b);
+            assertEquals(b * 0x4000, m.cpuMapRead(0x8000),
+                    "bank " + b + " base mismatch");
+            assertEquals(b * 0x4000 + 0x3FFF, m.cpuMapRead(0xBFFF),
+                    "bank " + b + " top mismatch");
+            assertEquals(LAST_BASE, m.cpuMapRead(0xC000),
+                    "high window should still serve last bank after PRG bank=" + b);
+        }
+    }
+
+    /**
+     * PRG mode 2: $8000-$BFFF FIXED to FIRST bank, $C000-$FFFF switchable.
+     * Walk the high window across all available PRG banks.
+     */
+    @Test
+    void prgMode2_lowFixedToFirst_highSwitchable() {
+        MapperMMC1 m = new MapperMMC1(8, 1);
+        writeControl(m, 0b01000);  // prg-mode = 10 → mode 2
+        // Low window must stay on bank 0 regardless of PRG bank register.
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        assertEquals(0x3FFF, m.cpuMapRead(0xBFFF));
+
+        for (int b = 0; b < 8; b++) {
+            commitFiveBitValue(m, 0xE000, b);
+            assertEquals(b * 0x4000, m.cpuMapRead(0xC000),
+                    "high bank " + b + " base mismatch (mode 2)");
+            assertEquals(b * 0x4000 + 0x3FFF, m.cpuMapRead(0xFFFF),
+                    "high bank " + b + " top mismatch (mode 2)");
+            assertEquals(0x0000, m.cpuMapRead(0x8000),
+                    "low window should remain on first bank after PRG bank=" + b);
+        }
+    }
+
+    /**
+     * PRG modes 0 and 1: 32KB switchable. The low bit of the PRG bank
+     * register is IGNORED — bank pair {0,1}, {2,3}, {4,5}, {6,7}.
+     */
+    @Test
+    void prgMode0_32kbSwitchable_lowBitIgnored() {
+        MapperMMC1 m = new MapperMMC1(8, 1);
+        writeControl(m, 0b00000);  // prg-mode = 00
+
+        // PRG bank register = 0 → 32KB pair {0,1}: $8000=bank 0, $C000=bank 1.
+        commitFiveBitValue(m, 0xE000, 0x00);
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        assertEquals(0x4000, m.cpuMapRead(0xC000));
+
+        // PRG bank reg = 1 → low bit ignored → still {0,1}.
+        commitFiveBitValue(m, 0xE000, 0x01);
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        assertEquals(0x4000, m.cpuMapRead(0xC000));
+
+        // PRG bank reg = 2 → pair {2,3}.
+        commitFiveBitValue(m, 0xE000, 0x02);
+        assertEquals(2 * 0x4000, m.cpuMapRead(0x8000));
+        assertEquals(3 * 0x4000, m.cpuMapRead(0xC000));
+
+        // PRG bank reg = 3 → low bit ignored → still {2,3}.
+        commitFiveBitValue(m, 0xE000, 0x03);
+        assertEquals(2 * 0x4000, m.cpuMapRead(0x8000));
+        assertEquals(3 * 0x4000, m.cpuMapRead(0xC000));
+
+        // PRG bank reg = 6 → pair {6,7}.
+        commitFiveBitValue(m, 0xE000, 0x06);
+        assertEquals(6 * 0x4000, m.cpuMapRead(0x8000));
+        assertEquals(7 * 0x4000, m.cpuMapRead(0xC000));
+    }
+
+    @Test
+    void prgMode1_sameAs_prgMode0_32kbSwitchable() {
+        // bits 2-3 = 01 → 32KB mode (per NESdev wiki, modes 0 and 1 are identical).
+        MapperMMC1 m = new MapperMMC1(8, 1);
+        writeControl(m, 0b00100);  // prg-mode = 01
+
+        commitFiveBitValue(m, 0xE000, 0x02);
+        assertEquals(2 * 0x4000, m.cpuMapRead(0x8000));
+        assertEquals(3 * 0x4000, m.cpuMapRead(0xC000));
+    }
+
+    /**
+     * PRG bank register low 4 bits hold the bank index. The 5th bit
+     * (bit 4) is masked off for compatibility with all licensed
+     * Mapper-1 carts up to 256KB.
+     */
+    @Test
+    void prgBank_isMaskedToLow4Bits() {
+        MapperMMC1 m = new MapperMMC1(16, 1);  // 256KB / 16 banks of 16KB
+        // Mode 3 (default).
+        commitFiveBitValue(m, 0xE000, 0x1F);  // 5-bit max = 31 → masked to 0x0F.
+        assertEquals(0x0F * 0x4000, m.cpuMapRead(0x8000));
+    }
+
+    /**
+     * Out-of-range CPU address → UNMAPPED, regardless of PRG mode.
+     */
+    @Test
+    void cpuMapRead_belowPrgRange_returnsUNMAPPED() {
+        MapperMMC1 m = new MapperMMC1(4, 1);
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x0000));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x4020));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapRead(0x7FFF));
+    }
+
+    @Test
+    void cpuMapWrite_belowPrgRange_returnsUNMAPPED_andDoesNotShift() {
+        // A write below $8000 must not affect the serial shifter at all.
+        MapperMMC1 m = new MapperMMC1(4, 1);
+        m.cpuMapWrite(0x6000, 0x01);
+        m.cpuMapWrite(0x6000, 0x01);
+        m.cpuMapWrite(0x6000, 0x01);
+        m.cpuMapWrite(0x6000, 0x01);
+        m.cpuMapWrite(0x6000, 0x01);
+        // After 5 ineffective writes, PRG bank register should still be 0,
+        // and Control should still be the default 0x0C.
+        assertEquals(0xC000, m.cpuMapRead(0xC000),
+                "out-of-range writes must NOT drive the serial protocol");
+    }
+
+    /**
+     * Reset clears the serial-shifter state and returns Control to its
+     * power-on configuration (mode 3).
+     */
+    @Test
+    void reset_returnsMapperToPowerOnState() {
+        MapperMMC1 m = new MapperMMC1(8, 1);
+        // Mess with it: set PRG mode 0 and pick bank 3.
+        writeControl(m, 0b00000);
+        commitFiveBitValue(m, 0xE000, 0x03);
+        assertEquals(0x02 * 0x4000, m.cpuMapRead(0x8000));  // 32KB pair {2,3} low
+
+        m.reset();
+        // Back to mode 3 default — $C000 must be last bank.
+        assertEquals(7 * 0x4000, m.cpuMapRead(0xC000));
+        // PRG bank register also cleared → bank 0 at $8000.
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+    }
+
+    /**
+     * Lifecycle stubs — these are no-ops on MMC1 (no IRQ source) but
+     * must be callable so the Mapper interface contract is satisfied
+     * (also needed for JaCoCo coverage of the no-op bodies).
+     */
+    @Test
+    void mmc1HasNoIRQSource_lifecycleStubsAreCallable() {
+        MapperMMC1 m = new MapperMMC1(4, 1);
+        m.scanLine();
+        m.irqClear();
+        assertFalse(m.reqState());
+    }
+
+    @Test
+    void numberOfPRGBanks_andCHRBanks_reflectConstructor() {
+        MapperMMC1 m = new MapperMMC1(8, 2);
+        assertEquals(8, m.numberOfPRGBanks());
+        assertEquals(2, m.numberOfCHRBanks());
+    }
+
+    @Test
+    void cpuMapWrite_1argLegacy_alwaysReturnsUNMAPPED_andDoesNotShift() {
+        // The value-less 1-arg form can't drive the serial protocol;
+        // it's kept for interface compatibility. Cartridge.cpuBusWrite
+        // uses the 2-arg overload.
+        MapperMMC1 m = new MapperMMC1(4, 1);
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x8000));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0xFFFF));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x6000));
+        // No latch should have happened: default state preserved.
+        // 4 PRG banks → last bank index = 3 → $C000 → 3 * 16KB.
+        assertEquals(3 * 0x4000, m.cpuMapRead(0xC000));
+    }
+
     // ============================================================
     // Helpers
     // ============================================================
