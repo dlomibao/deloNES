@@ -8,6 +8,7 @@ import net.lomibao.nes.rom.mapper.Mapper000;
 import net.lomibao.nes.rom.mapper.MapperAxROM;
 import net.lomibao.nes.rom.mapper.MapperCNROM;
 import net.lomibao.nes.rom.mapper.MapperMMC1;
+import net.lomibao.nes.rom.mapper.MapperMMC3;
 import net.lomibao.nes.rom.mapper.MapperUxROM;
 
 import java.io.BufferedInputStream;
@@ -98,6 +99,7 @@ public class Cartridge extends CPUBusComponent {
                 mapper = new MapperCNROM(nPRGBanks, nCHRBanks);
                 break;
             case 4:
+                mapper = new MapperMMC3(nPRGBanks, nCHRBanks);
                 break;
             case 7:
                 mapper = new MapperAxROM(nPRGBanks, nCHRBanks);

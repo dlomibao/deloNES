@@ -597,4 +597,199 @@ class MapperMMC3Test {
         m.tickPpuA12(0x1000, 0x0000);
         assertTrue(m.reqState(), "counter should hit 0 after 2 valid decrements (filter blocked the 3rd)");
     }
+
+    // =====================================================================
+    // D6 — IRQ counter
+    // =====================================================================
+
+    /**
+     * $C000 (even) sets the IRQ latch (reload value).
+     */
+    @Test
+    void d6_irqLatch_setsReloadValue() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x03);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        // First rising edge reloads counter to latch (3).
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState());
+
+        // 3 more valid rising edges decrement to 0 → IRQ.
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+            m.tickPpuA12(0x1000, 0x0000);
+        }
+        assertTrue(m.reqState(), "counter should reach 0 after 3 decrements from latch=3");
+    }
+
+    /**
+     * $C001 (odd) clears the counter so the NEXT rising edge reloads
+     * from the latch (rather than decrementing).
+     */
+    @Test
+    void d6_irqReload_causesNextEdgeToLoadFromLatch() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x02);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        // Reload to 2 on first edge.
+        m.tickPpuA12(0x1000, 0x0000);
+        // Decrement to 1.
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState());
+
+        // Re-latch and request reload to 5.
+        m.cpuMapWrite(0xC000, 0x05);
+        m.cpuMapWrite(0xC001, 0x00);
+
+        // Next edge reloads to 5 (not decrement to 0).
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState(), "reload should have replaced counter with 5, not zeroed it");
+    }
+
+    /**
+     * Counter decrements on each filtered rising edge until it hits 0.
+     */
+    @Test
+    void d6_counter_decrementsOnRisingEdges() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x02);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        m.tickPpuA12(0x1000, 0x0000);   // reload → 2
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);   // → 1
+        assertFalse(m.reqState());
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);   // → 0 → IRQ
+        assertTrue(m.reqState());
+    }
+
+    /**
+     * Counter at 0 with IRQ enabled → reqState() = true.
+     */
+    @Test
+    void d6_counterAtZero_andEnabled_assertsIRQ() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertTrue(m.reqState());
+    }
+
+    /**
+     * Counter at 0 with IRQ DISABLED → reqState() = false.
+     */
+    @Test
+    void d6_counterAtZero_butDisabled_doesNotAssertIRQ() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE000, 0x00);    // disable
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * $E000 (even) disables IRQs AND acknowledges any pending IRQ.
+     */
+    @Test
+    void d6_e000_disablesAndClearsPendingIRQ() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertTrue(m.reqState());
+
+        m.cpuMapWrite(0xE000, 0x00);    // disable + ack
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * $E001 (odd) enables IRQs without reloading or modifying the counter.
+     */
+    @Test
+    void d6_e001_enablesIRQ_doesNotReloadCounter() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x03);
+        m.cpuMapWrite(0xC001, 0x00);    // pending reload
+        m.cpuMapWrite(0xE001, 0x00);    // enable
+        // No IRQ yet — no rising edge has occurred.
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * {@link MapperMMC3#irqClear()} clears the pending flag (CPU-ack
+     * mechanism).
+     */
+    @Test
+    void d6_irqClear_clearsPending() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x00);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertTrue(m.reqState());
+
+        m.irqClear();
+        assertFalse(m.reqState());
+    }
+
+    /**
+     * Once the counter hits 0 and IRQ asserts, the NEXT rising edge
+     * reloads from the latch (per NESdev: "counter=0 + clock = reload
+     * from latch"). Confirm the reload happens.
+     */
+    @Test
+    void d6_afterZero_nextEdgeReloadsFromLatch() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xC000, 0x01);    // latch = 1
+        m.cpuMapWrite(0xC001, 0x00);    // reload
+        m.cpuMapWrite(0xE001, 0x00);    // enable
+
+        m.tickPpuA12(0x1000, 0x0000);   // reload → 1
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);   // 1 → 0 → IRQ
+        assertTrue(m.reqState());
+
+        // ACK then re-enable.
+        m.cpuMapWrite(0xE000, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+
+        // Next rising edge: counter is 0, reload from latch (=1).
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertFalse(m.reqState(), "reload from latch (=1) — should NOT fire IRQ this clock");
+
+        // Next decrement: 1 → 0 → IRQ.
+        for (int j = 0; j < 5; j++) m.tickPpuA12(0x0000, 0x1000);
+        m.tickPpuA12(0x1000, 0x0000);
+        assertTrue(m.reqState());
+    }
+
+    // =====================================================================
+    // Misc — additional reset / coverage
+    // =====================================================================
+
+    @Test
+    void d6_reset_clearsIRQState() {
+        MapperMMC3 m = new MapperMMC3(8, 1);
+        m.cpuMapWrite(0xC000, 0x05);
+        m.cpuMapWrite(0xC001, 0x00);
+        m.cpuMapWrite(0xE001, 0x00);
+        m.tickPpuA12(0x1000, 0x0000);   // not asserted yet (counter loaded to 5)
+
+        m.reset();
+        // Post-reset: $E000-fixed last bank still served; IRQ disabled.
+        assertEquals(15 * 0x2000, m.cpuMapRead(0xE000));
+        assertFalse(m.reqState());
+    }
 }
