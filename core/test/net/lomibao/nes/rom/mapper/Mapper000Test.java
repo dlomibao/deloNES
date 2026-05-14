@@ -77,6 +77,15 @@ class Mapper000Test {
         assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x6000, 0x01));
     }
 
+    @Test
+    void getChrRamSize_default_is8KB() {
+        // Mapper interface ships a default getChrRamSize() returning 8KB.
+        // Mapper000 inherits this; UNROM-512 overrides to 32KB. Exercising
+        // the default here keeps JaCoCo above ≥0.90 on the interface.
+        Mapper000 m = new Mapper000(1, 0);
+        assertEquals(8192, m.getChrRamSize());
+    }
+
     // ---- CHR mapping (passthrough) ----
 
     @Test

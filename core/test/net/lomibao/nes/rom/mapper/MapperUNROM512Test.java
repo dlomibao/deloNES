@@ -195,13 +195,77 @@ class MapperUNROM512Test {
         assertFalse(m.reqState(), "UNROM-512 has no IRQ source");
     }
 
+    // =====================================================================
+    // E3 — CHR-RAM (32KB, 4 × 8KB banks)
+    // =====================================================================
+
     @Test
-    void ppuMapWrite_e1Stub_returnsUNMAPPED() {
-        // E1 ships a stub ppuMapWrite that always returns UNMAPPED.
-        // The 32KB CHR-RAM bank-aware write path is added in E3.
+    void getChrRamSize_is32KB_overridesDefault8KB() {
+        // UNROM-512 needs 32KB of CHR-RAM (4 × 8KB banks). The default
+        // on the Mapper interface is 8KB; this mapper must override.
         MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
-        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x0000));
-        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x1FFF));
+        assertEquals(32 * 1024, m.getChrRamSize());
+    }
+
+    @Test
+    void ppuMapRead_chrBankSwitch_returnsBankOffsetIntoCHRRAM() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        // bank 0
+        assertEquals(0x0000, m.ppuMapRead(0x0000));
+        assertEquals(0x1FFF, m.ppuMapRead(0x1FFF));
+        // bank 1
+        m.cpuMapWrite(0x8000, 0x10);
+        assertEquals(1 * CHR_8K,          m.ppuMapRead(0x0000));
+        assertEquals(1 * CHR_8K + 0x1FFF, m.ppuMapRead(0x1FFF));
+        // bank 2
+        m.cpuMapWrite(0x8000, 0x20);
+        assertEquals(2 * CHR_8K, m.ppuMapRead(0x0000));
+        // bank 3
+        m.cpuMapWrite(0x8000, 0x30);
+        assertEquals(3 * CHR_8K, m.ppuMapRead(0x0000));
+    }
+
+    @Test
+    void ppuMapWrite_chrRAM_passesThrough_bankAwareOffset() {
+        // CHR-RAM cart: writes must land at the bank-translated offset,
+        // mirroring ppuMapRead. This is the E3 write-path addition over
+        // the E1 stub.
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        // Power-on: bank 0.
+        assertEquals(0x0000, m.ppuMapWrite(0x0000));
+        assertEquals(0x1FFF, m.ppuMapWrite(0x1FFF));
+        // Switch to bank 2.
+        m.cpuMapWrite(0x8000, 0x20);
+        assertEquals(2 * CHR_8K,          m.ppuMapWrite(0x0000));
+        assertEquals(2 * CHR_8K + 0x1FFF, m.ppuMapWrite(0x1FFF));
+    }
+
+    @Test
+    void ppuMapRead_outOfCHRRange_returnsUNMAPPED() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(0x2000));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(0x3FFF));
+    }
+
+    @Test
+    void ppuMapWrite_outOfCHRRange_returnsUNMAPPED() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
         assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x2000));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x3FFF));
+    }
+
+    @Test
+    void reset_returnsToPowerOnState() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        // Mutate state...
+        m.cpuMapWrite(0x8000, 0xB5);  // M=1, CHR=3, PRG=5
+        assertEquals(5 * PRG_16K, m.cpuMapRead(0x8000));
+        assertEquals(Mapper.Mirror.ONESCREEN_HI, m.mirror());
+        assertEquals(3 * CHR_8K, m.ppuMapRead(0x0000));
+        // ...then reset.
+        m.reset();
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        assertEquals(Mapper.Mirror.ONESCREEN_LO, m.mirror());
+        assertEquals(0x0000, m.ppuMapRead(0x0000));
     }
 }

@@ -51,6 +51,7 @@ public class MapperUNROM512 implements Mapper {
 
     private static final int PRG_16K       = 16 * 1024;
     private static final int CHR_8K        =  8 * 1024;
+    private static final int CHR_RAM_BYTES = 32 * 1024;  // 4 × 8KB banks
     private static final int PRG_LOW_MASK  = 0x3FFF;     // 16KB window mask
 
     private final int nPRGBanks;
@@ -116,9 +117,12 @@ public class MapperUNROM512 implements Mapper {
 
     @Override
     public int ppuMapWrite(int address) {
-        // Stub: implemented in E3 along with the 32KB CHR-RAM bank
-        // switching path. For E1 the register-decode tests only need
-        // {@link #ppuMapRead} to observe the latched CHR bank.
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            // 32KB CHR-RAM: writes always land at the bank-translated
+            // offset, mirroring ppuMapRead. Cartridge allocates 32KB
+            // by consulting getChrRamSize() at construction time.
+            return chrBank * CHR_8K + address;
+        }
         return UNMAPPED;
     }
 
@@ -160,5 +164,18 @@ public class MapperUNROM512 implements Mapper {
     @Override
     public Mirror mirror() {
         return mirrorHigh ? Mirror.ONESCREEN_HI : Mirror.ONESCREEN_LO;
+    }
+
+    /**
+     * UNROM-512 needs 32KB of CHR-RAM (4 × 8KB banks). Overrides the
+     * 8KB default from {@link Mapper#getChrRamSize()}. The Cartridge
+     * constructor consults this at allocation time when the iNES
+     * header reports {@code nCHRBanks == 0} (CHR-RAM cart).
+     *
+     * @return 32768 (32KB)
+     */
+    @Override
+    public int getChrRamSize() {
+        return CHR_RAM_BYTES;
     }
 }

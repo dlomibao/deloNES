@@ -70,6 +70,22 @@ public interface Mapper {
     int numberOfPRGBanks();
     int numberOfCHRBanks();
 
+    /**
+     * CHR-RAM size in bytes the cartridge should allocate when this
+     * mapper is a CHR-RAM cart (iNES header CHR bank count == 0).
+     * Defaults to 8KB, which matches Mapper000 / MMC1 / AxROM CHR-RAM
+     * variants. UNROM-512 overrides to return 32KB (4 × 8KB banks).
+     *
+     * <p>Only consulted by {@code Cartridge} when the iNES header
+     * reports zero CHR banks. CHR-ROM carts ignore this method and
+     * allocate {@code nCHRBanks * 8192} bytes as usual.
+     *
+     * @return CHR-RAM allocation size in bytes (default 8192)
+     */
+    default int getChrRamSize() {
+        return 8192;
+    }
+
     Mirror mirror();
     enum Mirror
     {

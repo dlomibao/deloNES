@@ -9,6 +9,7 @@ import net.lomibao.nes.rom.mapper.MapperAxROM;
 import net.lomibao.nes.rom.mapper.MapperCNROM;
 import net.lomibao.nes.rom.mapper.MapperMMC1;
 import net.lomibao.nes.rom.mapper.MapperMMC3;
+import net.lomibao.nes.rom.mapper.MapperUNROM512;
 import net.lomibao.nes.rom.mapper.MapperUxROM;
 
 import java.io.BufferedInputStream;
@@ -77,35 +78,45 @@ public class Cartridge extends CPUBusComponent {
             vPRGMemory = Arrays.copyOfRange(data, offset, offset + vPRGSize);
             offset += vPRGSize;
             nCHRBanks = header.getCHRROMSize();
-            int vCHRSize = nCHRBanks == 0 ? 8192 : nCHRBanks * 8192;
+
+            // Construct the mapper BEFORE allocating vCHRMemory so we
+            // can consult mapper.getChrRamSize() for CHR-RAM carts
+            // (nCHRBanks == 0). Default is 8KB; UNROM-512 overrides to
+            // 32KB (4 × 8KB banks).
+            int mapperType = header.getMapperNumber();
+            switch (mapperType) {
+                case 0:
+                    mapper = new Mapper000(nPRGBanks, nCHRBanks);
+                    break;
+                case 1:
+                    mapper = new MapperMMC1(nPRGBanks, nCHRBanks);
+                    break;
+                case 2:
+                    mapper = new MapperUxROM(nPRGBanks, nCHRBanks);
+                    break;
+                case 3:
+                    mapper = new MapperCNROM(nPRGBanks, nCHRBanks);
+                    break;
+                case 4:
+                    mapper = new MapperMMC3(nPRGBanks, nCHRBanks);
+                    break;
+                case 7:
+                    mapper = new MapperAxROM(nPRGBanks, nCHRBanks);
+                    break;
+                case 30:
+                    mapper = new MapperUNROM512(nPRGBanks, nCHRBanks);
+                    break;
+                case 66:
+                    break;
+            }
+
+            int vCHRSize = nCHRBanks == 0
+                    ? (mapper == null ? 8192 : mapper.getChrRamSize())
+                    : nCHRBanks * 8192;
             vCHRMemory = Arrays.copyOfRange(data, offset, offset + vCHRSize);
         } else if (fileType == 2) {
             // Todo complete
 
-        }
-
-        int mapperType = header.getMapperNumber();
-        switch (mapperType) {
-            case 0:
-                mapper = new Mapper000(nPRGBanks, nCHRBanks);
-                break;
-            case 1:
-                mapper = new MapperMMC1(nPRGBanks, nCHRBanks);
-                break;
-            case 2:
-                mapper = new MapperUxROM(nPRGBanks, nCHRBanks);
-                break;
-            case 3:
-                mapper = new MapperCNROM(nPRGBanks, nCHRBanks);
-                break;
-            case 4:
-                mapper = new MapperMMC3(nPRGBanks, nCHRBanks);
-                break;
-            case 7:
-                mapper = new MapperAxROM(nPRGBanks, nCHRBanks);
-                break;
-            case 66:
-                break;
         }
 
     }
