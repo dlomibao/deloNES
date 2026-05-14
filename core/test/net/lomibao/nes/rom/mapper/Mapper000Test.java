@@ -64,6 +64,19 @@ class Mapper000Test {
         assertEquals(0x3FFF, m.cpuMapWrite(0xFFFF));
     }
 
+    @Test
+    void cpuMapWrite_2argDefault_delegatesTo1argForm() {
+        // Mapper interface ships a default 2-arg cpuMapWrite that
+        // delegates to the address-only form. NROM has no register
+        // latching, so the 2-arg form should produce identical mapped
+        // addresses to the 1-arg form regardless of the value byte.
+        Mapper000 m = new Mapper000(2, 1);
+        assertEquals(m.cpuMapWrite(0xC000), m.cpuMapWrite(0xC000, 0x55));
+        assertEquals(m.cpuMapWrite(0xFFFF), m.cpuMapWrite(0xFFFF, 0xAA));
+        // Out-of-range stays UNMAPPED on the 2-arg form too.
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x6000, 0x01));
+    }
+
     // ---- CHR mapping (passthrough) ----
 
     @Test
