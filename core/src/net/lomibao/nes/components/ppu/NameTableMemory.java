@@ -4,6 +4,7 @@ import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.PPUBusComponent;
+import net.lomibao.nes.rom.mapper.Mapper;
 
 /**
  * Nametable memory component for NES PPU
@@ -54,11 +55,24 @@ public class NameTableMemory implements PPUBusComponent {
         if (cartridge == null) {
             return MirroringMode.HORIZONTAL;
         }
-        // For now, use horizontal mirroring based on header flag
-        // TODO: Advanced mappers can change mirroring dynamically
-        return cartridge.isHorizontalMirroring()
-            ? MirroringMode.HORIZONTAL
-            : MirroringMode.VERTICAL;
+        // Consult the mapper's current choice, which may differ from
+        // the iNES header (MMC1 etc. switch mirroring at runtime).
+        // Polled per nametable access by design; if profile shows this
+        // costs FPS, cache it in PPU.clock() instead.
+        Mapper.Mirror m = cartridge.getMirrorMode();
+        switch (m) {
+            case HORIZONTAL:    return MirroringMode.HORIZONTAL;
+            case VERTICAL:      return MirroringMode.VERTICAL;
+            case ONESCREEN_LO:  return MirroringMode.SINGLE_SCREEN_LO;
+            case ONESCREEN_HI:  return MirroringMode.SINGLE_SCREEN_HI;
+            case HARDWARE:
+            default:
+                // Cartridge.getMirrorMode() should have resolved HARDWARE
+                // already; this branch is a defensive fallback.
+                return cartridge.isHorizontalMirroring()
+                        ? MirroringMode.HORIZONTAL
+                        : MirroringMode.VERTICAL;
+        }
     }
 
     /**
@@ -104,11 +118,18 @@ public class NameTableMemory implements PPUBusComponent {
                 physicalTable = nametable & 0x01;
                 break;
                 
-            case SINGLE_SCREEN:
-                // Single-screen: all map to table 0
+            case SINGLE_SCREEN_LO:
+                // Single-screen mode using the lower physical page.
+                // MMC1: control reg bits 0-1 = 00.
                 physicalTable = 0;
                 break;
-                
+
+            case SINGLE_SCREEN_HI:
+                // Single-screen mode using the upper physical page.
+                // MMC1: control reg bits 0-1 = 01.
+                physicalTable = 1;
+                break;
+
             case FOUR_SCREEN:
                 // Four-screen: would need 4KB VRAM (not yet supported)
                 // Fall back to horizontal mirroring

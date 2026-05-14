@@ -44,7 +44,8 @@ class NameTableMemoryTest {
         // Verify all mirroring modes exist
         assertNotNull(MirroringMode.HORIZONTAL);
         assertNotNull(MirroringMode.VERTICAL);
-        assertNotNull(MirroringMode.SINGLE_SCREEN);
+        assertNotNull(MirroringMode.SINGLE_SCREEN_LO);
+        assertNotNull(MirroringMode.SINGLE_SCREEN_HI);
         assertNotNull(MirroringMode.FOUR_SCREEN);
     }
     

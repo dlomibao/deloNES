@@ -195,4 +195,26 @@ public class Cartridge extends CPUBusComponent {
         return header.isHorizontalMirroring();
     }
 
+    /**
+     * Resolves the cartridge's <em>effective</em> nametable mirroring
+     * mode. Mappers that don't switch mirroring at runtime return
+     * {@link Mapper.Mirror#HARDWARE}; this method then falls back to
+     * the iNES header bit. Mappers that do switch (MMC1, AxROM, MMC3,
+     * UNROM-512) return one of the concrete variants and this method
+     * passes it through unchanged.
+     *
+     * <p>Called per nametable access by {@code NameTableMemory}. If
+     * profiling shows the virtual dispatch cost matters, cache the
+     * result for a frame in {@code PPU.clock()}.
+     */
+    public Mapper.Mirror getMirrorMode() {
+        Mapper.Mirror m = mapper == null ? Mapper.Mirror.HARDWARE : mapper.mirror();
+        if (m == Mapper.Mirror.HARDWARE) {
+            return header.isHorizontalMirroring()
+                    ? Mapper.Mirror.HORIZONTAL
+                    : Mapper.Mirror.VERTICAL;
+        }
+        return m;
+    }
+
 }
