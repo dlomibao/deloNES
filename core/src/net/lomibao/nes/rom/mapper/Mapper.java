@@ -17,6 +17,27 @@ public interface Mapper {
     int cpuMapRead(int address);
     int cpuMapWrite(int address);
 
+    /**
+     * Value-carrying CPU write hook. Mappers with bank-select registers
+     * mapped into the PRG window (AxROM, UxROM, CNROM, MMC1, MMC3, ...)
+     * need the byte value, not just the address, to update internal
+     * state. The default implementation delegates to the no-value
+     * overload so existing mappers (e.g. {@link Mapper000}) remain
+     * untouched and the new overload is opt-in per mapper.
+     *
+     * <p>Return semantics match {@link #cpuMapWrite(int)}: an offset
+     * &gt;= 0 means "write the byte to PRG memory at this offset",
+     * {@link #UNMAPPED} means "the write hit a register or fell
+     * outside our range; don't touch PRG memory".
+     *
+     * @param address CPU bus address ($0000-$FFFF)
+     * @param value   unsigned byte value being written (0-255)
+     * @return PRG-memory offset to write, or {@link #UNMAPPED}
+     */
+    default int cpuMapWrite(int address, int value) {
+        return cpuMapWrite(address);
+    }
+
     int ppuMapRead(int address);
     int ppuMapWrite(int address);
 

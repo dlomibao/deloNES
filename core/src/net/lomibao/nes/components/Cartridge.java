@@ -5,6 +5,7 @@ import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.rom.mapper.INESHeader;
 import net.lomibao.nes.rom.mapper.Mapper;
 import net.lomibao.nes.rom.mapper.Mapper000;
+import net.lomibao.nes.rom.mapper.MapperAxROM;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -92,6 +93,9 @@ public class Cartridge extends CPUBusComponent {
                 break;
             case 4:
                 break;
+            case 7:
+                mapper = new MapperAxROM(nPRGBanks, nCHRBanks);
+                break;
             case 66:
                 break;
         }
@@ -120,7 +124,13 @@ public class Cartridge extends CPUBusComponent {
 
     @Override
     public void cpuBusWrite(int address, byte value) {
-        int mappedAddress = mapper.cpuMapWrite(address);
+        // Phase B3 (Mapper 7 / AxROM): forward the byte value to the
+        // mapper so register-write mappers (AxROM, UxROM, CNROM, MMC1,
+        // MMC3, ...) can latch the bank-select / control bits. The
+        // default Mapper interface implementation of the value-carrying
+        // overload delegates to the no-value version, so Mapper000 and
+        // other PRG-write-only mappers are unaffected.
+        int mappedAddress = mapper.cpuMapWrite(address, Byte.toUnsignedInt(value));
         if (mappedAddress >= 0) {
             vPRGMemory[mappedAddress] = value;
         }
