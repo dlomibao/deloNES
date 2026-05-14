@@ -173,4 +173,19 @@ class Mapper000Test {
         assertEquals(Mapper.Mirror.ONESCREEN_LO, Mapper.Mirror.valueOf("ONESCREEN_LO"));
         assertEquals(Mapper.Mirror.ONESCREEN_HI, Mapper.Mirror.valueOf("ONESCREEN_HI"));
     }
+
+    // ---- Mapper interface default method coverage ----
+
+    @Test
+    void cpuMapWrite_valueOverload_defaultDelegatesToNoValueOverload() {
+        // The Mapper interface added a value-carrying cpuMapWrite
+        // overload in Phase B3 for register-write mappers. The default
+        // impl delegates to the no-value version; exercise it here so
+        // Mapper000 (which doesn't override) covers the default path.
+        Mapper000 m = new Mapper000(1, 1);
+        // In-range write: same mapped offset as cpuMapWrite(address).
+        assertEquals(m.cpuMapWrite(0xC000), m.cpuMapWrite(0xC000, 0x42));
+        // Out-of-range write: UNMAPPED.
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0x6000, 0x42));
+    }
 }

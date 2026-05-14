@@ -20,7 +20,7 @@ public interface Mapper {
     /**
      * Value-aware variant of {@link #cpuMapWrite(int)}. Mappers whose
      * {@code $8000-$FFFF} writes are <em>register latches</em> (UxROM,
-     * CNROM, MMC1, MMC3, AxROM, UNROM-512) override this to capture the
+     * CNROM, AxROM, MMC1, MMC3, UNROM-512) override this to capture the
      * byte being written and update internal bank-select state; mappers
      * whose PRG window is plain RAM (NROM with battery, etc.) rely on
      * the default which simply delegates to the address-only form.

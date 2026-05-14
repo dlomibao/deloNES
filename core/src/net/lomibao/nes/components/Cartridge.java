@@ -5,6 +5,7 @@ import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.rom.mapper.INESHeader;
 import net.lomibao.nes.rom.mapper.Mapper;
 import net.lomibao.nes.rom.mapper.Mapper000;
+import net.lomibao.nes.rom.mapper.MapperAxROM;
 import net.lomibao.nes.rom.mapper.MapperCNROM;
 import net.lomibao.nes.rom.mapper.MapperUxROM;
 
@@ -96,6 +97,9 @@ public class Cartridge extends CPUBusComponent {
                 break;
             case 4:
                 break;
+            case 7:
+                mapper = new MapperAxROM(nPRGBanks, nCHRBanks);
+                break;
             case 66:
                 break;
         }
@@ -125,7 +129,7 @@ public class Cartridge extends CPUBusComponent {
     @Override
     public void cpuBusWrite(int address, byte value) {
         // Use the value-aware overload so register-latching mappers
-        // (UxROM, CNROM, MMC1, MMC3, AxROM, UNROM-512) can capture the
+        // (UxROM, CNROM, AxROM, MMC1, MMC3, UNROM-512) can capture the
         // byte being written. The default Mapper implementation
         // delegates to the address-only form, so NROM is unaffected.
         int mappedAddress = mapper.cpuMapWrite(address, Byte.toUnsignedInt(value));
