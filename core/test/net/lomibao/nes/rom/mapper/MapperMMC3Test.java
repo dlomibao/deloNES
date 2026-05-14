@@ -359,4 +359,95 @@ class MapperMMC3Test {
                     "PRG bank " + b + " base mismatch");
         }
     }
+
+    // =====================================================================
+    // D3 — CHR layout + A12 invert
+    // =====================================================================
+
+    /**
+     * CHR-invert = 0: 2KB,2KB,1KB,1KB,1KB,1KB at $0000-$1FFF.
+     * R0 → $0000-$07FF, R1 → $0800-$0FFF, R2 → $1000-$13FF,
+     * R3 → $1400-$17FF, R4 → $1800-$1BFF, R5 → $1C00-$1FFF.
+     */
+    @Test
+    void d3_chrInvert0_layout() {
+        MapperMMC3 m = new MapperMMC3(2, 8);  // 64 1KB CHR banks
+        m.cpuMapWrite(0x8000, 0x00); m.cpuMapWrite(0x8001, 0x02);  // R0 = 2
+        m.cpuMapWrite(0x8000, 0x01); m.cpuMapWrite(0x8001, 0x06);  // R1 = 6
+        m.cpuMapWrite(0x8000, 0x02); m.cpuMapWrite(0x8001, 0x10);  // R2 = 16
+        m.cpuMapWrite(0x8000, 0x03); m.cpuMapWrite(0x8001, 0x11);  // R3 = 17
+        m.cpuMapWrite(0x8000, 0x04); m.cpuMapWrite(0x8001, 0x12);  // R4 = 18
+        m.cpuMapWrite(0x8000, 0x05); m.cpuMapWrite(0x8001, 0x13);  // R5 = 19
+
+        assertEquals(0x0800, m.ppuMapRead(0x0000));            // R0 = 2 → 2*1KB
+        assertEquals(0x0800 + 0x07FF, m.ppuMapRead(0x07FF));
+        assertEquals(0x1800, m.ppuMapRead(0x0800));            // R1 = 6
+        assertEquals(0x1800 + 0x07FF, m.ppuMapRead(0x0FFF));
+        assertEquals(0x4000, m.ppuMapRead(0x1000));            // R2 = 16
+        assertEquals(0x4000 + 0x03FF, m.ppuMapRead(0x13FF));
+        assertEquals(0x4400, m.ppuMapRead(0x1400));            // R3 = 17
+        assertEquals(0x4800, m.ppuMapRead(0x1800));            // R4 = 18
+        assertEquals(0x4C00, m.ppuMapRead(0x1C00));            // R5 = 19
+        assertEquals(0x4C00 + 0x03FF, m.ppuMapRead(0x1FFF));
+    }
+
+    /**
+     * CHR-invert = 1: 1KB,1KB,1KB,1KB,2KB,2KB at $0000-$1FFF.
+     * R2-R5 → low half ($0000-$0FFF), R0/R1 → high half ($1000-$1FFF).
+     */
+    @Test
+    void d3_chrInvert1_layout() {
+        MapperMMC3 m = new MapperMMC3(2, 8);
+        m.cpuMapWrite(0x8000, 0x00); m.cpuMapWrite(0x8001, 0x02);  // R0 = 2
+        m.cpuMapWrite(0x8000, 0x01); m.cpuMapWrite(0x8001, 0x06);  // R1 = 6
+        m.cpuMapWrite(0x8000, 0x02); m.cpuMapWrite(0x8001, 0x10);  // R2 = 16
+        m.cpuMapWrite(0x8000, 0x03); m.cpuMapWrite(0x8001, 0x11);  // R3 = 17
+        m.cpuMapWrite(0x8000, 0x04); m.cpuMapWrite(0x8001, 0x12);  // R4 = 18
+        m.cpuMapWrite(0x8000, 0x05); m.cpuMapWrite(0x8001, 0x13);  // R5 = 19
+        // Flip CHR-invert (bit 7) — value bit 7 = 1.
+        m.cpuMapWrite(0x8000, 0x85);
+
+        assertEquals(0x4000, m.ppuMapRead(0x0000));   // R2 = 16
+        assertEquals(0x4400, m.ppuMapRead(0x0400));   // R3 = 17
+        assertEquals(0x4800, m.ppuMapRead(0x0800));   // R4 = 18
+        assertEquals(0x4C00, m.ppuMapRead(0x0C00));   // R5 = 19
+        assertEquals(0x0800, m.ppuMapRead(0x1000));   // R0 = 2
+        assertEquals(0x1800, m.ppuMapRead(0x1800));   // R1 = 6
+    }
+
+    /**
+     * Flipping CHR-invert mid-stream swaps the halves but preserves
+     * bank-register contents.
+     */
+    @Test
+    void d3_chrInvertFlip_preservesBankRegisterValues() {
+        MapperMMC3 m = new MapperMMC3(2, 8);
+        m.cpuMapWrite(0x8000, 0x02); m.cpuMapWrite(0x8001, 0x10);   // R2 = 16
+        m.cpuMapWrite(0x8000, 0x00); m.cpuMapWrite(0x8001, 0x02);   // R0 = 2
+
+        // invert=0: R2 at $1000, R0 at $0000.
+        assertEquals(0x4000, m.ppuMapRead(0x1000));
+        assertEquals(0x0800, m.ppuMapRead(0x0000));
+
+        // Flip CHR-invert.
+        m.cpuMapWrite(0x8000, 0x80);
+        // After flip: R2 at $0000, R0 at $1000.
+        assertEquals(0x4000, m.ppuMapRead(0x0000));
+        assertEquals(0x0800, m.ppuMapRead(0x1000));
+    }
+
+    /**
+     * R1 low bit also ignored (independent 2KB bank).
+     */
+    @Test
+    void d3_r1_lowBitIgnored() {
+        MapperMMC3 a = new MapperMMC3(2, 8);
+        a.cpuMapWrite(0x8000, 0x01); a.cpuMapWrite(0x8001, 0x04);
+        int with4 = a.ppuMapRead(0x0800);
+
+        MapperMMC3 b = new MapperMMC3(2, 8);
+        b.cpuMapWrite(0x8000, 0x01); b.cpuMapWrite(0x8001, 0x05);
+        int with5 = b.ppuMapRead(0x0800);
+        assertEquals(with4, with5, "R1 low bit must be ignored (2KB bank)");
+    }
 }

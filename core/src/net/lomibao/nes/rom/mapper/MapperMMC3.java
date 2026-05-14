@@ -41,6 +41,8 @@ public class MapperMMC3 implements Mapper {
     private int bankSelectIndex;
     /** PRG mode bit (bit 6 of $8000). false = mode 0, true = mode 1. */
     private boolean prgMode;
+    /** CHR A12-invert bit (bit 7 of $8000). */
+    private boolean chrInvert;
 
     public MapperMMC3(int prgBanks, int chrBanks) {
         this.nPRGBanks = prgBanks;
@@ -93,6 +95,7 @@ public class MapperMMC3 implements Mapper {
             if (even) {
                 bankSelectIndex = value & 0x07;
                 prgMode = (value & 0x40) != 0;
+                chrInvert = (value & 0x80) != 0;
             } else {
                 bankReg[bankSelectIndex] = value & 0x3F;
             }
@@ -108,19 +111,33 @@ public class MapperMMC3 implements Mapper {
         if (address < 0x0000 || address > 0x1FFF) {
             return UNMAPPED;
         }
-        // D1: CHR-invert=0 layout only.
-        // Slots 0,1 use R0 (2KB); slots 2,3 use R1 (2KB);
-        // slots 4-7 use R2/R3/R4/R5 (1KB each).
+        // The 8KB CHR space splits into eight 1KB slots by address bits
+        // 10-12. CHR-invert swaps the two 4KB halves:
+        //   invert=0 layout: [R0 R0 R1 R1 R2 R3 R4 R5]
+        //   invert=1 layout: [R2 R3 R4 R5 R0 R0 R1 R1]
         int slot = (address >> 10) & 0x07;
+        boolean lowHalf = slot < 4;
         int bank;
-        if (slot < 2) {
-            int twoKbBank = bankReg[0] & 0x3E;
-            bank = twoKbBank + (slot & 0x01);
-        } else if (slot < 4) {
-            int twoKbBank = bankReg[1] & 0x3E;
-            bank = twoKbBank + (slot & 0x01);
+        if (!chrInvert) {
+            if (lowHalf) {
+                // slots 0,1 → R0 (2KB); slots 2,3 → R1 (2KB).
+                int r = (slot < 2) ? 0 : 1;
+                int twoKbBank = bankReg[r] & 0x3E;
+                bank = twoKbBank + (slot & 0x01);
+            } else {
+                // slot 4→R2, 5→R3, 6→R4, 7→R5 (1KB each).
+                bank = bankReg[slot - 2] & 0x3F;
+            }
         } else {
-            bank = bankReg[slot - 2] & 0x3F;   // slot 4→R2, 5→R3, 6→R4, 7→R5
+            if (lowHalf) {
+                // slot 0→R2, 1→R3, 2→R4, 3→R5 (1KB each).
+                bank = bankReg[slot + 2] & 0x3F;
+            } else {
+                // slots 4,5 → R0 (2KB); slots 6,7 → R1 (2KB).
+                int r = (slot < 6) ? 0 : 1;
+                int twoKbBank = bankReg[r] & 0x3E;
+                bank = twoKbBank + (slot & 0x01);
+            }
         }
         return bank * CHR_1K + (address & 0x03FF);
     }
@@ -139,6 +156,7 @@ public class MapperMMC3 implements Mapper {
         }
         bankSelectIndex = 0;
         prgMode = false;
+        chrInvert = false;
     }
 
     @Override
