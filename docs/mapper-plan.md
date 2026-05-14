@@ -35,7 +35,7 @@ homebrew title.
 | Topic | Decision | Notes |
 |---|---|---|
 | Coverage tool | **JaCoCo**, enforced per-package threshold | `rom.mapper.*` and any new mapper class must hit ≥90% line coverage. Build fails below threshold. Snippet under "Test infrastructure" §. |
-| Blargg test ROMs | **Include in-repo with credit**, no commercial use | Blargg/Shay Green's ROMs have no formal license but have been redistributed for decades by FCEUX, Mesen, Nestopia, etc. The de-facto norm is "freely redistributable for non-commercial emulator development with credit." We'll include only what we need, ship under `core/src/test/resources/test-roms/blargg/<name>/`, and put a `CREDITS.md` next to them naming `Shay Green <gblargg@gmail.com>` + the source repo (`christopherpow/nes-test-roms`). Owner has been silent on takedown requests for 15+ years; if Blargg ever asks, we remove. |
+| Blargg test ROMs | **Include in-repo with credit**, no commercial use | Blargg/Shay Green's ROMs have no formal license but have been redistributed for decades by FCEUX, Mesen, Nestopia, etc. The de-facto norm is "freely redistributable for non-commercial emulator development with credit." We'll include only what we need, ship under `core/src/test/resources/test-roms/blargg/<name>/`, and append a Blargg section to the existing top-level [`CREDITS.md`](../CREDITS.md) (which already credits nestest's author kevtris). Owner has been silent on takedown requests for 15+ years; if Blargg ever asks, we remove. |
 | Smoke ROMs (one per mapper) | Test at the END of the project with iconic games above | User has DK locally; for others, user provides own ROMs OR we lean on Blargg+synthetic. Plan does NOT include the iconic ROMs in-repo. |
 | Browser ROM picker | **Yes, do it** — Phase F, parallel-able with C/D/E | Audit's C3. Hidden `<input type="file">` + drag-drop, byte[] → `Cartridge`. Needed to demo any non-DK mapper in browser. |
 
@@ -130,23 +130,11 @@ Drop these under `core/src/test/resources/test-roms/blargg/`:
 | A | `cpu_interrupts_v2.nes` (single-ROM build) | Verify IRQ behavior post-A3 — MMC3 prep |
 | D | `mmc3_test_2/` (suite) | MMC3 ground truth |
 
-`core/src/test/resources/test-roms/blargg/CREDITS.md`:
-
-```markdown
-# Test ROMs
-
-The NES test ROMs in this directory were authored by **Shay Green
-("Blargg")** <gblargg@gmail.com>. They are widely redistributed across
-the NES emulator community (FCEUX, Mesen, Nestopia, Bizhawk, etc.)
-without a formal license. They are included here under the de-facto
-"freely redistributable with credit, non-commercial emulator
-development" convention.
-
-Source archive: https://github.com/christopherpow/nes-test-roms
-
-deloNES does not modify or repackage these ROMs. They are included
-verbatim for emulator-correctness validation.
-```
+Attribution: append a `Blargg test ROMs` section to the top-level
+[`CREDITS.md`](../CREDITS.md) (which already credits kevtris for
+`nestest.nes`). Use the same template style as the nestest entry —
+author, location in repo, purpose, license disposition, source. No
+per-directory README needed.
 
 ### Per-phase test count targets
 
