@@ -206,6 +206,124 @@ class MapperMMC1Test {
         assertEquals(0x02 * 0x4000, d.cpuMapRead(0x8000));
     }
 
+    // =====================================================================
+    // C2 — Control register
+    // =====================================================================
+
+    /**
+     * Bits 0-1 of the Control register select mirroring:
+     * 00=ONESCREEN_LO, 01=ONESCREEN_HI, 10=VERTICAL, 11=HORIZONTAL.
+     * Walk all four values; verify {@link MapperMMC1#mirror()}.
+     */
+    @Test
+    void control_bits0_1_selectMirroringAcrossAllFourModes() {
+        // Each test starts from a fresh mapper. Control bits 2-3 / 4 are
+        // zero in each value so they don't affect mirror().
+        MapperMMC1 lo = new MapperMMC1(4, 1);
+        writeControl(lo, 0b00000);
+        assertEquals(Mapper.Mirror.ONESCREEN_LO, lo.mirror());
+
+        MapperMMC1 hi = new MapperMMC1(4, 1);
+        writeControl(hi, 0b00001);
+        assertEquals(Mapper.Mirror.ONESCREEN_HI, hi.mirror());
+
+        MapperMMC1 vert = new MapperMMC1(4, 1);
+        writeControl(vert, 0b00010);
+        assertEquals(Mapper.Mirror.VERTICAL, vert.mirror());
+
+        MapperMMC1 horz = new MapperMMC1(4, 1);
+        writeControl(horz, 0b00011);
+        assertEquals(Mapper.Mirror.HORIZONTAL, horz.mirror());
+    }
+
+    /**
+     * Control bits 2-3 select PRG mode. Verify by observing the PRG
+     * window mapping ($8000 / $C000) across all four modes.
+     *
+     * <p>Mode encoding:
+     * <ul>
+     *   <li>00 / 01: 32KB switchable at $8000-$FFFF (low bit of PRG-bank reg ignored)</li>
+     *   <li>10:      16KB switchable at $C000-$FFFF; $8000-$BFFF FIXED to FIRST bank</li>
+     *   <li>11:      16KB switchable at $8000-$BFFF; $C000-$FFFF FIXED to LAST bank</li>
+     * </ul>
+     */
+    @Test
+    void control_bits2_3_setPrgMode() {
+        // Mode 0 (32KB switchable) with PRG bank 0:
+        // $8000 → bank-pair 0 offset 0, $C000 → bank-pair 0 offset 0x4000.
+        MapperMMC1 m0 = new MapperMMC1(8, 1);
+        writeControl(m0, 0b00000);  // mirror=00, prg-mode=00, chr-mode=0
+        assertEquals(0x0000, m0.cpuMapRead(0x8000));
+        assertEquals(0x4000, m0.cpuMapRead(0xC000));
+
+        // Mode 1 (32KB switchable) — same behavior as 0.
+        MapperMMC1 m1 = new MapperMMC1(8, 1);
+        writeControl(m1, 0b00100);  // prg-mode=01
+        assertEquals(0x0000, m1.cpuMapRead(0x8000));
+        assertEquals(0x4000, m1.cpuMapRead(0xC000));
+
+        // Mode 2 (16KB high-switchable, low fixed to first):
+        // $8000 → 0 (first bank), $C000 → prgBank * 16KB (=0 here too).
+        MapperMMC1 m2 = new MapperMMC1(8, 1);
+        writeControl(m2, 0b01000);  // prg-mode=10
+        assertEquals(0x0000, m2.cpuMapRead(0x8000));
+        assertEquals(0x0000, m2.cpuMapRead(0xC000));
+
+        // Mode 3 (16KB low-switchable, high fixed to last):
+        // $8000 → prgBank * 16KB (= 0), $C000 → last bank (index 7) * 16KB.
+        MapperMMC1 m3 = new MapperMMC1(8, 1);
+        writeControl(m3, 0b01100);  // prg-mode=11
+        assertEquals(0x0000, m3.cpuMapRead(0x8000));
+        assertEquals(7 * 0x4000, m3.cpuMapRead(0xC000));
+    }
+
+    /**
+     * Control bit 4 selects CHR mode (0=8KB, 1=4KB). At a high level
+     * we just verify that flipping the bit changes how the CHR bank
+     * registers are interpreted; concrete bank arithmetic is C3.
+     */
+    @Test
+    void control_bit4_selectsChrMode_8kVs4k() {
+        // Put a known CHR bank 0 = 0x02 into the register first.
+        // In 8KB mode the low bit is masked → 8KB bank index = 2 >> 1 = 1.
+        // In 4KB mode the bank is used as-is → 4KB bank index = 2.
+        MapperMMC1 cart = new MapperMMC1(2, 4);
+        // Set Control = mode 3 (default-ish) + CHR mode 0 (8KB). chrBank0 = 2.
+        writeControl(cart, 0b01100);    // mirror=00 (LO), prg=11, chr=0
+        commitFiveBitValue(cart, 0xA000, 0x02);
+
+        // 8KB mode at $0000: 8KB bank 1 * 0x2000 = 0x2000.
+        assertEquals(0x2000, cart.ppuMapRead(0x0000));
+
+        // Flip to CHR 4KB mode. Control = same as above with bit 4 set.
+        writeControl(cart, 0b11100);    // prg=11, chr=1
+        // 4KB bank 2 at $0000 → 2 * 0x1000 = 0x2000.
+        assertEquals(0x2000, cart.ppuMapRead(0x0000));
+        // Top half at $1000 uses CHR bank 1 register (still default 0) → 0.
+        assertEquals(0x0000, cart.ppuMapRead(0x1000));
+    }
+
+    /**
+     * Control register can be REWRITTEN with subsequent 5-write commits;
+     * the registers don't latch permanently. Verify by switching modes
+     * back to back and observing both reflect.
+     */
+    @Test
+    void control_canBeRewritten_byNewFiveWriteSequence() {
+        MapperMMC1 m = new MapperMMC1(4, 1);
+        // First commit: mirror = HORIZONTAL (bits 0-1 = 11).
+        writeControl(m, 0b00011);
+        assertEquals(Mapper.Mirror.HORIZONTAL, m.mirror());
+
+        // Second commit: mirror = VERTICAL (bits 0-1 = 10).
+        writeControl(m, 0b00010);
+        assertEquals(Mapper.Mirror.VERTICAL, m.mirror());
+
+        // Third commit: mirror = ONESCREEN_LO (bits 0-1 = 00).
+        writeControl(m, 0b00000);
+        assertEquals(Mapper.Mirror.ONESCREEN_LO, m.mirror());
+    }
+
     // ============================================================
     // Helpers
     // ============================================================
