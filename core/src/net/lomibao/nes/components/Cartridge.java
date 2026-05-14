@@ -167,6 +167,25 @@ public class Cartridge extends CPUBusComponent {
         }
         return Byte.toUnsignedInt(vCHRMemory[address]);
     }
+
+    /**
+     * Writes a byte to CHR memory using PPU address space. The mapper
+     * decides whether the write lands (CHR-RAM carts: yes; CHR-ROM
+     * carts: no — {@link Mapper#UNMAPPED} short-circuits the write).
+     *
+     * @param address PPU address (typically $0000-$1FFF); negative or
+     *                out-of-range addresses are silently ignored
+     * @param value   byte to write
+     */
+    public void chrWrite(int address, byte value) {
+        if (vCHRMemory == null || mapper == null) {
+            return;
+        }
+        int mappedAddress = mapper.ppuMapWrite(address);
+        if (mappedAddress >= 0 && mappedAddress < vCHRMemory.length) {
+            vCHRMemory[mappedAddress] = value;
+        }
+    }
     
     /**
      * Gets whether this cartridge uses horizontal mirroring

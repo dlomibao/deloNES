@@ -64,9 +64,14 @@ public class PPUBus {
         
         // Fall back to legacy handling
         if (addr < 0x2000) {
-            // Pattern Tables (0x0000-0x1FFF): CHR ROM/RAM
-            // Most games have CHR ROM (read-only), some have CHR RAM (writable)
-            log.debug("Write to CHR ROM at address 0x{} (usually read-only)", Integer.toHexString(addr));
+            // Pattern Tables (0x0000-0x1FFF): CHR ROM/RAM.
+            // CHR-ROM carts: mapper returns UNMAPPED, the write no-ops.
+            // CHR-RAM carts (and future bank-switched CHR-RAM mappers like
+            // UNROM-512): mapper returns the mapped offset and the byte
+            // lands in vCHRMemory. Phase A1 of docs/mapper-plan.md.
+            if (cartridge != null) {
+                cartridge.chrWrite(addr, value);
+            }
         } else if (addr < 0x3F00) {
             // Nametables (0x2000-0x3EFF)
             log.warn("Write to nametable at address 0x{} with no component registered", Integer.toHexString(addr));
