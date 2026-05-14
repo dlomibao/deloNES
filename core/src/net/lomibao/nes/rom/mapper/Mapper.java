@@ -21,12 +21,15 @@ public interface Mapper {
      * Value-aware variant of {@link #cpuMapWrite(int)}. Mappers whose
      * {@code $8000-$FFFF} writes are <em>register latches</em> (UxROM,
      * CNROM, MMC1, MMC3, AxROM, UNROM-512) override this to capture the
-     * byte being written; mappers whose PRG window is plain RAM
-     * (NROM with battery, etc.) can rely on the default which delegates
-     * to the address-only form.
+     * byte being written and update internal bank-select state; mappers
+     * whose PRG window is plain RAM (NROM with battery, etc.) rely on
+     * the default which simply delegates to the address-only form.
      *
      * <p>Cartridge.cpuBusWrite invokes this overload so the mapper sees
-     * both the address and the value in one shot.
+     * both the address and the value in one call. The {@code int}
+     * return drives any PRG-RAM write that survives the mapper's
+     * register-write logic; a mapper that consumes the write (e.g.
+     * CNROM latching its CHR bank) returns {@link #UNMAPPED}.
      *
      * @param address CPU address (typically $8000-$FFFF for register writes)
      * @param value   byte being written, as an unsigned 0-255 int
