@@ -217,4 +217,19 @@ public class Cartridge extends CPUBusComponent {
         return m;
     }
 
+    /**
+     * Forwards a PPU A12 transition (any PPU bus address change) to
+     * the mapper. Called by {@link PPUBus} on every read/write. The
+     * default mapper implementation is a no-op; MMC3 overrides to
+     * clock its scanline IRQ counter. Phase A3 hook.
+     *
+     * @param address          new PPU bus address (14-bit)
+     * @param previousAddress  prior PPU bus address (14-bit)
+     */
+    public void notifyPpuA12(int address, int previousAddress) {
+        if (mapper != null) {
+            mapper.tickPpuA12(address, previousAddress);
+        }
+    }
+
 }

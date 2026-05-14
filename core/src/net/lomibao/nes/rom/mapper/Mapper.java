@@ -27,6 +27,23 @@ public interface Mapper {
 
     void scanLine();
 
+    /**
+     * PPU A12 line transition notification. Called on every PPU bus
+     * address change; default is no-op. MMC3's scanline IRQ counter
+     * clocks on A12 rising edges (low→high) and uses this hook.
+     *
+     * <p>A rising edge is detected by callers as
+     * {@code (previousAddress & 0x1000) == 0 && (address & 0x1000) != 0}.
+     * Mappers can apply their own filters (e.g. MMC3's 4-clock low
+     * filter) on top.
+     *
+     * @param address          current PPU bus address (14-bit)
+     * @param previousAddress  prior PPU bus address (14-bit)
+     */
+    default void tickPpuA12(int address, int previousAddress) {
+        // no-op by default; mappers that need scanline IRQs override
+    }
+
     int numberOfPRGBanks();
     int numberOfCHRBanks();
 
