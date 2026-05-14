@@ -65,4 +65,48 @@ class CartridgeMapperMMC1Test {
         assertEquals(0xB3, cart.cpuBusRead(0xC000),
                 "default high-window mapping should be last bank");
     }
+
+    /**
+     * C6 — Synthetic E2E. Drive the MMC1 5-write serial protocol via
+     * {@link Cartridge#cpuBusWrite(int, byte)} to commit PRG bank = 2,
+     * then assert that {@code cpuBusRead($8000)} returns the bank-2
+     * marker byte. Exercises the whole stack:
+     *
+     * <ul>
+     *   <li>Cartridge → mapper.cpuMapWrite(address, value) routing</li>
+     *   <li>MMC1 serial shifter accumulating 5 LSBs</li>
+     *   <li>Address-based destination decoding ($E000 → PRG bank reg)</li>
+     *   <li>PRG mode 3 low-window translation through vPRGMemory</li>
+     * </ul>
+     *
+     * <p>This is the gate the plan calls out as "write the MMC1
+     * register sequence to switch PRG banks, verify cartridge.cpuBusRead
+     * returns the right byte after the switch."
+     */
+    @Test
+    void cpuBusWrite_serialProtocol_commitsPrgBankSwitch_endToEnd() {
+        Cartridge cart = buildCart();
+        // Default low window is bank 0 marker.
+        assertEquals(0xB0, cart.cpuBusRead(0x8000));
+
+        // Commit PRG bank = 0x02 via 5 writes to $E000, bit 0 each:
+        //   value 0x02 = 0b00010  →  LSB sequence: 0, 1, 0, 0, 0
+        cart.cpuBusWrite(0xE000, (byte) 0x00);
+        cart.cpuBusWrite(0xE000, (byte) 0x01);
+        cart.cpuBusWrite(0xE000, (byte) 0x00);
+        cart.cpuBusWrite(0xE000, (byte) 0x00);
+        cart.cpuBusWrite(0xE000, (byte) 0x00);
+
+        // After the 5th write commits, PRG bank = 2. In PRG mode 3
+        // (default) the low window now serves bank 2 → marker 0xB2.
+        assertEquals(0xB2, cart.cpuBusRead(0x8000),
+                "after committing PRG bank=2, $8000 should serve bank 2's marker");
+        // The high window stays on the last bank regardless.
+        assertEquals(0xB3, cart.cpuBusRead(0xC000),
+                "high window still on last bank after PRG bank switch");
+        // Verify last byte of bank 2 (the 0xC2 marker we stamped at 0x3FFF
+        // inside bank 2) shows up at $BFFF.
+        assertEquals(0xC2, cart.cpuBusRead(0xBFFF),
+                "bank 2 top-of-window marker mismatched");
+    }
 }
