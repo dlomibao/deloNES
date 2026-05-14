@@ -135,6 +135,19 @@ class Mapper000Test {
         assertFalse(m.reqState(), "NROM has no IRQ source");
     }
 
+    @Test
+    void cpuMapWriteWithValue_defaultIsNoOp_forMapper000() {
+        // Mapper000 inherits the default {@code cpuMapWrite(int, byte)}
+        // from the {@link Mapper} interface. It must be safely callable
+        // and have no observable side-effect — NROM has no registers.
+        Mapper000 m = new Mapper000(1, 1);
+        assertDoesNotThrow(() -> m.cpuMapWrite(0x8000, (byte) 0xFF));
+        assertDoesNotThrow(() -> m.cpuMapWrite(0x0000, (byte) 0x00));
+        // CHR / PRG mapping still works the same.
+        assertEquals(0x0000, m.cpuMapRead(0x8000));
+        assertEquals(0x0000, m.ppuMapRead(0x0000));
+    }
+
     // ---- Enum coverage: the Mirror enum's synthetic values()/valueOf() ----
 
     @Test

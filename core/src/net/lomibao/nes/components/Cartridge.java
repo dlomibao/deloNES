@@ -5,6 +5,7 @@ import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.rom.mapper.INESHeader;
 import net.lomibao.nes.rom.mapper.Mapper;
 import net.lomibao.nes.rom.mapper.Mapper000;
+import net.lomibao.nes.rom.mapper.MapperCNROM;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -89,6 +90,7 @@ public class Cartridge extends CPUBusComponent {
             case 2:
                 break;
             case 3:
+                mapper = new MapperCNROM(nPRGBanks, nCHRBanks);
                 break;
             case 4:
                 break;
@@ -120,6 +122,11 @@ public class Cartridge extends CPUBusComponent {
 
     @Override
     public void cpuBusWrite(int address, byte value) {
+        // Value-aware overload first: lets mappers with internal registers
+        // (CNROM CHR-bank latch, UxROM/MMC1/MMC3/AxROM bank-selects) capture
+        // the byte before the address-only overload decides whether to route
+        // the write into PRG-RAM. Default no-op for Mapper000.
+        mapper.cpuMapWrite(address, value);
         int mappedAddress = mapper.cpuMapWrite(address);
         if (mappedAddress >= 0) {
             vPRGMemory[mappedAddress] = value;
@@ -157,15 +164,24 @@ public class Cartridge extends CPUBusComponent {
     }
 
     /**
-     * Reads a single byte from CHR ROM using PPU address space
+     * Reads a single byte from CHR ROM using PPU address space. Routes
+     * through {@link Mapper#ppuMapRead(int)} so CHR-banking mappers
+     * (CNROM, MMC1, MMC3, AxROM, UNROM-512) see the post-translation
+     * offset into {@code vCHRMemory}. Mapper000's ppuMapRead is a
+     * pass-through, preserving the original direct-index behavior.
+     *
      * @param address PPU address (0x0000-0x1FFF)
-     * @return byte value at address, or 0 if out of bounds
+     * @return byte value at address, or 0 if out of bounds / unmapped
      */
     public int chrRead(int address) {
-        if (vCHRMemory == null || address < 0 || address >= vCHRMemory.length) {
+        if (vCHRMemory == null) {
             return 0;
         }
-        return Byte.toUnsignedInt(vCHRMemory[address]);
+        int mappedAddress = mapper == null ? address : mapper.ppuMapRead(address);
+        if (mappedAddress < 0 || mappedAddress >= vCHRMemory.length) {
+            return 0;
+        }
+        return Byte.toUnsignedInt(vCHRMemory[mappedAddress]);
     }
 
     /**

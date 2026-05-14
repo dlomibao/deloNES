@@ -17,6 +17,27 @@ public interface Mapper {
     int cpuMapRead(int address);
     int cpuMapWrite(int address);
 
+    /**
+     * Value-aware overload of {@link #cpuMapWrite(int)}. Mappers with
+     * write-only registers in the {@code $8000-$FFFF} window (CNROM
+     * CHR-bank latch, UxROM PRG-bank latch, MMC1 serial shifter, MMC3
+     * bank-select, AxROM PRG+mirror) override this to capture the byte
+     * value being written. The default no-op preserves Mapper000's
+     * semantics — NROM has no registers to latch.
+     *
+     * <p>This is called by {@code Cartridge.cpuBusWrite} <em>in addition
+     * to</em> the address-only overload; the int return of that overload
+     * still drives any PRG-RAM write. Mappers that consume the write
+     * (and don't want it to land in PRG-RAM) must return
+     * {@link #UNMAPPED} from {@link #cpuMapWrite(int)}.
+     *
+     * @param address CPU bus address being written
+     * @param value   byte the CPU placed on the data bus
+     */
+    default void cpuMapWrite(int address, byte value) {
+        // no-op; mappers with registers override
+    }
+
     int ppuMapRead(int address);
     int ppuMapWrite(int address);
 
