@@ -44,14 +44,33 @@ allprojects {
         maven { url "https://oss.sonatype.org/content/repositories/releases/" }
         maven { url "https://jitpack.io" }
     }
+
+    plugins.withId('java') {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(25)
+            }
+        }
+    }
 }
 
 project(":desktop") {
     apply plugin: "java-library"
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
+    }
+
+    // libGDX 1.14.0 ships LWJGL 3.3.3 transitively; JDK 25 requires LWJGL
+    // 3.4.0+ (libGDX docs). Force every org.lwjgl artifact to 3.4.1 so the
+    // transitive natives and FFM-backed system module line up.
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.lwjgl') {
+                details.useVersion('3.4.1')
+            }
+        }
     }
 
     dependencies {
@@ -60,15 +79,16 @@ project(":desktop") {
         api "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
         api "com.badlogicgames.gdx-controllers:gdx-controllers-desktop:$gdxControllersVersion"
         api "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
-        api "org.lwjgl:lwjgl-tinyfd:3.3.3"
-        api "org.lwjgl:lwjgl-tinyfd:3.3.3:natives-windows"
-        api "org.lwjgl:lwjgl-tinyfd:3.3.3:natives-linux"
-        api "org.lwjgl:lwjgl-tinyfd:3.3.3:natives-macos"
+        api "org.lwjgl:lwjgl-tinyfd:3.4.1"
+        api "org.lwjgl:lwjgl-tinyfd:3.4.1:natives-windows"
+        api "org.lwjgl:lwjgl-tinyfd:3.4.1:natives-linux"
+        api "org.lwjgl:lwjgl-tinyfd:3.4.1:natives-macos"
 
         testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
         testImplementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
-        testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.0"
-        testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.0"
+        testImplementation "org.junit.jupiter:junit-jupiter-api:5.11.4"
+        testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.11.4"
+        testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
     }
 
     sourceSets {
@@ -97,25 +117,26 @@ project(":core") {
     apply plugin: "java-library"
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
     }
 
     dependencies {
         api "com.badlogicgames.gdx:gdx:$gdxVersion"
         api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
         implementation "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
-        compileOnly 'org.projectlombok:lombok:1.18.32'
-        annotationProcessor 'org.projectlombok:lombok:1.18.32'
+        compileOnly 'org.projectlombok:lombok:1.18.42'
+        annotationProcessor 'org.projectlombok:lombok:1.18.42'
         implementation 'org.apache.logging.log4j:log4j-api:2.23.1'
         implementation 'org.apache.logging.log4j:log4j-core:2.23.1'
 
 
 
-        testCompileOnly 'org.projectlombok:lombok:1.18.32'
-        testAnnotationProcessor 'org.projectlombok:lombok:1.18.32'
-        testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.0"
-        testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.0"
+        testCompileOnly 'org.projectlombok:lombok:1.18.42'
+        testAnnotationProcessor 'org.projectlombok:lombok:1.18.42'
+        testImplementation "org.junit.jupiter:junit-jupiter-api:5.11.4"
+        testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.11.4"
+        testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
 
     }
 
@@ -138,8 +159,8 @@ project(":html") {
     apply plugin: "java-library"
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
     }
 
     dependencies {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-deloNES is a Java + LibGDX NES (Nintendo Entertainment System) emulator POC. Multi-module Gradle build targeting desktop (LWJGL3) with an HTML/GWT module scaffolded. Java 8 source compatibility; Lombok is used in `core`.
+deloNES is a Java + LibGDX NES (Nintendo Entertainment System) emulator POC. Multi-module Gradle build targeting desktop (LWJGL3) and HTML/WebGL (TeaVM 0.14 + gdx-teavm 1.5.6). **Java 25 LTS** (Gradle 9.1 + Lombok 1.18.42); the Gradle toolchain block auto-provisions JDK 25 via foojay-resolver if it's not already installed locally. Lombok is used in `core`.
 
 ## Commands
 

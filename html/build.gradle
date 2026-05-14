@@ -49,9 +49,11 @@ tasks.named('generateJavaScript').configure {
         def scriptDir = file("${buildDir}/generated/teavm/js/scripts")
         scriptDir.mkdirs()
         
-        // Extract required runtime files from gdx-teavm backend JAR
+        // Extract required runtime files from gdx-teavm backend JAR.
+        // The artifact was renamed `backend-teavm` → `backend-web` in
+        // gdx-teavm 1.5.0; accept both names so older versions still work.
         configurations.runtimeClasspath.each { file ->
-            if (file.name.contains('backend-teavm')) {
+            if (file.name.contains('backend-teavm') || file.name.contains('backend-web')) {
                 copy {
                     from zipTree(file)
                     into scriptDir
@@ -159,8 +161,6 @@ tasks.register('dist') {
     }
 }
 
-sourceCompatibility = JavaVersion.VERSION_11
-targetCompatibility = JavaVersion.VERSION_11
 sourceSets.main.java.srcDirs = [ "src/" ]
 
 eclipse.project.name = appName + "-html"
