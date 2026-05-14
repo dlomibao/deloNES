@@ -324,6 +324,123 @@ class MapperMMC1Test {
         assertEquals(Mapper.Mirror.ONESCREEN_LO, m.mirror());
     }
 
+    // =====================================================================
+    // C3 — CHR bank registers
+    // =====================================================================
+
+    /**
+     * 4KB CHR mode: CHR bank 0 register controls $0000-$0FFF, CHR
+     * bank 1 controls $1000-$1FFF independently.
+     */
+    @Test
+    void chr4kMode_chrBank0_controls_lowHalfOnly() {
+        MapperMMC1 m = new MapperMMC1(2, 8);  // 8 CHR banks of 4KB
+        writeControl(m, 0b10000);  // chr-mode = 1 (4KB)
+        commitFiveBitValue(m, 0xA000, 0x03);  // CHR bank 0 = 3
+
+        // $0000 → bank 3 * 4KB = 0x3000.
+        assertEquals(0x3000, m.ppuMapRead(0x0000));
+        assertEquals(0x3000 + 0x0FFF, m.ppuMapRead(0x0FFF));
+        // $1000 uses CHR bank 1 (still 0) → 0x0000.
+        assertEquals(0x0000, m.ppuMapRead(0x1000));
+    }
+
+    @Test
+    void chr4kMode_chrBank1_controls_highHalfOnly() {
+        MapperMMC1 m = new MapperMMC1(2, 8);
+        writeControl(m, 0b10000);  // chr-mode = 1
+        commitFiveBitValue(m, 0xC000, 0x05);  // CHR bank 1 = 5
+
+        // $0000 → bank 0 (default for CHR bank 0).
+        assertEquals(0x0000, m.ppuMapRead(0x0000));
+        // $1000 → bank 5 * 4KB.
+        assertEquals(0x5000, m.ppuMapRead(0x1000));
+        assertEquals(0x5000 + 0x0FFF, m.ppuMapRead(0x1FFF));
+    }
+
+    @Test
+    void chr4kMode_bothBanks_setIndependently() {
+        MapperMMC1 m = new MapperMMC1(2, 8);
+        writeControl(m, 0b10000);  // chr-mode = 1
+        commitFiveBitValue(m, 0xA000, 0x02);
+        commitFiveBitValue(m, 0xC000, 0x07);
+
+        assertEquals(0x2000, m.ppuMapRead(0x0000));
+        assertEquals(0x7000, m.ppuMapRead(0x1000));
+    }
+
+    /**
+     * 8KB CHR mode: CHR bank 0 holds the 8KB bank index; low bit is
+     * ignored; CHR bank 1 register has no effect.
+     */
+    @Test
+    void chr8kMode_chrBank0_lowBitIgnored_eightKbBank() {
+        MapperMMC1 m = new MapperMMC1(2, 4);  // 4 CHR banks of 8KB = 8 banks of 4KB
+        writeControl(m, 0b00000);  // chr-mode = 0 (8KB)
+        // CHR bank 0 = 0x02 → 8KB bank (2 >> 1) = 1 → offset 0x2000.
+        commitFiveBitValue(m, 0xA000, 0x02);
+        assertEquals(0x2000, m.ppuMapRead(0x0000));
+        assertEquals(0x2000 + 0x1FFF, m.ppuMapRead(0x1FFF));
+
+        // CHR bank 0 = 0x03 — low bit ignored → same 8KB bank (3 >> 1 = 1).
+        commitFiveBitValue(m, 0xA000, 0x03);
+        assertEquals(0x2000, m.ppuMapRead(0x0000));
+    }
+
+    @Test
+    void chr8kMode_chrBank1_isIgnored() {
+        MapperMMC1 m = new MapperMMC1(2, 4);
+        writeControl(m, 0b00000);  // chr-mode = 0 (8KB)
+        // Set CHR bank 0 to a known value; CHR bank 1 to something else.
+        commitFiveBitValue(m, 0xA000, 0x04);  // 8KB bank (4>>1) = 2
+        commitFiveBitValue(m, 0xC000, 0x1F);  // chr bank 1 = max — should be ignored
+
+        // $0000 → 8KB bank 2 → offset 0x4000.
+        assertEquals(0x4000, m.ppuMapRead(0x0000));
+        // $1000 also uses 8KB CHR bank 0 (same 8KB window) → 0x4000 + 0x1000.
+        assertEquals(0x5000, m.ppuMapRead(0x1000));
+    }
+
+    @Test
+    void chr8kMode_switching_acrossAllAvailableBanks() {
+        MapperMMC1 m = new MapperMMC1(2, 8);  // 8 banks of 8KB
+        writeControl(m, 0b00000);  // chr-mode = 0
+
+        // For each 8KB bank in [0..7], write CHR bank 0 = (bank << 1)
+        // (low bit forced to 0 to keep impl bit-shift unambiguous).
+        for (int bank = 0; bank < 8; bank++) {
+            commitFiveBitValue(m, 0xA000, bank << 1);
+            assertEquals(bank * 0x2000, m.ppuMapRead(0x0000),
+                    "8KB bank " + bank + " base mismatch");
+            assertEquals(bank * 0x2000 + 0x1FFF, m.ppuMapRead(0x1FFF),
+                    "8KB bank " + bank + " top mismatch");
+        }
+    }
+
+    @Test
+    void chr4kMode_outOfRange_returnsUNMAPPED() {
+        MapperMMC1 m = new MapperMMC1(2, 8);
+        writeControl(m, 0b10000);
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(0x2000));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(0x3FFF));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapRead(-1));
+    }
+
+    @Test
+    void ppuMapWrite_chrRomCart_returnsUNMAPPED() {
+        MapperMMC1 m = new MapperMMC1(2, 8);
+        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x0000));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x1FFF));
+    }
+
+    @Test
+    void ppuMapWrite_chrRamCart_passesThroughInRange_andUnmappedOutside() {
+        MapperMMC1 m = new MapperMMC1(2, 0);  // nCHRBanks = 0 → CHR-RAM
+        assertEquals(0x0000, m.ppuMapWrite(0x0000));
+        assertEquals(0x1FFF, m.ppuMapWrite(0x1FFF));
+        assertEquals(Mapper.UNMAPPED, m.ppuMapWrite(0x2000));
+    }
+
     // ============================================================
     // Helpers
     // ============================================================
