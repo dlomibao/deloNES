@@ -111,3 +111,86 @@ default no-op on the interface keeps every other mapper free of cost.
 
 ---
 
+## Phase B — Three parallel mappers (UxROM/CNROM/AxROM)
+
+### B-bug — `Mapper.cpuMapWrite(int)` lacks a value parameter
+
+**Plan:** Each Phase B agent was given the mapper spec + told to add
+a single `case N:` to `Cartridge.java`'s mapper switch. The plan
+implicitly assumed the existing `Mapper` interface was sufficient.
+
+**Found:** All three Phase B agents (UxROM, CNROM, AxROM) independently
+hit the same blocker — every PRG-window-register mapper needs the
+byte VALUE being written to latch its bank register; the existing
+`cpuMapWrite(int address)` only carries the address.
+
+**Resolution (convergent across all three agents, then unified in
+merge):** Added a value-aware overload
+`default int cpuMapWrite(int address, int value) { return cpuMapWrite(address); }`
+on the Mapper interface, plus updated `Cartridge.cpuBusWrite` to call
+the new overload with `Byte.toUnsignedInt(value)`. Mapper000 inherits
+the default; its behavior is unchanged. NB: B2 (CNROM) initially used
+a different signature (`void cpuMapWrite(int, byte)` — no-op default,
+no return). Unified to B1/B3's `int cpuMapWrite(int, int)` during
+merge — same idea, but one call site instead of two and consistent
+with the existing addr-only form.
+
+**Cost of the unification:** B2's MapperCNROM impl was rewritten to
+the unified signature (~10 lines), B2's MapperCNROMTest javadoc link
+was updated. One extra test in Mapper000Test
+(`cpuMapWrite_2argDefault_delegatesTo1argForm`) ensures the default
+body keeps JaCoCo above 0.90 for the Mapper interface.
+
+**Recommendation for the plan:** Add to the Mapper interface section
+of the plan that any new mapper with PRG-window registers should
+override `cpuMapWrite(int, int)` and return UNMAPPED for register-only
+writes. Already seeded into `shared-agent-findings.md` so C/D/E agents
+won't rediscover this.
+
+---
+
+### B2 — `Cartridge.chrRead` was bypassing the mapper
+
+**Plan:** Phase A1 added `chrWrite` going through `mapper.ppuMapWrite`.
+The plan didn't explicitly call for the symmetric fix on `chrRead`.
+
+**Found:** B2 agent noticed that `chrRead` indexed `vCHRMemory[address]`
+directly, breaking CHR-banking mappers (its own Mapper 3 in particular).
+Routing `chrRead` through `mapper.ppuMapRead` was needed for CNROM tests
+to pass.
+
+**Decision:** Adopted in the B2 merge.
+`chrRead(address)` now calls `mapper.ppuMapRead(address)` first and
+indexes the result; falls back to direct-index when mapper is null
+(test code paths). Mapper000.ppuMapRead is pass-through so NROM
+behaviour is unchanged; symmetric with the chrWrite path from A1.
+
+**Cost:** Zero — Mapper000 is pass-through and existing tests still
+pass.
+
+---
+
+### Phase F — agent built against pre-toolchain base (daadb70)
+
+**Found:** The Phase F worktree was rooted on `daadb70` (web-port PR
+merge — pre-toolchain) instead of `bd82824` (current
+feature/common-mappers HEAD). The Phase F agent worked around the
+JDK-25/Lombok-1.18.32 incompatibility by using JDK 11 explicitly via
+`JAVA_HOME` prefix per the Phase 0 docs.
+
+**Decision:** Cherry-picked Phase F's commit (`cf37800`) onto current
+HEAD; merged cleanly because the 5 files it touched (RomLoader +
+RomLoaderTest + HtmlLauncher + index.html + styles.css) are disjoint
+from every Phase B file. Verified `core:check` AND
+`html:generateJavaScript` both green on JDK 25 + Gradle 9.1.0.
+
+**Why the worktree was on the wrong base:** unknown — the Agent tool's
+`isolation: "worktree"` was supposed to root on current HEAD. The
+other three parallel agents (B1/B2/B3) correctly rooted on `bd82824`.
+F somehow picked an earlier ref. Possibly racy worktree creation;
+might be worth investigating with the Claude Code team. Already
+flagged in `shared-agent-findings.md` ENTRY 3 with a "verify HEAD on
+entry" instruction for future agents.
+
+---
+
