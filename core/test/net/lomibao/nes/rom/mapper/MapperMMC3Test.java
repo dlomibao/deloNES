@@ -259,12 +259,13 @@ class MapperMMC3Test {
     }
 
     /**
-     * Default mirror() is HARDWARE until D4 wires the $A000 register.
+     * Default mirror() reflects the $A000 register (which starts at 0).
+     * Bit 0 = 0 → VERTICAL (the post-reset default; D4 wires $A000).
      */
     @Test
-    void d1_default_mirror_isHardware_beforeD4() {
+    void d1_default_mirror_isVertical() {
         MapperMMC3 m = new MapperMMC3(2, 1);
-        assertEquals(Mapper.Mirror.HARDWARE, m.mirror());
+        assertEquals(Mapper.Mirror.VERTICAL, m.mirror());
     }
 
     /**
@@ -449,5 +450,53 @@ class MapperMMC3Test {
         b.cpuMapWrite(0x8000, 0x01); b.cpuMapWrite(0x8001, 0x05);
         int with5 = b.ppuMapRead(0x0800);
         assertEquals(with4, with5, "R1 low bit must be ignored (2KB bank)");
+    }
+
+    // =====================================================================
+    // D4 — Mirroring register ($A000)
+    // =====================================================================
+
+    /**
+     * $A000 (even) bit 0 = 0 → VERTICAL mirroring.
+     */
+    @Test
+    void d4_a000_bit0_zero_vertical() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xA000, 0x00);
+        assertEquals(Mapper.Mirror.VERTICAL, m.mirror());
+    }
+
+    /**
+     * $A000 (even) bit 0 = 1 → HORIZONTAL mirroring.
+     */
+    @Test
+    void d4_a000_bit0_one_horizontal() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xA000, 0x01);
+        assertEquals(Mapper.Mirror.HORIZONTAL, m.mirror());
+    }
+
+    /**
+     * Writes to $A001 (odd, PRG-RAM protect) MUST NOT alter mirroring.
+     */
+    @Test
+    void d4_a001_doesNotAffectMirroring() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xA000, 0x01);    // HORIZONTAL
+        m.cpuMapWrite(0xA001, 0x00);    // PRG-RAM protect (bit 0 = 0 would look like vertical)
+        assertEquals(Mapper.Mirror.HORIZONTAL, m.mirror(),
+                "$A001 (PRG-RAM protect) must not alter mirror state");
+    }
+
+    /**
+     * Mirroring is toggleable at runtime — writes can flip back and forth.
+     */
+    @Test
+    void d4_mirroring_toggleableAtRuntime() {
+        MapperMMC3 m = new MapperMMC3(2, 1);
+        m.cpuMapWrite(0xA000, 0x01);
+        assertEquals(Mapper.Mirror.HORIZONTAL, m.mirror());
+        m.cpuMapWrite(0xA000, 0x00);
+        assertEquals(Mapper.Mirror.VERTICAL, m.mirror());
     }
 }

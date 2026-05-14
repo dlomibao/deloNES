@@ -44,6 +44,11 @@ public class MapperMMC3 implements Mapper {
     /** CHR A12-invert bit (bit 7 of $8000). */
     private boolean chrInvert;
 
+    /** $A000 even-write — bit 0 = 0 → VERTICAL, bit 0 = 1 → HORIZONTAL. */
+    private int mirrorReg;
+    /** $A001 odd-write — bits 6/7 control PRG-RAM protect (tracked only). */
+    private int prgRamProtect;
+
     public MapperMMC3(int prgBanks, int chrBanks) {
         this.nPRGBanks = prgBanks;
         this.nCHRBanks = chrBanks;
@@ -91,16 +96,27 @@ public class MapperMMC3 implements Mapper {
         }
         boolean even = (address & 0x0001) == 0;
         int region = (address >> 13) & 0x03;
-        if (region == 0) {                   // $8000-$9FFF: bank-select / bank-data
-            if (even) {
-                bankSelectIndex = value & 0x07;
-                prgMode = (value & 0x40) != 0;
-                chrInvert = (value & 0x80) != 0;
-            } else {
-                bankReg[bankSelectIndex] = value & 0x3F;
-            }
+        switch (region) {
+            case 0:                          // $8000-$9FFF
+                if (even) {
+                    bankSelectIndex = value & 0x07;
+                    prgMode = (value & 0x40) != 0;
+                    chrInvert = (value & 0x80) != 0;
+                } else {
+                    bankReg[bankSelectIndex] = value & 0x3F;
+                }
+                break;
+            case 1:                          // $A000-$BFFF
+                if (even) {
+                    mirrorReg = value;
+                } else {
+                    prgRamProtect = value;
+                }
+                break;
+            // $C000-$FFFF wired up in D6.
+            default:
+                break;
         }
-        // Other regions ($A000+) wired up in later sub-stages.
         return UNMAPPED;
     }
 
@@ -157,6 +173,8 @@ public class MapperMMC3 implements Mapper {
         bankSelectIndex = 0;
         prgMode = false;
         chrInvert = false;
+        mirrorReg = 0;
+        prgRamProtect = 0;
     }
 
     @Override
@@ -186,7 +204,6 @@ public class MapperMMC3 implements Mapper {
 
     @Override
     public Mirror mirror() {
-        // D4 will compute from $A000 register.
-        return Mirror.HARDWARE;
+        return (mirrorReg & 0x01) == 0 ? Mirror.VERTICAL : Mirror.HORIZONTAL;
     }
 }
