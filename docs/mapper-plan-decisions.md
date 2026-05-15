@@ -291,6 +291,45 @@ non-blocking — the final core:check is what matters and it's green.
 - Blargg `mmc3_test_2.nes` acquisition + re-enable of `MMC3BlarggTest`
 - Phase F browser UI manual click-through (Load ROM button + drag-drop)
 
+**Post-merge browser-render regression (2026-05-14)**
+
+Two unrelated bugs surfaced when user manually smoke-tested the
+browser build after all merges:
+
+1. **`classes.js` exports `main` but doesn't auto-invoke it.** Without
+   an explicit `window.main([])` call in `index.html`, gdx-teavm 1.5.6
+   loads, defines exports, and then... idles. The WebApplication never
+   constructs, `create()` never fires, canvas stays at its initial
+   clear state. Likely a gdx-teavm 1.5.x behaviour change vs the
+   earlier Phase 0 build; not something Phase F's index.html rewrite
+   would have caught because the old Phase 0 index.html also lacked
+   the explicit `main([])` call (yet it had worked, presumably because
+   classes.js auto-invoked at some intermediate version).
+
+   **Fix:** appended `<script>if (typeof window.main === 'function') window.main([]);</script>` after the `classes.js` include in `html/webapp/index.html`.
+
+2. **gdx-teavm preload aborts on `assets/startup-logo.png` 404.**
+   The runtime fetches its splash image from `assets/startup-logo.png`;
+   if missing, preload errors and the asset chain never reports
+   complete, so `create()` is never invoked. The repo's `assets/`
+   directory ships `badlogic.jpg` (libGDX template default) but not
+   `startup-logo.png`.
+
+   **Fix:** `html/build.gradle generateJavaScript` now writes a
+   `startup-logo.png` from `badlogic.jpg` after copying assets, so
+   the preload always finds a valid image at the expected path.
+
+**Red-herring diagnosed during investigation:** four rounds of
+`gl.readPixels(canvas)` returning (0,0,0,0) made it look like the
+texture upload path was broken. It wasn't. WebGL with default
+`preserveDrawingBuffer:false` clears the framebuffer after each
+composite, so post-composite read-backs are always zeros. The
+canvas was rendering DK correctly the whole time; only a
+`canvas.toDataURL()` or screenshot reads the visible content.
+Future debugging notes: trust the screenshot, not `readPixels`.
+
+---
+
 **Toolchain bump that enabled all of this:**
 - JDK 11 → 25 (Eclipse Temurin via SDKMAN)
 - Gradle 8.5 → 9.1.0

@@ -81,6 +81,18 @@ tasks.named('generateJavaScript').configure {
             into assetsDir
         }
 
+        // gdx-teavm 1.5.x preload hangs forever if it can't fetch
+        // assets/startup-logo.png (the splash image shown during preload).
+        // Most libGDX templates ship one; we don't have a dedicated logo
+        // so fall back to badlogic.jpg renamed. Any valid image works.
+        def logoTarget = new File(assetsDir, "startup-logo.png")
+        if (!logoTarget.exists()) {
+            def fallback = new File(assetsDir, "badlogic.jpg")
+            if (fallback.exists()) {
+                logoTarget.bytes = fallback.bytes
+            }
+        }
+
         // Phase 0+: surface core's classpath ROMs + opcode table under
         // assets/ so the preload mechanism can fetch them and so the
         // launcher can feed CPU6502 the CSV bytes via Gdx.files.internal

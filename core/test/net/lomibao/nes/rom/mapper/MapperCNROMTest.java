@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * canonical (4 × 8KB = 32KB CHR-ROM max); higher bits are masked away.
  *
  * <p>The bank-latch value reaches the mapper via the new overload
- * {@link Mapper#cpuMapWrite(int, byte)} (default no-op on the interface).
+ * {@link Mapper#cpuMapWrite(int, int)} (default delegates on the interface).
  * Bus conflicts on the real hardware are ignored here per Phase B2 of
  * docs/mapper-plan.md.
  */
