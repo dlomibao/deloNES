@@ -148,4 +148,20 @@ class NoiseChannelTest {
         assertTrue(n.envelope().isConstantVolume());
         assertEquals(12, n.envelope().output());
     }
+
+    /**
+     * Directed tap vector (review round 1): from lfsr=2, mode 0 feedback is
+     * bit0(0) XOR bit1(1) = 1 -> (2>>1) | 0x4000 = 0x4001. A wrong tap at
+     * bit 2 would produce 1 instead — this uniquely pins the bit-1 tap,
+     * which the loop-length test alone does not (several degree-15
+     * trinomials are primitive and also yield 32767-step loops).
+     */
+    @org.junit.jupiter.api.Test
+    void mode0Tap_isBit1_directedVector() {
+        NoiseChannel n = new NoiseChannel();
+        n.lfsr = 2;
+        n.clockLfsr();
+        org.junit.jupiter.api.Assertions.assertEquals(0x4001, n.lfsr,
+                "mode-0 feedback must tap bit 1 (got a different polynomial)");
+    }
 }

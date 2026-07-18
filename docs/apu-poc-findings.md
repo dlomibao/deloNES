@@ -244,3 +244,13 @@ several engines have historically not fired `onaudioprocess` when
 If the soak yields silence with `callbacks=0` in the per-second log, try
 `createScriptProcessor(2048, 1, 1)` (ignore the input) before pivoting
 to the AudioBufferSourceNode fallback.
+
+
+## Addendum — one more manual item for the same browser session
+
+While running the POC-W checklist, ALSO capture the **web perf number**
+owed by the Phase B D9 waiver (docs/apu-plan.md): load the page WITHOUT
+`?audioPoc=1`, let the emulator run 60s, and record the steady-state
+`runFrame=X.XXms` value from the per-second console log. Compare against
+a pre-A1 build if available; otherwise record the absolute number here —
+the Phase E gate needs it on file.

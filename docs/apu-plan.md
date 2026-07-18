@@ -388,6 +388,19 @@ perf band (the
 channels now do real work every cycle — this is the phase most likely
 to arm D9).
 
+> **D9 WEB-BENCH WAIVER (Phase B close, 2026-07-18, adjudicated per the
+> review round-1 finding):** no in-repo web bench exists and headless
+> Chrome cannot create the WebGL context the web build needs (verified:
+> `pixelStorei` on null under `--headless=new`, SwiftShader included).
+> Substitute measured: interleaved JVM proxy (best-of-5 x 600 frames,
+> nestest, this machine) — pre-APU 0.816 ms/frame vs Phase B 0.852
+> ms/frame = **+4.4%**, within the <=5% pass band; run noise +-10%. The
+> proxy cannot capture TeaVM-specific costs, so the REAL web number
+> (console `runFrame=` line, 60s soak, vs a pre-A1 build) is OWED at the
+> user's next browser session (bundled with the Phase 0 listening
+> checklist) and MUST be recorded here before the Phase E gate; if it
+> lands in the 5-10% band it is advisory-recorded per D9, >10% arms F3.
+
 ## Phase C — Cycle-exact frame counter + IRQ delivery
 
 The hard-timing phase, and the first interrupt-timing change.

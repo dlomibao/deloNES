@@ -244,6 +244,10 @@ public class APU extends CPUBusComponent {
      * IRQ flag is cleared ({@code apu_reset/irq_flag_cleared}).
      */
     public void reset() {
+        // Reset APU-cycle parity too: post-reset put/get parity becomes
+        // test-visible in Phase C (jitter), and leaving it floating made
+        // parity depend on when reset occurred (Phase B review finding).
+        oddCpuCycle = false;
         // Acts as $4015 = $00.
         pulse1.lengthCounter().setEnabled(false);
         pulse2.lengthCounter().setEnabled(false);

@@ -97,16 +97,22 @@ class ApuChannelWiringTest {
         for (int i = 0; i < 8; i++) {
             apu.clock();
         }
-        // Triangle: 8 CPU cycles / (t+1 = 4) = 2 steps (one clock consumed
-        // arming the power-up-empty counter).
-        assertTrue(apu.triangle().sequencePhase() != triPhase0,
-                "triangle timer advances at CPU rate");
-        // Pulse: 8 CPU cycles = 4 APU cycles < t+1=9 → at most the initial
-        // empty-counter step.
+        // EXACT phase math (review round 1: the old != assertions were
+        // vacuous — deleting the APU-rate gate passed the whole suite).
+        // Timers fire when counter==0 then reload to period, so with the
+        // power-up-empty counter the first clock fires immediately.
+        // Triangle clocks every CPU cycle: t=3 fires at CPU clocks 1 and 5
+        // → exactly 2 steps after 8 CPU clocks. If it were (wrongly)
+        // demoted to APU rate it would fire only once → phase 1.
+        assertEquals((triPhase0 + 2) & 0x1F, apu.triangle().sequencePhase(),
+                "triangle timer must advance at CPU rate: exactly 2 steps in 8 CPU cycles");
         for (int i = 0; i < 26; i++) {
-            apu.clock(); // 34 CPU total = 17 APU cycles → ~2 pulse steps
+            apu.clock(); // 34 CPU total = 17 APU cycles
         }
-        assertTrue(apu.pulse1().sequencePhase() != p1Phase0,
-                "pulse timer advances at APU (half-CPU) rate");
+        // Pulse clocks at APU rate (every 2nd CPU cycle): t=8 fires at APU
+        // clocks 1 and 10 → exactly 2 steps after 17 APU cycles. At CPU
+        // rate it would have fired at 1, 10, 19, 28 → phase +4.
+        assertEquals((p1Phase0 + 2) & 0x07, apu.pulse1().sequencePhase(),
+                "pulse timer must advance at APU rate: exactly 2 steps in 34 CPU cycles");
     }
 }
