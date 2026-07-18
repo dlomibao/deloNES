@@ -133,6 +133,13 @@ public final class ScreenAssertions {
      * {@code w}x{@code h} against the golden (whose dimensions must be
      * exactly {@code w}x{@code h}). On mismatch, writes failure artifacts
      * and throws with the first mismatching pixel and both artifact paths.
+     *
+     * <p>Artifact notes: the {@code -actual.png} is always the full
+     * 256x240 screen (context), while {@code -diff.png} is region-sized —
+     * their dimensions intentionally differ for sub-region comparisons.
+     * The diff visualizes RGB only; an alpha-only mismatch is still
+     * DETECTED (full-int compare) but renders black in the diff image —
+     * consult the differing 0xAARRGGBB values in the exception message.
      */
     static void assertRegionEquals(ScreenCapture cap, Golden golden,
                                    int x, int y, int w, int h) {

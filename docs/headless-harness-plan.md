@@ -53,7 +53,7 @@ deletes the DIAG_* statics for good.
 | `NesSystem.tick()` / `runFrame()` / `setFrameRenderedListener` | `core/src/net/lomibao/nes/NesSystem.java` | Deterministic stepping. `runFrame()` returns at the scanline-262→0 wrap (frameComplete), NOT at the NMI (scanline 241). |
 | `Controller.setButton(int player, Button, boolean)` | `core/src/net/lomibao/nes/components/Controller.java` | Live state; latched into shift registers on $4016 strobe falling edge. Both players. |
 | `CPUBus.write/read` inlined routing | `core/src/net/lomibao/nes/components/CPUBus.java` | The single choke point for CPU-visible memory traffic — the watch engine hooks here. Lombok `@Data @Builder`. |
-| `PPU.getVisibleScreenPixels1D()` (RGBA ints), `peekCtrl/peekMask/peekStatus`, `readOam(int)`, `getScanline/getCycle/isOddFrame` | `core/src/net/lomibao/nes/components/PPU.java` | Framebuffer + non-destructive register introspection. `oam()` and `ppuBus()` are package-private. |
+| `PPU.getVisibleScreenPixels1D()` (ARGB ints (0xAARRGGBB — corrected from "RGBA" after Phase C empirically pinned the format)), `peekCtrl/peekMask/peekStatus`, `readOam(int)`, `getScanline/getCycle/isOddFrame` | `core/src/net/lomibao/nes/components/PPU.java` | Framebuffer + non-destructive register introspection. `oam()` and `ppuBus()` are package-private. |
 | `CPU6502.runWithCallback(Predicate)` , `getPc()` | `core/src/net/lomibao/nes/components/CPU6502.java` | PC introspection for write attribution. |
 | Skip-if-absent real-ROM pattern | `core/test/net/lomibao/nes/components/CartridgeNes2Test.java` (`microMages_realRom_loadsWhenPresent`) | `assumeTrue(Files.exists(rom))` against `~/projects/deloNES/core/src/main/resources/roms/...`. Commercial ROMs are never committed. |
 | Synthetic-ROM builders | `core/test/net/lomibao/nes/rom/mapper/MapperTestSupport.java`, `RomLoaderTest`, `CartridgeNes2Test` | iNES byte[] fabrication for ROM-free unit tests. |
@@ -189,7 +189,7 @@ h.runFrames(120);
 h.runUntil(() -> h.peek(0x0080) == 1, 600);        // poll-per-frame, frame cap
 
 // Phase C assertions — plain AssertionError, no JUnit dependency (D8)
-h.screen().assertPixel(120, 100, 0xFF0000FF);            // RGBA, exact
+h.screen().assertPixel(120, 100, 0xFF0000FF);            // ARGB, exact
 h.screen().assertRegionEquals(goldenPng("title.png"), 0, 0, 256, 240);
 h.screen().savePng(buildOutputDir().resolve("frame3500.png"));
 assertEquals(3, h.oamCensus().liveSprites());            // y < 0xEF count

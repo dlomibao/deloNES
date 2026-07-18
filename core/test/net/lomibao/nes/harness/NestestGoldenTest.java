@@ -50,9 +50,10 @@ class NestestGoldenTest {
         // Sanity: the frame is a real render, not an untouched all-black
         // buffer (which would make the golden vacuous).
         boolean nonBlackSeen = false;
+        ScreenCapture cap = h.screen(); // hoisted: each call copies the framebuffer
         for (int y = 0; y < 240 && !nonBlackSeen; y++) {
             for (int x = 0; x < 256; x++) {
-                if ((h.screen().pixel(x, y) & 0xFFFFFF) != 0) {
+                if ((cap.pixel(x, y) & 0xFFFFFF) != 0) {
                     nonBlackSeen = true;
                     break;
                 }
