@@ -140,13 +140,16 @@ public class APU extends CPUBusComponent {
             case 0x4007:
                 pulse2.writeTimerHigh(v);
                 break;
-            // -- triangle ($4008-$400B; full decode in B4) --
+            // -- triangle ($4008-$400B, B4) --
             case 0x4008:
                 // Bit 7 is the triangle control flag AND length halt.
-                triangle.lengthCounter().setHalt((v & 0x80) != 0);
+                triangle.writeLinear(v);
+                break;
+            case 0x400A:
+                triangle.writeTimerLow(v);
                 break;
             case 0x400B:
-                triangle.lengthCounter().load(v >> 3);
+                triangle.writeTimerHigh(v);
                 break;
             // -- noise ($400C-$400F; full decode in B5) --
             case 0x400C:
