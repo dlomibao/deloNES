@@ -305,12 +305,15 @@ class APUTest {
     }
 
     @Test
-    void a3_bits4And5_readZero_untilPhaseD() {
+    void a3_bit5_readsZero_bit4_liveSincePhaseD() {
         APU apu = new APU();
-        apu.cpuBusWrite(0x4015, (byte) 0x10); // DMC enable bit stored…
+        apu.cpuBusWrite(0x4015, (byte) 0x10); // DMC enable → restarts the (default 1-byte) sample
         assertTrue(apu.isDmcEnabled());
-        assertEquals(0, apu.cpuBusRead(0x4015, true) & 0x30,
-                "bit4 (DMC bytes remaining) and bit5 (open bus) read 0");
+        assertEquals(0, apu.cpuBusRead(0x4015, true) & 0x20,
+                "bit5 (open bus) reads 0 — ratified non-goal D10");
+        assertEquals(0x10, apu.cpuBusRead(0x4015, true) & 0x10,
+                "bit4 = DMC bytes remaining > 0 — live since Phase D1 "
+                        + "(supersedes the A3 'always 0 until D' pin)");
     }
 
     // ---------------------------------------------------------------------

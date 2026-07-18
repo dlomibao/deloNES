@@ -92,6 +92,25 @@ public class APU extends CPUBusComponent {
      */
     private boolean oddCpuCycle;
 
+    /** D2 stall lengths (D4): flat 4 for reload fetches, 3 for $4015 starts. */
+    static final int RELOAD_STALL_CYCLES = 4;
+    static final int START_STALL_CYCLES = 3;
+
+    /**
+     * D2 (seam S5): remaining DMC DMA stall cycles. While &gt; 0 the
+     * CPU-turn slot in {@link CPUBus#clock()} is consumed here instead of
+     * {@code dma}/{@code cpu} (DMC wins; an OAM burst pauses). The fetch
+     * itself happens on the LAST stall cycle. Per the D4 parity argument
+     * the reload stall length MUST stay even (4): {@code DmaController}
+     * alternates get/put on master-clock parity and consecutive CPU turns
+     * alternate that parity, so only an even-length stall preserves a
+     * paused burst's alternation phase; the odd 3-cycle start stall can
+     * only be armed by a CPU write to $4015 — impossible mid-burst while
+     * the CPU is halted. Changing either length silently corrupts OAM —
+     * the D2 alternation test is the tripwire.
+     */
+    private int dmcStallRemaining;
+
     /** Power-up (D8): $4017 = $00 applied at the C1 boot offset. */
     public APU() {
         frameCounter.reset(0x00, FRAME_COUNTER_BOOT_OFFSET);
@@ -116,19 +135,43 @@ public class APU extends CPUBusComponent {
             pulse2.clockTimer();
             noise.clockTimer();
             dmc.clockTimer();
-            // D1: a refill that drained the buffer refetches immediately —
-            // the byte "magically arrives" via cpuBus.read() (stall-free;
-            // the D2 stall machine takes this over).
-            if (dmc.needsSampleByte()) {
-                fetchDmcByte();
+            // D2: a refill that drained the buffer arms the 4-cycle
+            // reload stall; the CPU-turn slot of this same bus tick
+            // (apu.clock() runs first — seam S2) is stall cycle 1, and
+            // the fetch lands on the last stall cycle via tickDmcStall().
+            if (dmcStallRemaining == 0 && dmc.needsSampleByte()) {
+                dmcStallRemaining = RELOAD_STALL_CYCLES;
             }
         }
     }
 
     /**
-     * Perform the DMC memory-reader fetch through the CPU bus (D1 — no
-     * stall; the CPU-cycle cost lands in D2/seam S5) and raise the DMC
-     * IRQ flag when the channel reports a last-byte fetch.
+     * Seam S5 (D2): true while a DMC DMA stall is consuming CPU-turn
+     * slots — checked in {@link CPUBus#clock()} BEFORE {@code
+     * dma.isActive()} (D4 arbitration: DMC wins, OAM pauses).
+     */
+    public boolean dmcStallPending() {
+        return dmcStallRemaining > 0;
+    }
+
+    /**
+     * Consume one CPU-turn slot as a DMC stall cycle (seam S5). On the
+     * last cycle the sample byte is fetched through {@code cpuBus.read()}
+     * — unless the reader was stopped mid-stall ($4015 bit-4 clear while
+     * the stall was already committed), in which case the committed
+     * cycles are still consumed but the fetch is aborted.
+     */
+    public void tickDmcStall() {
+        dmcStallRemaining--;
+        if (dmcStallRemaining == 0 && dmc.needsSampleByte()) {
+            fetchDmcByte();
+        }
+    }
+
+    /**
+     * Perform the DMC memory-reader fetch through the CPU bus — invoked
+     * from the last cycle of a D2 stall — and raise the DMC IRQ flag
+     * when the channel reports a last-byte fetch.
      */
     private void fetchDmcByte() {
         CPUBus bus = getBus();
@@ -271,10 +314,13 @@ public class APU extends CPUBusComponent {
                 // D1 restart/stop rules: bit-4 set with bytes==0 restarts
                 // the sample; clear zeroes bytes (buffered byte plays out).
                 dmc.setEnabled(dmcEnabled);
-                // A $4015-triggered start with an empty buffer fetches at
-                // once (D1 — stall-free; D2 makes this the 3-cycle stall).
-                if (dmc.needsSampleByte()) {
-                    fetchDmcByte();
+                // D2: a $4015-triggered start with an empty buffer arms
+                // the 3-cycle start stall (never while one is committed);
+                // the fetch lands on the last stall cycle. The odd length
+                // is safe per D4: this path requires a CPU write, which
+                // cannot occur while the CPU is halted inside an OAM burst.
+                if (dmcStallRemaining == 0 && dmc.needsSampleByte()) {
+                    dmcStallRemaining = START_STALL_CYCLES;
                 }
                 break;
             case 0x4017:
@@ -383,9 +429,11 @@ public class APU extends CPUBusComponent {
         dmcEnabled = false;
         dmcIrqFlag = false;
         // DMC reset (D1, research §1.9): reader stopped (bytes := 0) and
-        // $4011 &= 1 applied to the delta counter.
+        // $4011 &= 1 applied to the delta counter. Any committed stall is
+        // dropped with the rest of the in-flight state (D2).
         dmc.setEnabled(false);
         dmc.resetOutputLevel();
+        dmcStallRemaining = 0;
         // Retained $4017 reapplied immediately at the boot offset (C1);
         // the frame IRQ flag and any pending delayed write are dropped
         // (apu_reset/irq_flag_cleared, 4017_timing).

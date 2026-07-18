@@ -15,10 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Phase D1 — APU↔DMC wiring (docs/apu-plan.md): $4010-$4013 register
  * decode, $4015 bit-4 (bytes remaining) / bit-7 (DMC IRQ) status,
- * write-clears-DMC-IRQ, $4010 bit-7-clear clears the flag, the
- * stall-free fetch through {@code cpuBus.read()} (the byte "magically
- * arrives" — stalls land in D2), DMC IRQ delivery on last-byte fetch,
- * and reset's {@code $4011 &= 1}.
+ * write-clears-DMC-IRQ, $4010 bit-7-clear clears the flag, the fetch
+ * through {@code cpuBus.read()} (arriving on the last cycle of the D2
+ * stall — {@code clockApu} consumes stalls the way the bus's CPU-turn
+ * slot does), DMC IRQ delivery on last-byte fetch, and reset's
+ * {@code $4011 &= 1}. Stall/arbitration behavior proper is pinned in
+ * {@code ApuDmcStallTest}.
  */
 class ApuDmcTest {
 
@@ -49,9 +51,16 @@ class ApuDmcTest {
             .build()
             .connect();
 
+    /**
+     * Clock the APU n CPU cycles, consuming any DMC stall the way the
+     * bus's CPU-turn slot does (seam S5) so fetches actually land.
+     */
     private void clockApu(int n) {
         for (int i = 0; i < n; i++) {
             apu.clock();
+            if (apu.dmcStallPending()) {
+                apu.tickDmcStall();
+            }
         }
     }
 
@@ -79,12 +88,15 @@ class ApuDmcTest {
     // ------------------------------------------------------------------
 
     @Test
-    void enable_fetchesFirstByteThroughBus_immediately() {
+    void enable_fetchesFirstByteThroughBus_onTheLastStartStallCycle() {
         bus.write(0x4012, (byte) 0x02); // $C080 → PRG offset $80
         bus.write(0x4013, (byte) 0x01); // 17 bytes
         bus.write(0x4015, (byte) 0x10);
         DmcChannel dmc = apu.dmc();
-        assertTrue(dmc.bufferFilled, "the first byte magically arrives at enable (D1 — no stall)");
+        assertTrue(apu.dmcStallPending(), "D2: the start fetch rides a 3-cycle stall");
+        assertFalse(dmc.bufferFilled, "no magic arrival — the fetch waits for the stall");
+        clockApu(3); // the CPU-turn slots consume the stall; fetch on the last
+        assertTrue(dmc.bufferFilled);
         assertEquals(0x80, dmc.sampleBuffer, "byte read via cpuBus.read() at $C080");
         assertEquals(0xC081, dmc.currentAddress());
         assertEquals(16, dmc.bytesRemaining(), "fetch consumed one of the 17 bytes");
@@ -120,7 +132,8 @@ class ApuDmcTest {
     void dmcIrq_onLastByteFetch_isLevelHeld_andReadDoesNotClear() {
         bus.write(0x4010, (byte) 0x80); // IRQ enabled, no loop
         bus.write(0x4013, (byte) 0x00); // 1-byte sample
-        bus.write(0x4015, (byte) 0x10); // enable → immediate fetch IS the last byte
+        bus.write(0x4015, (byte) 0x10); // enable → the start-stall fetch IS the last byte
+        clockApu(3); // consume the 3-cycle start stall — fetch on the last cycle
         assertTrue(apu.irqAsserted(), "DMC IRQ fires on the last-byte FETCH");
         assertEquals(0x80, bus.read(0x4015) & 0x80, "bit 7 reads set");
         assertEquals(0x80, bus.read(0x4015) & 0x80, "$4015 read does NOT clear the DMC flag");
@@ -133,6 +146,7 @@ class ApuDmcTest {
         bus.write(0x4010, (byte) 0x80);
         bus.write(0x4013, (byte) 0x00);
         bus.write(0x4015, (byte) 0x10);
+        clockApu(3); // consume the start stall — last-byte fetch raises the IRQ
         assertTrue(apu.irqAsserted());
         bus.write(0x4010, (byte) 0x00); // IRQ-enable cleared → flag cleared
         assertFalse(apu.irqAsserted(), "$4010 bit-7 clear also clears the DMC IRQ flag");

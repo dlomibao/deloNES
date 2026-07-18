@@ -189,10 +189,19 @@ public class CPUBus {
             // This ordering is part of the movie-determinism contract
             // and does not change in later phases.
             if (apu != null) apu.clock();
-            // DMA preempts the CPU when active: instead of cpu.clock() this
-            // CPU-turn goes to the DMA state machine. CPU is suspended for
-            // the duration of the DMA burst (513 or 514 CPU cycles).
-            if (dma != null && dma.isActive()) {
+            // Seam S5 (docs/apu-plan.md Phase D2, decision D4): a DMC DMA
+            // stall consumes the CPU-turn slot BEFORE the OAM DMA check —
+            // DMC wins, an in-flight OAM burst pauses (its get/put
+            // alternation keys off masterClockCount parity, which keeps
+            // advancing, and the even 4-cycle reload stall preserves the
+            // phase — see the D4 parity argument in APU). The fetch
+            // happens on the last stall cycle inside tickDmcStall().
+            if (apu != null && apu.dmcStallPending()) {
+                apu.tickDmcStall();
+            } else if (dma != null && dma.isActive()) {
+                // OAM DMA preempts the CPU when active: instead of
+                // cpu.clock() this CPU-turn goes to the DMA state machine.
+                // CPU is suspended for the burst (513/514 CPU cycles).
                 dma.tickDmaCycle(this, ppu, masterClockCount);
             } else if (cpu != null) {
                 cpu.clock();
