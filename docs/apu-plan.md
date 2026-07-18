@@ -274,8 +274,9 @@ Deliverables:
   checked in under `core/src/test/resources/test-roms/blargg/`
   (`apu_test/rom_singles/`, `apu_reset/`) with a CREDITS.md entry —
   **precondition: explicit user confirmation of the redistribution
-  stance (D7) before the ROM-commit lands**; if withheld, fall back to
-  skip-if-absent loading and record it here. JaCoCo gate extended to
+  stance (D7) before the ROM-commit lands** — ✅ **CONFIRMED by Derek
+  2026-07-18** ("I approve committing test roms to repo"); the
+  skip-if-absent fallback is moot. JaCoCo gate extended to
   `net.lomibao.nes.components.apu.*` at ≥90% line (mapper-plan
   precedent).
 - **A1 — skeleton.** `APU` rewrite: register decode for $4000-$4017
