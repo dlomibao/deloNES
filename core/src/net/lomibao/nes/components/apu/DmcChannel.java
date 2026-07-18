@@ -207,6 +207,16 @@ public final class DmcChannel {
         return timerPeriod;
     }
 
+    /** True while the 1-byte sample buffer holds an unplayed byte (test seam). */
+    public boolean isBufferFilled() {
+        return bufferFilled;
+    }
+
+    /** True while the output unit is running on an empty buffer (test seam). */
+    public boolean isSilenced() {
+        return silence;
+    }
+
     public boolean isIrqEnabled() {
         return irqEnabled;
     }

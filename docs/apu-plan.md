@@ -599,6 +599,31 @@ Deliverables:
   framebuffer-hash assertions. `latency.nes` is stretch (sensitive to
   stall placement fine detail).
 
+  > **☑ D3 PLAN BUG, surfaced 2026-07-18 (Phase D execution):** the
+  > `dmc_tests/` ROMs are **not screen-reporting** — full disassembly
+  > (all four share one shell; 16KB PRG, CHR-RAM, reset at $E0C0) shows
+  > they disable rendering ($2000/$2001 = 0), never write CHR or
+  > nametables, and report **by ear**: init $4010/$4012/$4013 from a
+  > per-ROM parameter table, click $4011, run the test body, then park
+  > forever in a pulse-1 beep loop ($4000=$82, $4002=$01, $4003=$09,
+  > JMP-self). A framebuffer hash is identically black for pass and
+  > fail — the planned assertion tier is vacuous, not merely hard.
+  > **Best-effort substitute (implemented as `BlarggDmcTestsIT`):**
+  > capture every $4000-$401F write through the S1 bus-write listener
+  > (with CPU cycle + PC) and assert each ROM's observable protocol —
+  > `status`: the BIT-$4015 poll loop exits one 17-byte rate-0
+  > sample-duration (~55-58k cycles; window 45-75k) after $4015=$10,
+  > pinning bit 4's set-while-playing/clear-on-last-fetch lifecycle;
+  > `status_irq`: the ROM's IRQ handler (sole writer of $4010=$00) runs
+  > one sample-duration after start — proof the DMC IRQ was raised on
+  > the last-byte fetch and DELIVERED; `buffer_retained`: back-to-back
+  > enable/disable leaves the fetched byte to play out (reader stopped,
+  > buffer drained, channel silenced); `latency` (stretch): all four
+  > timed $4011/$4015 click iterations complete. All four must reach
+  > their terminal beep loop (PC parked at the JMP-self). **Result: all
+  > four PASS, including the latency stretch.** The by-ear verdict
+  > itself remains manual and is folded into Phase E's audible smoke.
+
 | Sub | Tests | Notes |
 |---|---|---|
 | D1 | 15 | delta clamp both ends; refill cadence; address wrap; length reload vs IRQ paths; IRQ-on-fetch (not on-drain); $4015 restart with bytes==0; stop-after-buffered-byte; reset applies `$4011 &= 1` |
