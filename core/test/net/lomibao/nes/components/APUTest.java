@@ -179,6 +179,124 @@ class APUTest {
                 "$4017 bit-7 write force-clocks the length counters");
     }
 
+    // ---------------------------------------------------------------------
+    // A3 — $4015 semantics (write `---D NT21`, read `IF-D NT21`)
+    // ---------------------------------------------------------------------
+
+    /** Clock the APU to CPU cycle 29828 — the frame IRQ flag set point. */
+    private static APU apuWithFrameIrqSet() {
+        APU apu = new APU();
+        for (int i = 0; i < 29828; i++) {
+            apu.clock();
+        }
+        assertTrue(apu.frameCounter().isFrameIrqFlag());
+        return apu;
+    }
+
+    @Test
+    void a3_write4015_enablesChannels_loadsThenWork() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4015, (byte) 0x0F);
+        apu.cpuBusWrite(0x4003, (byte) 0x08); // 254
+        apu.cpuBusWrite(0x4007, (byte) 0x08);
+        apu.cpuBusWrite(0x400B, (byte) 0x08);
+        apu.cpuBusWrite(0x400F, (byte) 0x08);
+        assertEquals(0x0F, apu.cpuBusRead(0x4015, true) & 0x0F,
+                "all four NT21 bits set while lengths are non-zero");
+        assertFalse(apu.isDmcEnabled());
+    }
+
+    @Test
+    void a3_write4015_clearBit_forcesLengthToZero() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4015, (byte) 0x0F);
+        apu.cpuBusWrite(0x4003, (byte) 0x08);
+        apu.cpuBusWrite(0x400F, (byte) 0x08);
+        apu.cpuBusWrite(0x4015, (byte) 0x08); // disable pulse1, keep noise
+        assertEquals(0, apu.pulse1().lengthCounter().value(),
+                "clear-length-on-disable");
+        assertEquals(0x08, apu.cpuBusRead(0x4015, true) & 0x0F,
+                "only the still-enabled noise bit remains");
+    }
+
+    @Test
+    void a3_read4015_bitMapping_NT21() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4015, (byte) 0x05); // pulse1 + triangle
+        apu.cpuBusWrite(0x4003, (byte) 0x08);
+        apu.cpuBusWrite(0x400B, (byte) 0x08);
+        assertEquals(0x05, apu.cpuBusRead(0x4015, true),
+                "bit0=pulse1, bit2=triangle; bits 4/5/6/7 clear");
+    }
+
+    @Test
+    void a3_read4015_clearsFrameIrqFlag() {
+        APU apu = apuWithFrameIrqSet();
+        apu.clock(); // move off the set cycle (29829 also sets; go past)
+        apu.clock();
+        apu.clock(); // now at a plain cycle (post-wrap)
+        assertEquals(0x40, apu.cpuBusRead(0x4015, false) & 0x40, "bit 6 reads 1");
+        assertEquals(0, apu.cpuBusRead(0x4015, false) & 0x40,
+                "read must clear the frame IRQ flag");
+    }
+
+    @Test
+    void a3_read4015_sameCycleAsSet_returns1WithoutClearing() {
+        APU apu = apuWithFrameIrqSet(); // current cycle 29828 = a set cycle
+        assertEquals(0x40, apu.cpuBusRead(0x4015, false) & 0x40,
+                "same-cycle read returns 1");
+        assertTrue(apu.frameCounter().isFrameIrqFlag(),
+                "…but must not clear the flag (§1.7 race)");
+    }
+
+    @Test
+    void a3_readOnlyPeek_neverClearsFrameIrqFlag() {
+        APU apu = apuWithFrameIrqSet();
+        for (int i = 0; i < 5; i++) {
+            apu.clock();
+        }
+        assertEquals(0x40, apu.cpuBusRead(0x4015, true) & 0x40);
+        assertTrue(apu.frameCounter().isFrameIrqFlag(),
+                "readOnly observation must be side-effect free");
+    }
+
+    @Test
+    void a3_write4017_doesNotClearFrameFlag_withoutBit6() {
+        APU apu = apuWithFrameIrqSet();
+        apu.cpuBusWrite(0x4017, (byte) 0x00);
+        assertTrue(apu.frameCounter().isFrameIrqFlag(),
+                "$4017 write without bit 6 must not clear the frame flag");
+    }
+
+    @Test
+    void a3_write4015_doesNotClearFrameFlag_butClearsDmcFlag() {
+        APU apu = apuWithFrameIrqSet();
+        apu.dmcIrqFlag = true; // Phase D sets this for real
+        assertEquals(0xC0, apu.cpuBusRead(0x4015, true) & 0xC0,
+                "bit7=DMC IRQ, bit6=frame IRQ");
+        apu.cpuBusWrite(0x4015, (byte) 0x1F);
+        assertFalse(apu.dmcIrqFlag, "$4015 write clears the DMC IRQ flag");
+        assertTrue(apu.frameCounter().isFrameIrqFlag(),
+                "$4015 write never clears the frame IRQ flag");
+    }
+
+    @Test
+    void a3_read4015_doesNotClearDmcFlag() {
+        APU apu = new APU();
+        apu.dmcIrqFlag = true;
+        apu.cpuBusRead(0x4015, false);
+        assertTrue(apu.dmcIrqFlag, "$4015 read clears frame flag only — not DMC");
+    }
+
+    @Test
+    void a3_bits4And5_readZero_untilPhaseD() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4015, (byte) 0x10); // DMC enable bit stored…
+        assertTrue(apu.isDmcEnabled());
+        assertEquals(0, apu.cpuBusRead(0x4015, true) & 0x30,
+                "bit4 (DMC bytes remaining) and bit5 (open bus) read 0");
+    }
+
     @Test
     void writeOnlyRegisters_readAsZero_notEchoed() {
         // The stub's byte-array echo is gone: APU registers are

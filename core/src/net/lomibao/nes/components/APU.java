@@ -45,6 +45,16 @@ public class APU extends CPUBusComponent {
      */
     private int last4017;
 
+    /** $4015 bit 4 — DMC enable. Restart/stop rules land in Phase D. */
+    private boolean dmcEnabled;
+
+    /**
+     * DMC interrupt flag ($4015 bit 7). Never set until Phase D — but the
+     * clear paths ($4015 write; NOT $4015 read) exist now (A3).
+     * Package-visible so same-package tests can pin the clear semantics.
+     */
+    boolean dmcIrqFlag;
+
     @Override
     public int getCPUBusStartAddress() {
         return START_ADDRESS;
@@ -109,6 +119,17 @@ public class APU extends CPUBusComponent {
             case 0x400F:
                 noise.lengthCounter().load(v >> 3);
                 break;
+            // -- $4015 control (A3): enables + DMC-IRQ-flag clear --
+            case 0x4015:
+                pulse1.lengthCounter().setEnabled((v & 0x01) != 0);
+                pulse2.lengthCounter().setEnabled((v & 0x02) != 0);
+                triangle.lengthCounter().setEnabled((v & 0x04) != 0);
+                noise.lengthCounter().setEnabled((v & 0x08) != 0);
+                dmcEnabled = (v & 0x10) != 0;
+                // Any $4015 write clears the DMC IRQ flag — never the
+                // frame IRQ flag (§1.7). DMC restart/stop rules: Phase D.
+                dmcIrqFlag = false;
+                break;
             case 0x4017:
                 last4017 = v;
                 int immediate = frameCounter.write4017(v);
@@ -136,8 +157,40 @@ public class APU extends CPUBusComponent {
                     address, START_ADDRESS, END_ADDRESS);
             return 0;
         }
-        // $4015 status read lands in Phase A3; every other APU register
-        // is write-only and reads as 0 (open bus is a non-goal, D10).
+        // $4015 status: IF-D NT21 (§1.7). Bit 5 reads 0 — open bus is a
+        // ratified non-goal (D10). Bits 4/7 stay 0 until the DMC lands
+        // (Phase D); the flag/enable plumbing already exists.
+        if (address == 0x4015) {
+            int status = 0;
+            if (pulse1.lengthCounter().isActive()) {
+                status |= 0x01;
+            }
+            if (pulse2.lengthCounter().isActive()) {
+                status |= 0x02;
+            }
+            if (triangle.lengthCounter().isActive()) {
+                status |= 0x04;
+            }
+            if (noise.lengthCounter().isActive()) {
+                status |= 0x08;
+            }
+            // Bit 4: DMC bytes remaining > 0 — always 0 until Phase D.
+            if (frameCounter.isFrameIrqFlag()) {
+                status |= 0x40;
+            }
+            if (dmcIrqFlag) {
+                status |= 0x80;
+            }
+            // Reading clears the frame IRQ flag (never the DMC flag) —
+            // except on the very cycle the flag is being set, which reads
+            // 1 without clearing (§1.7 race). readOnly peeks are
+            // side-effect free (harness observation contract).
+            if (!readOnly) {
+                frameCounter.clearFrameIrqFlagOnRead();
+            }
+            return status;
+        }
+        // Every other APU register is write-only and reads as 0.
         return 0;
     }
 
@@ -175,5 +228,10 @@ public class APU extends CPUBusComponent {
     /** Last value written to $4017 (retained across reset — A4). */
     public int getLast4017() {
         return last4017;
+    }
+
+    /** $4015 bit 4 as last written (DMC behavior lands in Phase D). */
+    public boolean isDmcEnabled() {
+        return dmcEnabled;
     }
 }
