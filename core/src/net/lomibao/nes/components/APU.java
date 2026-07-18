@@ -32,6 +32,16 @@ public class APU extends CPUBusComponent {
     public static final int START_ADDRESS = 0x4000;
     public static final int END_ADDRESS = 0x4020; // exclusive
 
+    /**
+     * Frame-counter boot/reset offset (C1, research §1.9): the sequencer
+     * behaves "as if $4017 were written ~9–12 CPU cycles before the first
+     * instruction". Our reset path burns the CPU's 7 reset cycles WHILE
+     * the APU clocks, so the offset applied at reset time is the residue:
+     * effective offset at first instruction = this constant + 7.
+     * Calibrated against {@code apu_reset/4017_timing} (Phase C gate).
+     */
+    static final int FRAME_COUNTER_BOOT_OFFSET = 0;
+
     private final FrameCounter frameCounter = new FrameCounter();
     private final PulseChannel pulse1 = new PulseChannel(true);
     private final PulseChannel pulse2 = new PulseChannel(false);
@@ -70,6 +80,11 @@ public class APU extends CPUBusComponent {
      * (1 APU cycle — research §1.1); the triangle timer every CPU cycle.
      */
     private boolean oddCpuCycle;
+
+    /** Power-up (D8): $4017 = $00 applied at the C1 boot offset. */
+    public APU() {
+        frameCounter.reset(0x00, FRAME_COUNTER_BOOT_OFFSET);
+    }
 
     /**
      * Advance one CPU cycle (seam S2). Dispatches the frame counter's
@@ -174,10 +189,12 @@ public class APU extends CPUBusComponent {
                 break;
             case 0x4017:
                 last4017 = v;
-                int immediate = frameCounter.write4017(v);
-                if (immediate != 0) {
-                    dispatchFrameClocks(immediate);
-                }
+                // C1 write parity: this CPU cycle contained an APU-cycle
+                // tick iff oddCpuCycle is false after clock()'s toggle
+                // (the pulse/noise timers just clocked) → 3-cycle delay;
+                // otherwise 4. The delayed reset/mode/bit-7 clock emerge
+                // from frameCounter.clock() at the apply cycle.
+                frameCounter.write4017(v, !oddCpuCycle);
                 break;
             default:
                 // Remaining registers decode into channel/unit state as
@@ -255,10 +272,10 @@ public class APU extends CPUBusComponent {
         noise.lengthCounter().setEnabled(false);
         dmcEnabled = false;
         dmcIrqFlag = false;
-        frameCounter.clearFrameIrqFlag();
-        // Retained $4017 reapplied; the bit-7 immediate clock mask is
-        // dropped at reset (nothing is running to clock).
-        frameCounter.write4017(last4017);
+        // Retained $4017 reapplied immediately at the boot offset (C1);
+        // the frame IRQ flag and any pending delayed write are dropped
+        // (apu_reset/irq_flag_cleared, 4017_timing).
+        frameCounter.reset(last4017, FRAME_COUNTER_BOOT_OFFSET);
         noise.resetLfsr();
         triangle.resetPhase();
     }

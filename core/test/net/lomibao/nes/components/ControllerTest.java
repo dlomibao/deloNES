@@ -381,6 +381,9 @@ class ControllerTest {
         // register array is gone — writes decode into real unit state).
         assertEquals(0xC0, apu.getLast4017(),
                 "write to $4017 via bus must reach the APU frame counter");
+        for (int i = 0; i < 4; i++) {
+            apu.clock(); // C1: the mode bit lands at the delayed sequencer reset
+        }
         assertTrue(apu.frameCounter().isMode5(),
                 "$C0 bit 7 → 5-step mode");
         assertTrue(apu.frameCounter().isIrqInhibit(),

@@ -89,11 +89,19 @@ class APUTest {
     void write4017_decodesIntoFrameCounter() {
         APU apu = new APU();
         apu.cpuBusWrite(0x4017, (byte) 0x80);
-        assertTrue(apu.frameCounter().isMode5());
+        // C1: inhibit applies immediately; the mode bit lands 3-4 cycles
+        // later at the delayed sequencer reset.
         assertFalse(apu.frameCounter().isIrqInhibit());
+        for (int i = 0; i < 4; i++) {
+            apu.clock();
+        }
+        assertTrue(apu.frameCounter().isMode5());
         apu.cpuBusWrite(0x4017, (byte) 0x40);
+        assertTrue(apu.frameCounter().isIrqInhibit(), "inhibit is immediate");
+        for (int i = 0; i < 4; i++) {
+            apu.clock();
+        }
         assertFalse(apu.frameCounter().isMode5());
-        assertTrue(apu.frameCounter().isIrqInhibit());
     }
 
     // ---------------------------------------------------------------------
@@ -174,7 +182,10 @@ class APUTest {
         APU apu = new APU();
         apu.pulse1().lengthCounter().setEnabled(true);
         apu.cpuBusWrite(0x4003, (byte) 0x00); // 10
-        apu.cpuBusWrite(0x4017, (byte) 0x80); // bit 7 → immediate quarter+half
+        apu.cpuBusWrite(0x4017, (byte) 0x80); // bit 7 → quarter+half at delayed reset
+        for (int i = 0; i < 4; i++) {
+            apu.clock(); // C1: the forced clock lands 3-4 cycles after the write
+        }
         assertEquals(9, apu.pulse1().lengthCounter().value(),
                 "$4017 bit-7 write force-clocks the length counters");
     }

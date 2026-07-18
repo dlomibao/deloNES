@@ -93,8 +93,10 @@ class FrameCounterTest {
     @Test
     void mode1_eventTable_firstPeriod() {
         FrameCounter fc = new FrameCounter();
-        int immediate = fc.write4017(0x80);
-        assertEquals(QH, immediate, "$4017 bit 7 fires an immediate quarter+half");
+        fc.write4017(0x80, true); // C1: effects land 3 cycles after the write
+        fc.clock();
+        fc.clock();
+        assertEquals(QH, fc.clock(), "$4017 bit 7 fires a quarter+half at the delayed reset");
         assertEvents(events(fc, 37282), new int[][] {
                 {7457, Q}, {14913, QH}, {22371, Q}, {37281, QH},
         });
@@ -104,7 +106,10 @@ class FrameCounterTest {
     @Test
     void mode1_deadStepAt29829_noEvent() {
         FrameCounter fc = new FrameCounter();
-        fc.write4017(0x80);
+        fc.write4017(0x80, true);
+        fc.clock();
+        fc.clock();
+        fc.clock(); // delayed reset applies; sequencer at 0
         for (int i = 1; i <= 29827; i++) {
             fc.clock();
         }
@@ -116,7 +121,7 @@ class FrameCounterTest {
     @Test
     void mode1_neverSetsIrqFlag() {
         FrameCounter fc = new FrameCounter();
-        fc.write4017(0x80); // 5-step, inhibit clear
+        fc.write4017(0x80, true); // 5-step, inhibit clear
         for (int i = 0; i < 2 * 37282; i++) {
             fc.clock();
             assertFalse(fc.isFrameIrqFlag(), "mode 1 never sets the frame IRQ flag");
@@ -130,8 +135,14 @@ class FrameCounterTest {
     @Test
     void write4017_bit7Clear_noImmediateClock() {
         FrameCounter fc = new FrameCounter();
-        assertEquals(0, fc.write4017(0x00), "no immediate clock without bit 7");
-        assertEquals(0, fc.write4017(0x40), "bit 6 alone fires nothing");
+        fc.write4017(0x00, true);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(0, fc.clock(), "no delayed clock without bit 7");
+        }
+        fc.write4017(0x40, true);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(0, fc.clock(), "bit 6 alone fires nothing");
+        }
     }
 
     @Test
@@ -141,17 +152,17 @@ class FrameCounterTest {
             fc.clock();
         }
         assertTrue(fc.isFrameIrqFlag());
-        fc.write4017(0x40);
-        assertFalse(fc.isFrameIrqFlag(), "$4017 bit 6 clears the frame IRQ flag");
-        fc.write4017(0x00);
+        fc.write4017(0x40, true);
+        assertFalse(fc.isFrameIrqFlag(), "$4017 bit 6 clears the frame IRQ flag (immediately)");
+        fc.write4017(0x00, true);
         assertFalse(fc.isFrameIrqFlag(), "clearing bit 6 does not set the flag");
     }
 
     @Test
     void write4017_whileInhibited_flagNeverSets() {
         FrameCounter fc = new FrameCounter();
-        fc.write4017(0x40); // 4-step, IRQ inhibited
-        for (int i = 0; i < 29830; i++) {
+        fc.write4017(0x40, true); // 4-step, IRQ inhibited
+        for (int i = 0; i < 29834; i++) {
             fc.clock();
         }
         assertFalse(fc.isFrameIrqFlag(), "inhibit blocks the flag entirely");
@@ -163,7 +174,10 @@ class FrameCounterTest {
         for (int i = 0; i < 5000; i++) {
             fc.clock();
         }
-        fc.write4017(0x00); // Phase A: immediate sequencer reset
+        fc.write4017(0x00, true); // C1: reset lands 3 cycles after the write
+        fc.clock();
+        fc.clock();
+        fc.clock();
         assertEquals(0, fc.cycle());
         assertEvents(events(fc, 7457), new int[][] {{7457, Q}});
     }
