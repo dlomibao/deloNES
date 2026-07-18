@@ -1238,19 +1238,24 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
         //   - Prefetch (cycles 321..337): we're done rendering the current scanline
         //     and prefetching cols 0 and 1 of the NEXT scanline into the shifter.
         int screenTileX;
-        int screenTileY;
         if (cycle >= 321 && cycle <= 337) {
             screenTileX = (cycle - 321) / 8;             // 0 or 1
-            int nextScanline = (scanline + 1) % 262;     // 261 → 0 wraps to next frame's first
-            screenTileY = nextScanline / 8;
         } else {
             screenTileX = (cycle - 1) / 8 + 2;           // +2 tile lookahead
-            screenTileY = scanline / 8;
         }
 
-        // Add scroll (in tile units; sub-tile is fineX/fineY).
+        // Add scroll. Horizontal: tile-granular is exact — screenTileX*8 is
+        // 8-aligned, so (screenTileX*8 + scrollX) >> 3 == screenTileX +
+        // (scrollX >> 3); fine X is applied at the shifter mux.
+        // Vertical: the sum MUST happen in pixel space before dividing —
+        // when (scanline%8 + scrollY%8) >= 8 the carry advances the tile
+        // row. Splitting the division (scanline/8 + scrollY/8) drops that
+        // carry, re-fetching the previous tile row with a wrapped fine-Y
+        // for the bottom rows of every 8-pixel band: each tile row renders
+        // once correctly and then again garbled one band below whenever
+        // scrollY % 8 != 0 (the Micro Mages title-text doubling).
         int virtTileX = screenTileX + (scrollX >> 3);
-        int virtTileY = screenTileY + (scrollY >> 3);
+        int virtTileY = (fetchScanline() + scrollY) >> 3;
 
         // PPUCTRL bits 0+1 select the base NT (0..3). We use this as the
         // starting NT, then wrap horizontally (32 cols) and vertically

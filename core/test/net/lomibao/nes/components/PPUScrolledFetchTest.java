@@ -102,6 +102,36 @@ class PPUScrolledFetchTest {
         assertEquals(3, decodeCol(tileId), "scrollX=8 → col 2 + 1 = col 3");
     }
 
+    // ---- vertical scroll: sub-tile carry into the next tile row ----
+
+    /**
+     * Fine-Y carry regression (Micro Mages title-text doubling): with
+     * scrollY = 4, scanline 4 sits at absolute pixel row 8 — tile row 1.
+     * The broken formula {@code scanline/8 + scrollY/8} = 0 + 0 dropped
+     * the carry and re-fetched tile row 0 with a wrapped fine-Y, so every
+     * tile row rendered once correctly and once garbled one band below.
+     */
+    @Test
+    void scrollY4_carryAdvancesTileRow_atScanline4() {
+        ppu.cpuBusWrite(0x2005, (byte) 0);
+        ppu.cpuBusWrite(0x2005, (byte) 4);
+        writeMarker(0, 1, 2);
+        int tileId = fetchTileIdAt(4, firstVisibleFetchCycle());
+        assertEquals(1, decodeRow(tileId),
+                "scanline 4 + scrollY 4 = pixel row 8 → tile row 1, not a re-fetch of row 0");
+        assertEquals(2, decodeCol(tileId));
+    }
+
+    /** Top of the same band (no carry yet): scanline 3 + scrollY 4 = row 0. */
+    @Test
+    void scrollY4_noCarry_atScanline3() {
+        ppu.cpuBusWrite(0x2005, (byte) 0);
+        ppu.cpuBusWrite(0x2005, (byte) 4);
+        writeMarker(0, 0, 2);
+        int tileId = fetchTileIdAt(3, firstVisibleFetchCycle());
+        assertEquals(0, decodeRow(tileId), "pixel row 7 is still tile row 0");
+    }
+
     // ---- horizontal cross-NT wrap (PPUCTRL base NT) ----
 
     @Test
