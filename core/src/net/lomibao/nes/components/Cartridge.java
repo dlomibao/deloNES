@@ -52,6 +52,13 @@ public class Cartridge extends CPUBusComponent {
         return SUPPORTED_MAPPERS.contains(mapperNumber);
     }
 
+    /** Sorted, comma-separated {@link #SUPPORTED_MAPPERS} for error messages. */
+    public static String supportedMapperList() {
+        return SUPPORTED_MAPPERS.stream().sorted()
+                .map(String::valueOf)
+                .reduce((a, b) -> a + ", " + b).orElse("");
+    }
+
     @SneakyThrows
     public Cartridge(InputStream inputStream, String name) {
         fileName = name;
@@ -150,9 +157,7 @@ public class Cartridge extends CPUBusComponent {
         // anyway — better a clear error at load time. (DECISIONS.md D8)
         if (mapper == null) {
             throw new RuntimeException("Unsupported mapper " + mapperType
-                    + " (supported: " + SUPPORTED_MAPPERS.stream().sorted()
-                            .map(String::valueOf)
-                            .reduce((a, b) -> a + ", " + b).orElse("") + ")");
+                    + " (supported: " + supportedMapperList() + ")");
         }
 
         if (chrRomSize > 0) {
@@ -329,6 +334,23 @@ public class Cartridge extends CPUBusComponent {
     public void notifyPpuA12(int address, int previousAddress) {
         if (mapper != null) {
             mapper.tickPpuA12(address, previousAddress);
+        }
+    }
+
+    /**
+     * True when the mapper is asserting its IRQ line (MMC3 scanline
+     * counter). Polled by {@code NesSystem.tick()} to drive
+     * {@code CPU6502.irq()}; mappers without an IRQ source always
+     * report false.
+     */
+    public boolean mapperIrqPending() {
+        return mapper != null && mapper.reqState();
+    }
+
+    /** Deasserts the mapper's IRQ line after the CPU has taken the IRQ. */
+    public void mapperIrqClear() {
+        if (mapper != null) {
+            mapper.irqClear();
         }
     }
 

@@ -52,7 +52,12 @@ public class MapperAxROM implements Mapper {
     @Override
     public int cpuMapRead(int address) {
         if (address >= 0x8000 && address <= 0xFFFF) {
-            return (prgBank * PRG_BANK_BYTES) + (address & PRG_WINDOW_MASK);
+            // Wrap the 3-bit 32KB-bank register to the cart's actual bank
+            // count (nPRGBanks is in 16KB units → /2 for 32KB banks) —
+            // hardware wraps on unwired address lines rather than reading
+            // past the end of PRG ROM.
+            int bank32Count = Math.max(1, nPRGBanks / 2);
+            return ((prgBank % bank32Count) * PRG_BANK_BYTES) + (address & PRG_WINDOW_MASK);
         }
         return UNMAPPED;
     }

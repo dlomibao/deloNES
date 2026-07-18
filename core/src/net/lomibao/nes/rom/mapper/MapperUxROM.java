@@ -58,8 +58,11 @@ public class MapperUxROM implements Mapper {
     @Override
     public int cpuMapRead(int address) {
         if (address >= 0x8000 && address <= 0xBFFF) {
-            // Switchable low window.
-            return prgBankSelect * PRG_BANK_BYTES + (address & 0x3FFF);
+            // Switchable low window. Wrap to the cart's actual bank count —
+            // hardware ignores unwired upper address lines, so a 4-bit
+            // register on a smaller cart wraps rather than indexing past
+            // the end of PRG ROM.
+            return (prgBankSelect % nPRGBanks) * PRG_BANK_BYTES + (address & 0x3FFF);
         }
         if (address >= 0xC000 && address <= 0xFFFF) {
             // Fixed-to-last-bank high window.
@@ -76,10 +79,9 @@ public class MapperUxROM implements Mapper {
      */
     @Override
     public int cpuMapWrite(int address) {
-        // No value available — fall through to the 2-arg form? Cartridge
-        // uses the 2-arg overload. This branch only matters for callers
-        // that don't pass a value (e.g. legacy or test paths). Either
-        // way, UxROM never writes to PRG memory, so UNMAPPED is correct.
+        // No value available, so the bank register cannot be latched here;
+        // Cartridge routes writes through the 2-arg overload. UxROM never
+        // writes to PRG memory, so UNMAPPED is correct on every path.
         return UNMAPPED;
     }
 

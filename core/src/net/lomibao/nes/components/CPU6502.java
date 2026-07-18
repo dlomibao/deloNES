@@ -466,8 +466,13 @@ public class CPU6502 {
 
     /**
      * interrupt request
+     *
+     * @return true if the IRQ was taken; false when masked by the I flag.
+     *         Callers modelling a level-triggered IRQ line (e.g. the MMC3
+     *         scanline counter) must keep the line asserted and retry on a
+     *         false return — hardware holds the line low until serviced.
      */
-    public void irq() {
+    public boolean irq() {
         if (!getFlag(Flag.InterruptDisable)) {
             writeShortToStack(pc);
 
@@ -480,7 +485,9 @@ public class CPU6502 {
             pc = getProgramCounterAtAddress(addressAbs);
 
             cycles = 7;// IRQ takes 7 cycles
+            return true;
         }
+        return false;
     }
 
     /**

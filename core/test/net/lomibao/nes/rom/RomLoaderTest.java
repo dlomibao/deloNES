@@ -70,6 +70,40 @@ class RomLoaderTest {
     // Happy path
     // ---------------------------------------------------------------------------
 
+    /**
+     * Cartridge mirroring must reach the nametables of a RomLoader-built
+     * system. Regression for PR #33 review round 1: RomLoader used to
+     * connect its own NameTableMemory to the PPUBus before the PPU's
+     * internal one — the orphan (never given a cartridge) shadowed the real
+     * one and pinned mirroring to the HORIZONTAL default, making header and
+     * runtime mirroring inert on the web path.
+     *
+     * <p>The synthetic ROM's flags-6 bit 0 is clear ⇒ VERTICAL mirroring in
+     * this codebase's convention ⇒ $2000 and $2800 alias the same physical
+     * nametable. Under the orphan-nametable bug they were distinct tables
+     * and the readback returned 0.
+     */
+    @Test
+    void load_cartridgeMirroring_reachesNametables() {
+        RomLoader.Loaded loaded = RomLoader.loadFromBytes(
+                buildSyntheticNROM(1, 1), "mirroring.nes", opcodeCsv());
+
+        // Write 0x42 to $2000 via PPUADDR/PPUDATA.
+        loaded.ppu.cpuBusWrite(0x2006, (byte) 0x20);
+        loaded.ppu.cpuBusWrite(0x2006, (byte) 0x00);
+        loaded.ppu.cpuBusWrite(0x2007, (byte) 0x42);
+
+        // Read from $2800 — vertical mirroring aliases it onto $2000.
+        loaded.ppu.cpuBusWrite(0x2006, (byte) 0x28);
+        loaded.ppu.cpuBusWrite(0x2006, (byte) 0x00);
+        loaded.ppu.cpuBusRead(0x2007);            // prime the read buffer
+        int value = loaded.ppu.cpuBusRead(0x2007);
+
+        assertEquals(0x42, value,
+                "vertical mirroring must alias $2800 onto $2000 — "
+                + "a 0 here means an orphan NameTableMemory is shadowing the PPU's");
+    }
+
     @Test
     void load_minimalNROM_returnsWiredSystem() {
         byte[] rom = buildSyntheticNROM(1, 1);

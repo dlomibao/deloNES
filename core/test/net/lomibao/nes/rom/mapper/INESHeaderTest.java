@@ -406,6 +406,23 @@ class INESHeaderTest {
     }
 
     /**
+     * DiskDude-tagged 1.0 headers: all of byte 7 is signature garbage, so
+     * the console-type bits get the same leniency as the mapper high
+     * nibble — a dirty old NROM dump must not be rejected as "VS System".
+     */
+    @Test
+    void consoleType_diskDudeHeader_lenientlyReportsNes() {
+        byte[] h = makeHeader(0);
+        h[7] = (byte) 0xF1;  // garbage incl. VS bit
+        h[12] = (byte) 'D';
+        h[13] = (byte) 'U';
+        h[14] = (byte) 'D';
+        h[15] = (byte) 'E';
+        assertEquals(0, new INESHeader(h).getConsoleType(),
+                "DiskDude garbage in byte 7 must not read as a console type");
+    }
+
+    /**
      * Legacy accessors must not read NES 2.0 bytes with iNES 1.0 semantics:
      * byte 8 is mapper/submapper, byte 9 is size MSBs, byte 10 is RAM shifts.
      */

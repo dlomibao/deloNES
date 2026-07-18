@@ -134,12 +134,12 @@ class CartridgeMapperUNROM512Test {
         Cartridge cart = buildCartridge();
         // Write 0xD0..0xD3 to PPU $0000 in CHR banks 0..3.
         for (int bank = 0; bank < 4; bank++) {
-            cart.cpuBusWrite(0x8000, (byte) (bank << 4));  // bits 4-5 → CHR bank
+            cart.cpuBusWrite(0x8000, (byte) (bank << 5));  // bits 5-6 → CHR bank
             cart.chrWrite(0x0000, (byte) (0xD0 | bank));
         }
         // Read them back in the same order.
         for (int bank = 0; bank < 4; bank++) {
-            cart.cpuBusWrite(0x8000, (byte) (bank << 4));
+            cart.cpuBusWrite(0x8000, (byte) (bank << 5));
             assertEquals(0xD0 | bank, cart.chrRead(0x0000),
                     "CHR bank " + bank + " should have its own independent byte");
         }

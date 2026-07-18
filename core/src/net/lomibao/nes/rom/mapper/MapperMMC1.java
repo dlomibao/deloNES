@@ -104,11 +104,14 @@ public class MapperMMC1 implements Mapper {
             return UNMAPPED;
         }
         int prgMode = (control >> 2) & 0x03;
-        int bank = prgBank & PRG_BANK_MASK;
+        // Wrap the 4-bit bank register to the cart's actual bank count —
+        // hardware ignores unwired upper address lines, so a register value
+        // beyond the ROM size wraps rather than indexing past the end.
+        int bank = (prgBank & PRG_BANK_MASK) % nPRGBanks;
         switch (prgMode) {
             case 0: case 1: {
                 // 32KB switchable: low bit of bank is ignored.
-                int base = (bank & 0x0E) * PRG_16K;
+                int base = (bank & ~0x01) * PRG_16K;
                 return base + (address - 0x8000);  // offset within 32KB pair
             }
             case 2: {

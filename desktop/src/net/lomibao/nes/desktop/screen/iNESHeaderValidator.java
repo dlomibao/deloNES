@@ -82,16 +82,10 @@ public class iNESHeaderValidator {
         if (!Cartridge.isMapperSupported(mapperNumber)) {
             return ValidationResult.failure(mapperNumber,
                     "Unsupported mapper " + mapperNumber
-                    + " — supported mappers: " + supportedMapperList());
+                    + " — supported mappers: " + Cartridge.supportedMapperList());
         }
 
         return ValidationResult.success(mapperNumber);
-    }
-
-    private static String supportedMapperList() {
-        return Cartridge.SUPPORTED_MAPPERS.stream().sorted()
-                .map(String::valueOf)
-                .reduce((a, b) -> a + ", " + b).orElse("");
     }
 
     /**

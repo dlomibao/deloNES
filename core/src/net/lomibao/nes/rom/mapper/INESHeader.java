@@ -39,7 +39,13 @@ public class INESHeader {
     void printHeaderBytes(){
 
     }
-    /**gets number of 16KB units of program rom**/
+    /**
+     * Gets the number of 16KB units of program ROM (byte 4 LSB only).
+     *
+     * @deprecated duplicate of {@link #getPRGROMSize()}; both under-report
+     *             NES 2.0 sizes — use {@link #getPRGROMSizeBytes()}.
+     */
+    @Deprecated
     public int getSizeOfPRGRom(){
         return Byte.toUnsignedInt(headerBytes[4]);
     }
@@ -110,9 +116,7 @@ public class INESHeader {
         // DiskDude workaround: bytes 12-15 carry a stale signature ⇒ byte 7's
         // upper nibble is unreliable. Treat as iNES 0.7 and zero it.
         // Skip for NES 2.0 headers — bytes 12-15 are meaningful fields there.
-        if (!isNES2Format()
-                && (headerBytes[12] != 0 || headerBytes[13] != 0
-                    || headerBytes[14] != 0 || headerBytes[15] != 0)) {
+        if (hasDiskDudeArtifacts()) {
             byte7HighNibble = 0;
         }
         int mapper = ((headerBytes[6] >> 4) & 0x0F) | byte7HighNibble;
@@ -123,6 +127,18 @@ public class INESHeader {
     }
 
     /**
+     * True when this is an iNES 1.0 header whose bytes 12-15 are non-zero —
+     * the "DiskDude!" signature convention: an old dumper stashed text in
+     * bytes 7-15, making all of byte 7 (not just the mapper high nibble)
+     * unreliable. Never true for NES 2.0, where those bytes are real fields.
+     */
+    private boolean hasDiskDudeArtifacts() {
+        return !isNES2Format()
+                && (headerBytes[12] != 0 || headerBytes[13] != 0
+                    || headerBytes[14] != 0 || headerBytes[15] != 0);
+    }
+
+    /**
      * NES 2.0 submapper (byte 8 high nibble, 0-15). iNES 1.0 has no
      * submapper concept — returns 0.
      */
@@ -130,10 +146,20 @@ public class INESHeader {
         return isNES2Format() ? getFlags8() >> 4 : 0;
     }
 
+    /**
+     * @deprecated raw byte-7 bit read with no DiskDude leniency; use
+     *             {@link #getConsoleType()}.
+     */
+    @Deprecated
     public boolean isVSUnisystem() {
         return (headerBytes[7] & 0x01) != 0;
     }
 
+    /**
+     * @deprecated raw byte-7 bit read with no DiskDude leniency; use
+     *             {@link #getConsoleType()}.
+     */
+    @Deprecated
     public boolean isPlayChoice10() {
         return (headerBytes[7] & 0x02) != 0;
     }
@@ -144,8 +170,16 @@ public class INESHeader {
      * header with both the VS and PC10 bits set reads as 3 — malformed input
      * either way; every non-zero value is rejected identically upstream, so
      * no special handling.
+     *
+     * <p>DiskDude-tagged 1.0 headers (see {@link #hasDiskDudeArtifacts()})
+     * report 0: byte 7 is signature garbage on those dumps, and trusting its
+     * console bits would reject old NROM dumps that played fine before —
+     * the same leniency the mapper-number path applies to the high nibble.
      */
     public int getConsoleType() {
+        if (hasDiskDudeArtifacts()) {
+            return 0;
+        }
         return headerBytes[7] & 0x03;
     }
 

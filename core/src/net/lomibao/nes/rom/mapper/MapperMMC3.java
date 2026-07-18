@@ -3,7 +3,7 @@ package net.lomibao.nes.rom.mapper;
 /**
  * iNES Mapper 4 — MMC3 (Nintendo's most prolific mapper chip).
  *
- * <p>MMC3 has 8 internal 6-bit bank registers (R0-R7) written via a
+ * <p>MMC3 has 8 internal bank registers (R0-R7) written via a
  * two-step protocol against the {@code $8000-$9FFE} pair (even = bank
  * select, odd = bank data). Additional even/odd pairs at {@code $A000},
  * {@code $C000}, and {@code $E000} control mirroring, the IRQ latch /
@@ -12,9 +12,10 @@ package net.lomibao.nes.rom.mapper;
  *
  * <p><b>Bank registers:</b>
  * <ul>
- *   <li>R0, R1 — 2KB CHR banks (low bit ignored)</li>
- *   <li>R2, R3, R4, R5 — 1KB CHR banks</li>
- *   <li>R6, R7 — 8KB PRG banks</li>
+ *   <li>R0, R1 — 2KB CHR banks, 8-bit (low bit ignored)</li>
+ *   <li>R2, R3, R4, R5 — 1KB CHR banks, 8-bit (256KB CHR reach)</li>
+ *   <li>R6, R7 — 8KB PRG banks, 6-bit (top two bits ignored — the MMC3
+ *       has only 6 PRG address lines)</li>
  * </ul>
  *
  * <p>This file is built up across sub-stages D1..D6; see
@@ -36,8 +37,14 @@ public class MapperMMC3 implements Mapper {
     private final int nCHRBanks;     // 8KB units
     /** Total 8KB PRG banks (= nPRGBanks * 2). */
     private final int prg8kCount;
+    /**
+     * Total 1KB CHR banks for wrap. CHR-ROM: nCHRBanks * 8. CHR-RAM cart
+     * (nCHRBanks == 0): the default 8KB allocation = 8 banks. Bank indexes
+     * wrap to this count, matching hardware's unwired upper address lines.
+     */
+    private final int chr1kCount;
 
-    /** R0..R7, each a 6-bit bank index. */
+    /** R0..R7 bank indexes; masks are applied at use, not at latch. */
     private final int[] bankReg = new int[8];
 
     /** Bank-select state from the last $8000-$9FFE even-address write. */
@@ -72,6 +79,7 @@ public class MapperMMC3 implements Mapper {
         this.nPRGBanks = prgBanks;
         this.nCHRBanks = chrBanks;
         this.prg8kCount = prgBanks * 2;
+        this.chr1kCount = chrBanks > 0 ? chrBanks * 8 : 8;
         reset();
     }
 
@@ -84,22 +92,28 @@ public class MapperMMC3 implements Mapper {
         }
         final int lastBank = prg8kCount - 1;
         final int penult = prg8kCount - 2;
+        // R6/R7 ignore their top two bits (only 6 PRG address lines).
+        final int r6 = bankReg[6] & 0x3F;
+        final int r7 = bankReg[7] & 0x3F;
         int bank;
         int windowBase;
         if (address < 0xA000) {              // $8000-$9FFF
-            bank = prgMode ? penult : bankReg[6];
+            bank = prgMode ? penult : r6;
             windowBase = 0x8000;
         } else if (address < 0xC000) {       // $A000-$BFFF
-            bank = bankReg[7];
+            bank = r7;
             windowBase = 0xA000;
         } else if (address < 0xE000) {       // $C000-$DFFF
-            bank = prgMode ? bankReg[6] : penult;
+            bank = prgMode ? r6 : penult;
             windowBase = 0xC000;
         } else {                             // $E000-$FFFF — always last
             bank = lastBank;
             windowBase = 0xE000;
         }
-        return bank * PRG_8K + (address - windowBase);
+        // Wrap to the cart's actual bank count — a register beyond the
+        // ROM size wraps on hardware (unwired address lines), it does
+        // not read past the end of PRG memory.
+        return (bank % prg8kCount) * PRG_8K + (address - windowBase);
     }
 
     @Override
@@ -122,7 +136,10 @@ public class MapperMMC3 implements Mapper {
                     prgMode = (value & 0x40) != 0;
                     chrInvert = (value & 0x80) != 0;
                 } else {
-                    bankReg[bankSelectIndex] = value & 0x3F;
+                    // Registers latch the full byte. CHR registers R0-R5
+                    // are genuinely 8-bit (256KB CHR reach); PRG R6/R7
+                    // drop their top two bits at use in cpuMapRead.
+                    bankReg[bankSelectIndex] = value & 0xFF;
                 }
                 break;
             case 1:                          // $A000-$BFFF
@@ -171,26 +188,29 @@ public class MapperMMC3 implements Mapper {
         int bank;
         if (!chrInvert) {
             if (lowHalf) {
-                // slots 0,1 → R0 (2KB); slots 2,3 → R1 (2KB).
+                // slots 0,1 → R0 (2KB); slots 2,3 → R1 (2KB). 2KB regs
+                // ignore their low bit; the full 8-bit value counts 1KB
+                // banks (256KB CHR reach).
                 int r = (slot < 2) ? 0 : 1;
-                int twoKbBank = bankReg[r] & 0x3E;
+                int twoKbBank = bankReg[r] & 0xFE;
                 bank = twoKbBank + (slot & 0x01);
             } else {
-                // slot 4→R2, 5→R3, 6→R4, 7→R5 (1KB each).
-                bank = bankReg[slot - 2] & 0x3F;
+                // slot 4→R2, 5→R3, 6→R4, 7→R5 (1KB each, 8-bit).
+                bank = bankReg[slot - 2];
             }
         } else {
             if (lowHalf) {
-                // slot 0→R2, 1→R3, 2→R4, 3→R5 (1KB each).
-                bank = bankReg[slot + 2] & 0x3F;
+                // slot 0→R2, 1→R3, 2→R4, 3→R5 (1KB each, 8-bit).
+                bank = bankReg[slot + 2];
             } else {
                 // slots 4,5 → R0 (2KB); slots 6,7 → R1 (2KB).
                 int r = (slot < 6) ? 0 : 1;
-                int twoKbBank = bankReg[r] & 0x3E;
+                int twoKbBank = bankReg[r] & 0xFE;
                 bank = twoKbBank + (slot & 0x01);
             }
         }
-        return bank * CHR_1K + (address & 0x03FF);
+        // Wrap to the cart's CHR size (hardware address-line wrap).
+        return (bank % chr1kCount) * CHR_1K + (address & 0x03FF);
     }
 
     @Override

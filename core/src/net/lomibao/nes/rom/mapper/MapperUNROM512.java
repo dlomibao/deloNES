@@ -9,21 +9,21 @@ package net.lomibao.nes.rom.mapper;
  * {@code $8000-$FFFF}:
  * <pre>
  * 7654 3210
- * M.CC PPPP
- * | ||  ++++ low 4 bits → 16KB PRG bank index (switchable at $8000-$BFFF)
- * | ++------ bits 4-5  → 8KB CHR-RAM bank index (4 banks → 32KB total)
- * +--------- bit 7     → 1-screen mirror select (when 1-screen mode is
- *                        enabled by the iNES header).
+ * NCCP PPPP
+ * |||+-++++ bits 0-4 → 16KB PRG bank index (switchable at $8000-$BFFF)
+ * |++------ bits 5-6 → 8KB CHR-RAM bank index (4 banks → 32KB total)
+ * +-------- bit 7    → 1-screen mirror select (when 1-screen mode is
+ *                      enabled by the iNES header).
  * </pre>
  *
  * <p><b>PRG layout</b> (UxROM-style):
  * <ul>
- *   <li>{@code $8000-$BFFF}: switchable 16KB bank from register low nibble</li>
+ *   <li>{@code $8000-$BFFF}: switchable 16KB bank from register bits 0-4</li>
  *   <li>{@code $C000-$FFFF}: FIXED to the last 16KB of PRG ROM</li>
  * </ul>
  *
  * <p><b>CHR layout</b>: 32KB of CHR-RAM (NOT CHR-ROM); bank-switched in
- * 8KB units via register bits 4-5. The Cartridge allocates the 32KB
+ * 8KB units via register bits 5-6. The Cartridge allocates the 32KB
  * vCHRMemory by consulting {@link #getChrRamSize()}.
  *
  * <p><b>Mirroring</b>: per spec, iNES header byte 6 bit 3 (4-screen
@@ -44,9 +44,9 @@ package net.lomibao.nes.rom.mapper;
  */
 public class MapperUNROM512 implements Mapper {
 
-    private static final int PRG_BANK_MASK = 0x0F;  // low 4 bits → PRG bank
-    private static final int CHR_BANK_MASK = 0x03;  // 2 bits → CHR bank (after >>4)
-    private static final int CHR_BANK_SHIFT = 4;
+    private static final int PRG_BANK_MASK = 0x1F;  // bits 0-4 → PRG bank
+    private static final int CHR_BANK_MASK = 0x03;  // 2 bits → CHR bank (after >>5)
+    private static final int CHR_BANK_SHIFT = 5;
     private static final int MIRROR_BIT    = 0x80;  // bit 7
 
     private static final int PRG_16K       = 16 * 1024;
@@ -57,7 +57,7 @@ public class MapperUNROM512 implements Mapper {
     private final int nPRGBanks;
     private final int nCHRBanks;
 
-    /** Switchable PRG bank index (4 bits). */
+    /** Switchable PRG bank index (5 bits). */
     private int prgBank;
     /** Switchable CHR-RAM bank index (2 bits). */
     private int chrBank;
@@ -78,8 +78,11 @@ public class MapperUNROM512 implements Mapper {
             return UNMAPPED;
         }
         if (address <= 0xBFFF) {
-            // $8000-$BFFF: switchable 16KB bank.
-            return prgBank * PRG_16K + (address & PRG_LOW_MASK);
+            // $8000-$BFFF: switchable 16KB bank. Wrap to the cart's actual
+            // bank count — hardware ignores unwired upper address lines, so
+            // a 5-bit register on a smaller cart wraps rather than reading
+            // past the end of PRG ROM.
+            return (prgBank % nPRGBanks) * PRG_16K + (address & PRG_LOW_MASK);
         }
         // $C000-$FFFF: fixed to LAST 16KB bank.
         int lastBank = nPRGBanks - 1;

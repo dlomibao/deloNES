@@ -133,3 +133,35 @@ does **not** throw when `to > data.length` — it silently zero-pads the tail.
 A truncated ROM therefore used to load as zero-filled PRG/CHR and emulate
 garbage with no signal. `Cartridge` now checks remaining length before each
 slice and throws "file is N bytes, header declares M".
+
+## D10 — Out-of-range bank registers: wrap in the mapper, not guard in Cartridge
+
+**Options:** (a) bounds-check `Cartridge.cpuBusRead` and return 0 (open bus)
+on overflow; (b) modulo the bank index by the cart's bank count inside each
+mapper's map function.
+
+**Chosen: (b).** Both prevent the crash (PR review round 1: a bank register
+wider than the cart — 4-bit UxROM register on a 4-bank cart, MMC3 R6 beyond
+the ROM — indexed `vPRGMemory` out of bounds and threw AIOOBE mid-frame).
+But (a) returns data real hardware never produces: the console leaves upper
+address lines unwired, so an out-of-range bank *wraps* — games and homebrew
+rely on that. (b) is what hardware does and what olcNES-family emulators
+implement. Cost is one int modulo per CPU read; measured concerns in the
+TeaVM profile were 64-bit ops and allocations, not int arithmetic.
+(Added after PR review round 1.)
+
+## D11 — Mapper IRQ line is level-held: retried while masked, cleared only when taken
+
+**Options:** (a) poll `reqState()` → `cpu.irq()` → `irqClear()`
+unconditionally (olcNES style); (b) clear only when the CPU actually takes
+the interrupt, retrying every tick while the I flag masks it.
+
+**Chosen: (b).** The MMC3 IRQ line is level-triggered: hardware holds it low
+until serviced. With (a), an IRQ raised while the CPU has interrupts
+disabled (SEI section, or inside another handler) is silently dropped —
+games that set up the scanline IRQ during a masked window would lose it and
+hang. `CPU6502.irq()` now returns whether the interrupt was taken;
+`NesSystem.tick()` clears the mapper line only on a true return. This also
+fixed the round-1 finding that the IRQ counter was dead code — `tick()` now
+polls `Cartridge.mapperIrqPending()` every master tick.
+(Added after PR review round 1.)

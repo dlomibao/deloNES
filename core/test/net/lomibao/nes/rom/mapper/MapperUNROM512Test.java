@@ -13,20 +13,20 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code $8000-$FFFF}:
  * <pre>
  * 7654 3210
- * M.CC PPPP
- * | ||  ++++ low 4 bits → 16KB PRG bank index (switchable at $8000-$BFFF)
- * | ++------ bits 4-5  → 8KB CHR-RAM bank index (4 banks → 32KB total)
- * +--------- bit 7     → 1-screen mirror select (when 1-screen mode is
- *                        enabled by iNES header bit 3 of byte 6).
+ * NCCP PPPP
+ * |||+-++++ bits 0-4 → 16KB PRG bank index (switchable at $8000-$BFFF)
+ * |++------ bits 5-6 → 8KB CHR-RAM bank index (4 banks → 32KB total)
+ * +-------- bit 7    → 1-screen mirror select (when 1-screen mode is
+ *                      enabled by iNES header bit 3 of byte 6).
  * </pre>
  *
  * <p>PRG layout (UxROM-style):
  * <ul>
- *   <li>{@code $8000-$BFFF}: switchable 16KB bank from register low nibble</li>
+ *   <li>{@code $8000-$BFFF}: switchable 16KB bank from register bits 0-4</li>
  *   <li>{@code $C000-$FFFF}: fixed to LAST 16KB of PRG ROM</li>
  * </ul>
  *
- * <p>CHR: 32KB of CHR-RAM, bank-switched in 8KB units via register bits 4-5.
+ * <p>CHR: 32KB of CHR-RAM, bank-switched in 8KB units via register bits 5-6.
  *
  * <p>Power-on: PRG bank 0, CHR bank 0, mirror LO.
  *
@@ -58,7 +58,7 @@ class MapperUNROM512Test {
     }
 
     @Test
-    void cpuMapWrite_latchesPRGBank_lowFourBits() {
+    void cpuMapWrite_latchesPRGBank_lowFiveBits() {
         MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
         // Bank 3 select.
         m.cpuMapWrite(0x8000, 0x03);
@@ -69,10 +69,31 @@ class MapperUNROM512Test {
     }
 
     @Test
-    void cpuMapWrite_latchesCHRBank_bits4and5() {
+    void cpuMapWrite_prgBankBit4_reachesBanks16to31() {
+        // 512KB cart = 32 banks — the fifth PRG bit (bit 4) is what makes
+        // the board "UNROM-512". It must select banks 16-31, not bleed
+        // into the CHR field.
+        MapperUNROM512 m = new MapperUNROM512(32, CHR_BANKS);
+        m.cpuMapWrite(0x8000, 0x14);  // PRG bank 20, CHR bank 0
+        assertEquals(20 * PRG_16K, m.cpuMapRead(0x8000));
+        assertEquals(0x0000, m.ppuMapRead(0x0000),
+                "PRG bit 4 must not select a CHR bank");
+    }
+
+    @Test
+    void cpuMapRead_prgBankWrapsToCartSize() {
+        // 8-bank (128KB) cart: latching bank 20 wraps to 20 % 8 = 4,
+        // matching hardware's unwired upper address lines.
         MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
-        // bits 4-5 = 0b11 → CHR bank 3. Low nibble unused (PRG bank 0).
-        m.cpuMapWrite(0x8000, 0x30);
+        m.cpuMapWrite(0x8000, 0x14);
+        assertEquals(4 * PRG_16K, m.cpuMapRead(0x8000));
+    }
+
+    @Test
+    void cpuMapWrite_latchesCHRBank_bits5and6() {
+        MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
+        // bits 5-6 = 0b11 → CHR bank 3. Bits 0-4 unused (PRG bank 0).
+        m.cpuMapWrite(0x8000, 0x60);
         // $0000 in CHR bank 3 → 3 * 8KB = 0x6000.
         assertEquals(3 * CHR_8K, m.ppuMapRead(0x0000));
         assertEquals(3 * CHR_8K + 0x1FFF, m.ppuMapRead(0x1FFF));
@@ -104,8 +125,8 @@ class MapperUNROM512Test {
     @Test
     void cpuMapWrite_multipleWrites_lastOneWins() {
         MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
-        m.cpuMapWrite(0x8000, 0x12);   // CHR bank 1, PRG bank 2
-        m.cpuMapWrite(0xC000, 0xA5);   // 0b10100101 → M=1, CC=10 (bank 2), PPPP=0101 (bank 5)
+        m.cpuMapWrite(0x8000, 0x22);   // 0b00100010 → CHR bank 1, PRG bank 2
+        m.cpuMapWrite(0xC000, 0xC5);   // 0b11000101 → N=1, CC=10 (bank 2), PPPPP=00101 (bank 5)
         assertEquals(5 * PRG_16K, m.cpuMapRead(0x8000));
         assertEquals(2 * CHR_8K, m.ppuMapRead(0x0000));
         assertEquals(Mapper.Mirror.ONESCREEN_HI, m.mirror());
@@ -164,7 +185,7 @@ class MapperUNROM512Test {
         // Verify the $BFFF/$C000 boundary: the byte just below uses the
         // switchable bank; the byte just above uses the last bank.
         MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_16, CHR_BANKS);
-        m.cpuMapWrite(0x8000, 0x04);  // bank 4 (low nibble)
+        m.cpuMapWrite(0x8000, 0x04);  // bank 4 (bits 0-4)
         int lastBase = (PRG_BANKS_16 - 1) * PRG_16K;
         assertEquals(4 * PRG_16K + 0x3FFF, m.cpuMapRead(0xBFFF));
         assertEquals(lastBase,             m.cpuMapRead(0xC000));
@@ -214,14 +235,14 @@ class MapperUNROM512Test {
         assertEquals(0x0000, m.ppuMapRead(0x0000));
         assertEquals(0x1FFF, m.ppuMapRead(0x1FFF));
         // bank 1
-        m.cpuMapWrite(0x8000, 0x10);
+        m.cpuMapWrite(0x8000, 0x20);
         assertEquals(1 * CHR_8K,          m.ppuMapRead(0x0000));
         assertEquals(1 * CHR_8K + 0x1FFF, m.ppuMapRead(0x1FFF));
         // bank 2
-        m.cpuMapWrite(0x8000, 0x20);
+        m.cpuMapWrite(0x8000, 0x40);
         assertEquals(2 * CHR_8K, m.ppuMapRead(0x0000));
         // bank 3
-        m.cpuMapWrite(0x8000, 0x30);
+        m.cpuMapWrite(0x8000, 0x60);
         assertEquals(3 * CHR_8K, m.ppuMapRead(0x0000));
     }
 
@@ -235,7 +256,7 @@ class MapperUNROM512Test {
         assertEquals(0x0000, m.ppuMapWrite(0x0000));
         assertEquals(0x1FFF, m.ppuMapWrite(0x1FFF));
         // Switch to bank 2.
-        m.cpuMapWrite(0x8000, 0x20);
+        m.cpuMapWrite(0x8000, 0x40);
         assertEquals(2 * CHR_8K,          m.ppuMapWrite(0x0000));
         assertEquals(2 * CHR_8K + 0x1FFF, m.ppuMapWrite(0x1FFF));
     }
@@ -258,7 +279,7 @@ class MapperUNROM512Test {
     void reset_returnsToPowerOnState() {
         MapperUNROM512 m = new MapperUNROM512(PRG_BANKS_8, CHR_BANKS);
         // Mutate state...
-        m.cpuMapWrite(0x8000, 0xB5);  // M=1, CHR=3, PRG=5
+        m.cpuMapWrite(0x8000, 0xE5);  // N=1, CHR=3, PRG=5
         assertEquals(5 * PRG_16K, m.cpuMapRead(0x8000));
         assertEquals(Mapper.Mirror.ONESCREEN_HI, m.mirror());
         assertEquals(3 * CHR_8K, m.ppuMapRead(0x0000));

@@ -9,7 +9,6 @@ import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.Ram;
-import net.lomibao.nes.components.ppu.NameTableMemory;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -121,8 +120,11 @@ public final class RomLoader {
 
         PPU ppu = new PPU();
         PPUBus ppuBus = new PPUBus();
-        NameTableMemory nameTableMemory = new NameTableMemory();
-        ppuBus.connect(nameTableMemory);
+        // The PPU owns its NameTableMemory and registers it on the bus in
+        // connectPPUBus(); ppu.setCartridge() below wires the cartridge into
+        // it for mirroring. Do NOT connect a second NameTableMemory here —
+        // PPUBus routes to the first match, so an extra one would shadow the
+        // PPU's and pin mirroring to the cartridge-less HORIZONTAL default.
         ppu.connectPPUBus(ppuBus);
 
         CPU6502 cpu = new CPU6502(opcodeCsv);
