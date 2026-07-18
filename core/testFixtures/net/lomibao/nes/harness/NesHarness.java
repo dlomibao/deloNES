@@ -1,6 +1,7 @@
 package net.lomibao.nes.harness;
 
 import net.lomibao.nes.NesSystem;
+import net.lomibao.nes.components.Button;
 import net.lomibao.nes.components.CPU6502;
 import net.lomibao.nes.components.Cartridge;
 import net.lomibao.nes.components.Controller;
@@ -56,6 +57,15 @@ public final class NesHarness {
     /** One-shot boundary hooks, keyed by frame; removed as they fire. */
     private final Map<Integer, List<Consumer<NesHarness>>> frameHooks =
             new HashMap<Integer, List<Consumer<NesHarness>>>();
+
+    // ---- Phase B2: watch engine state ----
+    /** Registered write watches; the S1 listener is installed iff non-empty. */
+    private final List<Watch> watches = new ArrayList<Watch>();
+    /** Gated presses queued mid-frame — {player, buttonOrdinal, holdFrames}. */
+    private final List<int[]> pendingGatedPresses = new ArrayList<int[]>();
+    /** Gated releases due at a frame boundary — frame → {player, buttonOrdinal}. */
+    private final Map<Integer, List<int[]>> gatedReleases =
+            new HashMap<Integer, List<int[]>>();
 
     private NesHarness(RomLoader.Loaded loaded) {
         this.loaded = loaded;
@@ -121,6 +131,68 @@ public final class NesHarness {
     }
 
     // -------------------------------------------------------------------------
+    // Watches (Phase B2) — exact, mid-frame write triggers off seam S1
+    // -------------------------------------------------------------------------
+
+    /**
+     * Register a write watch on a single address (mirror-canonicalized —
+     * a watch on $0080 also fires for writes to $0880, and $2000 for $2008).
+     * Terminal methods on the returned {@link WatchDsl} pick the trigger.
+     * Callbacks may throw {@link AssertionError}, which propagates out of
+     * {@link #runFrames}/{@link #runToFrame} unwrapped.
+     */
+    public WatchDsl watch(int addr) {
+        return new WatchDsl(this, addr, addr);
+    }
+
+    /** Register a write watch on an inclusive address range. */
+    public WatchDsl watchRange(int loAddr, int hiAddr) {
+        return new WatchDsl(this, loAddr, hiAddr);
+    }
+
+    /** Called by {@link WatchDsl}; installs the S1 listener on first use. */
+    Watch registerWatch(Watch w) {
+        if (watches.isEmpty()) {
+            loaded.nes.getCpuBus().setWriteListener(this::onBusWrite);
+        }
+        watches.add(w);
+        return w;
+    }
+
+    /** Called by {@link Watch#remove()}; detaches S1 when the last watch goes. */
+    void removeWatch(Watch w) {
+        watches.remove(w);
+        if (watches.isEmpty()) {
+            loaded.nes.getCpuBus().setWriteListener(null);
+        }
+    }
+
+    /** The single S1 {@code BusWriteListener} multiplexing all watches. */
+    private void onBusWrite(int addr, int oldValue, byte newValue, int pc) {
+        int canonical = Watch.canonical(addr);
+        Watch.Write write = null;
+        // Index loop: a callback may remove watches; never CMEs.
+        for (int i = 0; i < watches.size(); i++) {
+            Watch watch = watches.get(i);
+            if (watch.matches(canonical)) {
+                if (write == null) {
+                    write = new Watch.Write(
+                            frame, pc, addr, canonical, oldValue, newValue & 0xFF);
+                }
+                watch.dispatch(write);
+            }
+        }
+    }
+
+    /** Called by {@link Watch.Context#press}; applied at the next boundary. */
+    void queueGatedPress(int player, Button button, int holdFrames) {
+        if (holdFrames < 1) {
+            throw new IllegalArgumentException("holdFrames must be >= 1, got: " + holdFrames);
+        }
+        pendingGatedPresses.add(new int[] {player, button.ordinal(), holdFrames});
+    }
+
+    // -------------------------------------------------------------------------
     // Driving
     // -------------------------------------------------------------------------
 
@@ -168,6 +240,28 @@ public final class NesHarness {
     private void stepFrame() {
         if (inputPlayer != null) {
             inputPlayer.applyUpTo(frame, loaded.controller);
+        }
+        // Gated input (Phase B2): releases due at this boundary first, then
+        // presses queued by watch triggers during the previous frame — so a
+        // press fired mid-frame N is live for frames N+1 .. N+holdFrames.
+        List<int[]> releases = gatedReleases.remove(frame);
+        if (releases != null) {
+            for (int[] r : releases) {
+                loaded.controller.setButton(r[0], Button.values()[r[1]], false);
+            }
+        }
+        if (!pendingGatedPresses.isEmpty()) {
+            for (int[] p : pendingGatedPresses) {
+                loaded.controller.setButton(p[0], Button.values()[p[1]], true);
+                Integer releaseFrame = frame + p[2];
+                List<int[]> due = gatedReleases.get(releaseFrame);
+                if (due == null) {
+                    due = new ArrayList<int[]>();
+                    gatedReleases.put(releaseFrame, due);
+                }
+                due.add(new int[] {p[0], p[1]});
+            }
+            pendingGatedPresses.clear();
         }
         List<Consumer<NesHarness>> hooks = frameHooks.remove(frame);
         if (hooks != null) {
