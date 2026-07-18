@@ -149,6 +149,25 @@ public class Controller extends CPUBusComponent {
         liveState[player][button.ordinal()] = pressed;
     }
 
+    /**
+     * Seam S4 (headless-harness plan, Phase D2): read a single button's
+     * <em>live</em> state — what the host has set via
+     * {@link #setButton(int, Button, boolean)}, not the latched shift
+     * register. Side-effect free. The harness {@code InputRecorder} samples
+     * this once per frame boundary; recording here (rather than in a host's
+     * key-mapping layer) keeps the record path host-agnostic.
+     *
+     * @param player 0 for player 1, 1 for player 2
+     * @param button the button to query
+     * @return {@code true} while the button is held
+     */
+    public boolean isPressed(int player, Button button) {
+        if (player < 0 || player >= NUM_PLAYERS) {
+            throw new IllegalArgumentException("player must be 0 or 1, got: " + player);
+        }
+        return liveState[player][button.ordinal()];
+    }
+
     // -------------------------------------------------------------------------
     // Legacy mask-based API (backward compatibility — player 0 only)
     // -------------------------------------------------------------------------

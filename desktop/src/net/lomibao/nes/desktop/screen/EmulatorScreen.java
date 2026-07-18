@@ -17,10 +17,15 @@ import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.Ram;
+import net.lomibao.nes.harness.InputRecorder;
+import net.lomibao.nes.harness.MovieFormat;
 import net.lomibao.nes.render.NesMasterPalette;
 import net.lomibao.nes.render.PixelRenderer;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.security.MessageDigest;
 
 /**
  * Reusable LibGDX {@link Screen} that runs an NES ROM from any
@@ -55,6 +60,23 @@ public class EmulatorScreen implements Screen {
     private PPU ppu;
     private PPUBus ppuBus;
     private Cartridge cartridge;
+
+    // Movie recording (headless-harness plan, Phase D2 desktop wiring).
+    /**
+     * Debug flag enabling live input recording: launch with
+     * {@code -Ddelones.recordMovie} (any value). The recorder samples the
+     * controller at the same frame boundary headless replay applies input at
+     * (immediately before each {@code NesSystem.runFrame()} — decision D9),
+     * and the finished movie is dumped to
+     * {@code ~/.deloNES/movies/<rom name>.dmov} when the screen is disposed
+     * (exit-to-menu or app close). Same per-user location convention as
+     * {@code controls.json}.
+     */
+    public static final String RECORD_MOVIE_PROPERTY = "delones.recordMovie";
+    /** Movie output dir, relative to LibGDX external storage (the user home). */
+    static final String MOVIES_EXTERNAL_DIR = ".deloNES/movies/";
+    private InputRecorder movieRecorder;
+    private String romSha256Hex;
 
     // State.
     private boolean paused = false;
@@ -95,6 +117,13 @@ public class EmulatorScreen implements Screen {
 
     /** Soft-resets the CPU and PPU. */
     public void reset() {
+        if (movieRecorder != null) {
+            // A mid-run reset breaks the movie's power-on determinism contract
+            // (v1 has no reset events) — abort loudly rather than desync.
+            System.err.println("[EmulatorScreen] reset during movie recording — "
+                    + "recording discarded (v1 movies are power-on-anchored)");
+            movieRecorder = null;
+        }
         if (cpu != null) {
             cpu.reset();
         }
@@ -194,7 +223,17 @@ public class EmulatorScreen implements Screen {
 
     private void loadROM() {
         try (InputStream in = rom.open()) {
-            cartridge = new Cartridge(in, rom.displayName());
+            InputStream cartridgeIn = in;
+            if (movieRecordingEnabled()) {
+                // Buffer the image so the movie header can pin its sha-256.
+                byte[] romBytes = readAllBytesCompat(in);
+                romSha256Hex = sha256Hex(romBytes);
+                movieRecorder = new InputRecorder();
+                cartridgeIn = new ByteArrayInputStream(romBytes);
+                System.out.println("[EmulatorScreen] movie recording ON — rom-sha256 "
+                        + romSha256Hex);
+            }
+            cartridge = new Cartridge(cartridgeIn, rom.displayName());
 
             cpuBus.setCartridge(cartridge);
             ppu.setCartridge(cartridge);
@@ -237,6 +276,12 @@ public class EmulatorScreen implements Screen {
 
         if (!paused) {
             ppu.clearScreen();
+            // D9: sample controller state at the exact frame boundary replay
+            // applies input at — immediately before runFrame(). Paused frames
+            // run no emulation and are therefore not sampled.
+            if (movieRecorder != null) {
+                movieRecorder.sampleFrame(controller);
+            }
             runFrame();
         }
 
@@ -326,8 +371,90 @@ public class EmulatorScreen implements Screen {
         // No-op; dispose() is the cleanup hook.
     }
 
+    // --- Movie recording plumbing (Phase D2) ------------------------------
+
+    /**
+     * Whether live input recording is on — the {@link #RECORD_MOVIE_PROPERTY}
+     * debug flag. Protected so tests can force-enable without global state.
+     */
+    protected boolean movieRecordingEnabled() {
+        return System.getProperty(RECORD_MOVIE_PROPERTY) != null;
+    }
+
+    /**
+     * Where the finished movie is written:
+     * {@code ~/.deloNES/movies/<fileName>} (controls.json convention).
+     * Protected so tests can redirect to a temp dir.
+     */
+    protected com.badlogic.gdx.files.FileHandle resolveMovieFile(String fileName) {
+        return Gdx.files.external(MOVIES_EXTERNAL_DIR + fileName);
+    }
+
+    /** Serialize and dump the recording, if any. Called from {@link #dispose()}. */
+    private void dumpMovieIfRecording() {
+        if (movieRecorder == null || movieRecorder.frames() == 0) {
+            return;
+        }
+        try {
+            String text = MovieFormat.serialize(
+                    movieRecorder.toMovie(rom.displayName(), romSha256Hex));
+            com.badlogic.gdx.files.FileHandle out =
+                    resolveMovieFile(sanitizeFileName(rom.displayName()) + ".dmov");
+            com.badlogic.gdx.files.FileHandle parent = out.parent();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            out.writeString(text, false, "UTF-8");
+            System.out.println("[EmulatorScreen] movie written: "
+                    + out.file().getAbsolutePath()
+                    + " (" + movieRecorder.frames() + " frames)");
+        } catch (RuntimeException e) {
+            System.err.println("[EmulatorScreen] WARNING: failed to write movie: "
+                    + e.getMessage());
+        } finally {
+            movieRecorder = null;
+        }
+    }
+
+    /** Strip path separators so a ROM display name is a safe file name. */
+    private static String sanitizeFileName(String name) {
+        StringBuilder sb = new StringBuilder(name.length());
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            sb.append((c == '/' || c == '\\' || c == ':') ? '_' : c);
+        }
+        return sb.toString();
+    }
+
+    /** Java-8-source-safe InputStream drain (no InputStream.readAllBytes). */
+    private static byte[] readAllBytesCompat(InputStream in) throws java.io.IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(512 * 1024);
+        byte[] chunk = new byte[16 * 1024];
+        int n;
+        while ((n = in.read(chunk)) > 0) {
+            buffer.write(chunk, 0, n);
+        }
+        return buffer.toByteArray();
+    }
+
+    /** sha-256 of the ROM image as 64 lowercase hex chars (movie header pin). */
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder sb = new StringBuilder(64);
+            for (byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("JVM lacks SHA-256", e);
+        }
+    }
+
     @Override
     public void dispose() {
+        dumpMovieIfRecording();
         if (batch != null) { batch.dispose(); batch = null; }
         if (font != null) { font.dispose(); font = null; }
         if (pixelRenderer != null) { pixelRenderer.dispose(); pixelRenderer = null; }
