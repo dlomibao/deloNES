@@ -4,6 +4,25 @@ sourceSets.main.java.srcDirs = [ "src/" ]
 sourceSets.main.resources.srcDirs = [ "src/main/resources" ]
 sourceSets.test.java.srcDirs = [ "test/" ]
 
+// Harness fixtures tier (docs/headless-harness-plan.md, D1/A0): JVM-only
+// helpers (javax.imageio, java.nio.file, opentest4j skip support) shared by
+// core tests AND desktop tests via testFixtures(project(":core")). Never on
+// the html/TeaVM classpath — TeaVM-hostile code stays structurally out of
+// core/src. Non-Maven layout, matching src/ + test/ above.
+apply plugin: "java-test-fixtures"
+sourceSets.testFixtures.java.srcDirs = [ "testFixtures/" ]
+
+dependencies {
+    // Match core's Lombok/log4j versions (root build.gradle project(":core") block).
+    testFixturesCompileOnly 'org.projectlombok:lombok:1.18.42'
+    testFixturesAnnotationProcessor 'org.projectlombok:lombok:1.18.42'
+    testFixturesImplementation 'org.apache.logging.log4j:log4j-api:2.23.1'
+    // D8: opentest4j is the fixtures tier's ONLY test-framework dependency —
+    // TestAbortedException gives skip-if-absent without a JUnit type in the
+    // API. 1.3.0 is the version bundled with JUnit 5.11.4.
+    testFixturesApi 'org.opentest4j:opentest4j:1.3.0'
+}
+
 // JaCoCo coverage — Phase A0 of docs/mapper-plan.md. Gate enforces
 // ≥90% line coverage on the rom.mapper package so every mapper added
 // in Phase B-E has to ship with real tests, not a stub. Threshold can

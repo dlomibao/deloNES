@@ -86,6 +86,9 @@ project(":desktop") {
 
         testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
         testImplementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+        // Harness fixtures tier (docs/headless-harness-plan.md A0) — shared
+        // headless-harness helpers from core's java-test-fixtures source set.
+        testImplementation testFixtures(project(":core"))
         testImplementation "org.junit.jupiter:junit-jupiter-api:5.11.4"
         testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.11.4"
         testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
