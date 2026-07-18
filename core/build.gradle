@@ -3,6 +3,12 @@
 sourceSets.main.java.srcDirs = [ "src/" ]
 sourceSets.main.resources.srcDirs = [ "src/main/resources" ]
 sourceSets.test.java.srcDirs = [ "test/" ]
+// Test resources: the pre-existing default dir (src/test/resources —
+// nestest.log lives there) PLUS test/resources/, where golden images for
+// the harness screen assertions live (headless-harness plan, Phase C2:
+// test/resources/golden/ — free content only, never commercial-ROM
+// imagery, D12).
+sourceSets.test.resources.srcDirs = [ "src/test/resources", "test/resources" ]
 
 // Harness fixtures tier (docs/headless-harness-plan.md, D1/A0): JVM-only
 // helpers (javax.imageio, java.nio.file, opentest4j skip support) shared by
@@ -38,6 +44,12 @@ jacoco {
 
 test {
     finalizedBy jacocoTestReport
+    // Forward the golden-image regeneration flag into the test JVM
+    // (headless-harness plan, Phase C2 / risk register):
+    //   ./gradlew core:test --tests "*NestestGoldenTest" -DregenGolden=true
+    if (System.getProperty("regenGolden") != null) {
+        systemProperty "regenGolden", System.getProperty("regenGolden")
+    }
 }
 
 jacocoTestReport {

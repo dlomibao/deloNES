@@ -130,6 +130,25 @@ public final class ScreenCapture {
         return "harness";
     }
 
+    // -------------------------------------------------------------------------
+    // Assertions (Phase C2) — see ScreenAssertions for conventions (D8)
+    // -------------------------------------------------------------------------
+
+    /** Exact ARGB match at (x, y); plain {@link AssertionError} on mismatch. */
+    public void assertPixel(int x, int y, int expectedArgb) {
+        ScreenAssertions.assertPixel(this, x, y, expectedArgb);
+    }
+
+    /**
+     * Exact golden comparison of the region at ({@code x},{@code y}) sized
+     * {@code w}x{@code h}. On mismatch, writes {@code <golden>-actual.png}
+     * and {@code <golden>-diff.png} failure artifacts under
+     * {@link #defaultOutputDir()} and throws with both paths in the message.
+     */
+    public void assertRegionEquals(ScreenAssertions.Golden golden, int x, int y, int w, int h) {
+        ScreenAssertions.assertRegionEquals(this, golden, x, y, w, h);
+    }
+
     private static void checkBounds(int x, int y) {
         if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
             throw new IllegalArgumentException(
