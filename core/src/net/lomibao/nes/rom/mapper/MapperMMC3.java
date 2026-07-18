@@ -39,8 +39,10 @@ public class MapperMMC3 implements Mapper {
     private final int prg8kCount;
     /**
      * Total 1KB CHR banks for wrap. CHR-ROM: nCHRBanks * 8. CHR-RAM cart
-     * (nCHRBanks == 0): the default 8KB allocation = 8 banks. Bank indexes
-     * wrap to this count, matching hardware's unwired upper address lines.
+     * (nCHRBanks == 0): the mapper's addressable CHR-RAM (getChrRamSize(),
+     * 8KB) in 1KB banks — banking can't reach beyond the chip's address
+     * lines even if the header declared more. Bank indexes wrap to this
+     * count, matching hardware's unwired upper address lines.
      */
     private final int chr1kCount;
 
@@ -79,7 +81,7 @@ public class MapperMMC3 implements Mapper {
         this.nPRGBanks = prgBanks;
         this.nCHRBanks = chrBanks;
         this.prg8kCount = prgBanks * 2;
-        this.chr1kCount = chrBanks > 0 ? chrBanks * 8 : 8;
+        this.chr1kCount = chrBanks > 0 ? chrBanks * 8 : getChrRamSize() / CHR_1K;
         reset();
     }
 

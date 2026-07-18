@@ -204,7 +204,13 @@ public class MapperMMC1 implements Mapper {
         if (address < 0x0000 || address > 0x1FFF) {
             return UNMAPPED;
         }
-        int chr4kCount = Math.max(1, (nCHRBanks == 0 ? 1 : nCHRBanks) * 2);
+        // CHR-RAM carts: wrap over the mapper's addressable CHR-RAM
+        // (getChrRamSize(), 8KB here) — banking can't reach beyond what
+        // the chip has address lines for, even if the header declared
+        // (and Cartridge allocated) more.
+        int chr4kCount = Math.max(1, nCHRBanks == 0
+                ? getChrRamSize() / CHR_4K
+                : nCHRBanks * 2);
         boolean fourKbMode = (control & 0x10) != 0;
         if (fourKbMode) {
             // Two independent 4KB banks.
