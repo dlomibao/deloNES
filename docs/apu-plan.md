@@ -432,6 +432,35 @@ Deliverables:
   `6-irq_flag_timing` against the Phase B APU; record exact failure
   deltas. This calibrates C2 and is committed as a findings note in this
   doc (checkbox + numbers).
+
+  > **☑ C0 FINDINGS (measured 2026-07-18, Phase B APU @ 57f8266):**
+  >
+  > | ROM | Result | ROM diagnostic |
+  > |---|---|---|
+  > | `4-jitter` | **FAIL #2** | "Frame irq is set too soon" |
+  > | `5-len_timing` | **FAIL #2** | "Channel: 0 / First length of mode 0 is too soon" |
+  > | `6-irq_flag_timing` | **FAIL #2** | "Flag first set too soon" |
+  > | `apu_reset/4017_timing` | PASS | already green pre-C1 (boot offset 0 + immediate $4017 reset is within this ROM's tolerance) |
+  > | `apu_reset/4017_written` | PASS | |
+  >
+  > Access-cycle measurement (directed spike, minimal CPU+RAM+APU
+  > system, S1 write-listener probe): a 4-cycle `STA $4017` lands its
+  > bus write at the instruction's **first** cycle (cpu clockCount 9 =
+  > dispatch cycle after 7-cycle reset + 2-cycle `LDA #imm`); hardware
+  > lands it on the **final** cycle (start+3). Measured earliness =
+  > `baseClocks − 1` = 3 for 4-cycle absolute stores/loads — exactly
+  > the S6 compensation formula. Poll-loop spike confirms the frame
+  > IRQ flag becomes CPU-visible at frame-counter cycles 29828–30 with
+  > the current zero boot offset.
+  >
+  > Failure-direction analysis: all three failures are sign-consistent
+  > single-digit "too soon" — the $4017-write path runs ~6–7 CPU cycles
+  > early (≈3 missing C1 write-delay + 3 early store access), partially
+  > offset by $4015 reads observing 3 cycles early. C1 + C2 close
+  > deltas of exactly this shape; **no kill-pivot indication at C0**.
+  > Note for C1: `4017_timing` passes *today* with boot offset 0 —
+  > adding the C1 write delay shifts the sequence and the boot offset
+  > must be recalibrated against it.
 - **C1 — frame-counter exactness.** $4017 write-delay counter (3 or 4
   CPU cycles by write parity); the 3-consecutive-cycle IRQ-flag window
   (29828/29829/29830) incl. re-set after a mid-window $4015 read;
