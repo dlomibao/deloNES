@@ -18,6 +18,13 @@ public class PPUBus {
     private List<PPUBusComponent> components = new ArrayList<>();
 
     /**
+     * Last PPU bus address emitted; used by the Phase A3 A12 hook to
+     * detect rising edges on bit 12 across consecutive accesses.
+     * Stored as 14-bit (masked to 0x3FFF on every update).
+     */
+    private int previousPpuAddress = 0;
+
+    /**
      * Connects the cartridge to the PPU bus for CHR ROM/RAM access
      */
     public void connectCartridge(Cartridge cartridge) {
@@ -53,7 +60,14 @@ public class PPUBus {
      */
     public void write(int address, byte value) {
         int addr = address & 0x3FFF; // 14-bit address space
-        
+
+        // Phase A3: notify cart of A12 transition before routing.
+        // Writes drive A12 too ($2006 latch loads, $2007 increments etc.)
+        if (cartridge != null) {
+            cartridge.notifyPpuA12(addr, previousPpuAddress);
+        }
+        previousPpuAddress = addr;
+
         // Try registered components first
         for (PPUBusComponent component : components) {
             if (component.inPPUusRange(addr)) {
@@ -64,9 +78,14 @@ public class PPUBus {
         
         // Fall back to legacy handling
         if (addr < 0x2000) {
-            // Pattern Tables (0x0000-0x1FFF): CHR ROM/RAM
-            // Most games have CHR ROM (read-only), some have CHR RAM (writable)
-            log.debug("Write to CHR ROM at address 0x{} (usually read-only)", Integer.toHexString(addr));
+            // Pattern Tables (0x0000-0x1FFF): CHR ROM/RAM.
+            // CHR-ROM carts: mapper returns UNMAPPED, the write no-ops.
+            // CHR-RAM carts (and future bank-switched CHR-RAM mappers like
+            // UNROM-512): mapper returns the mapped offset and the byte
+            // lands in vCHRMemory. Phase A1 of docs/mapper-plan.md.
+            if (cartridge != null) {
+                cartridge.chrWrite(addr, value);
+            }
         } else if (addr < 0x3F00) {
             // Nametables (0x2000-0x3EFF)
             log.warn("Write to nametable at address 0x{} with no component registered", Integer.toHexString(addr));
@@ -85,7 +104,13 @@ public class PPUBus {
      */
     public int read(int address) {
         int addr = address & 0x3FFF; // 14-bit address space
-        
+
+        // Phase A3: notify cart of A12 transition before reading.
+        if (cartridge != null) {
+            cartridge.notifyPpuA12(addr, previousPpuAddress);
+        }
+        previousPpuAddress = addr;
+
         // Try registered components first
         for (PPUBusComponent component : components) {
             if (component.inPPUusRange(addr)) {

@@ -8,10 +8,27 @@
        </head>
 
        <body>
-              <div align="center" id="embed-html">
-                     <canvas id="canvas" width="640" height="480"></canvas>
+              <div id="rom-toolbar">
+                     <button type="button" id="rom-button">Load ROM</button>
+                     <span id="rom-status">Drop a .nes file anywhere on the canvas to load it.</span>
               </div>
+              <div align="center" id="embed-html">
+                     <div id="rom-drop">
+                            <canvas id="canvas" width="640" height="480"></canvas>
+                     </div>
+              </div>
+              <!-- Hidden picker that the Load ROM button activates. The accept
+                   filter is advisory: drag-drop still works for any extension
+                   because some emulators ship .nes files as .bin or .rom. -->
+              <input type="file" id="rom-picker" accept=".nes" style="display:none">
               <script type="text/javascript" src="classes.js"></script>
+              <script type="text/javascript">
+                // gdx-teavm 1.5.6 exports main but doesn't auto-invoke it.
+                // Kick the WebApplication explicitly so the canvas boots.
+                if (typeof window.main === 'function') {
+                    window.main([]);
+                }
+              </script>
        </body>
 
        <script>
@@ -26,12 +43,135 @@
                 evt.stopPropagation();
               }
               document.addEventListener('contextmenu', event => event.preventDefault());
-              
+
               // Attach event handlers to canvas instead of embed-html div
               var canvas = document.getElementById('canvas');
               if (canvas) {
                 canvas.addEventListener('mousedown', handleMouseDown, false);
                 canvas.addEventListener('mouseup', handleMouseUp, false);
+              }
+
+              // ------------------------------------------------------------
+              // Phase F — ROM picker bridge
+              //
+              // Both the "Load ROM" button and the drag-drop region funnel
+              // into loadRomFile(File), which converts the file to a
+              // Uint8Array (and then an Int8Array view so TeaVM marshals it
+              // as a Java byte[]) and calls into the TeaVM-compiled Java
+              // method exported as `main.loadRomBytes(byte[])`.
+              //
+              // The export name is set by TeaVM 0.14's @JSExport on the
+              // static method `HtmlLauncher.loadRomBytes` plus the
+              // `targetFileName=classes.js` config in html/build.gradle.
+              // gdx-teavm's main entry point exposes exported methods on
+              // the `main` global once classes.js has finished loading.
+              // ------------------------------------------------------------
+
+              var statusEl  = document.getElementById('rom-status');
+              var pickerEl  = document.getElementById('rom-picker');
+              var buttonEl  = document.getElementById('rom-button');
+              var dropEl    = document.getElementById('rom-drop');
+
+              function setStatus(text) {
+                if (statusEl) {
+                  statusEl.textContent = text;
+                }
+                console.log('[rom-picker]', text);
+              }
+
+              function callLoadRomBytes(bytes) {
+                // TeaVM 0.14 puts @JSExport'd static methods on the same
+                // module-exports object as `main`. In the browser build the
+                // module receives `self` so the exports land directly on
+                // `window` (see the IIFE wrapper at the top of classes.js
+                // and the `$rt_exports.loadRomBytes = ...` line at the end).
+                if (typeof window.loadRomBytes !== 'function') {
+                  throw new Error(
+                    'loadRomBytes not found on window — has classes.js finished loading?');
+                }
+                return window.loadRomBytes(bytes);
+              }
+
+              function loadRomFile(file) {
+                if (!file) {
+                  setStatus('No file selected.');
+                  return;
+                }
+                setStatus('Reading ' + file.name + ' (' + file.size + ' bytes)...');
+                var reader = new FileReader();
+                reader.onerror = function() {
+                  setStatus('Failed to read ' + file.name + ': ' + reader.error);
+                };
+                reader.onload = function() {
+                  try {
+                    var u8  = new Uint8Array(reader.result);
+                    // TeaVM marshals a JS Int8Array as a Java byte[]; the
+                    // backing buffer is shared so no copy.
+                    var i8  = new Int8Array(u8.buffer);
+                    var ok  = callLoadRomBytes(i8);
+                    if (ok) {
+                      setStatus('Loaded ' + file.name + ' (' + file.size + ' bytes).');
+                    } else {
+                      setStatus(
+                        'Emulator declined ROM (not booted yet? wait a couple seconds and retry).');
+                    }
+                  } catch (e) {
+                    setStatus('Error: ' + (e && e.message ? e.message : e));
+                  }
+                };
+                reader.readAsArrayBuffer(file);
+              }
+
+              // --- "Load ROM" button path -------------------------------
+              if (buttonEl && pickerEl) {
+                buttonEl.addEventListener('click', function() {
+                  pickerEl.click();
+                });
+                pickerEl.addEventListener('change', function(evt) {
+                  var files = evt.target.files;
+                  if (files && files.length > 0) {
+                    loadRomFile(files[0]);
+                  }
+                  // Clear the value so picking the same file twice still
+                  // fires `change` the second time.
+                  pickerEl.value = '';
+                });
+              }
+
+              // --- Drag-and-drop path -----------------------------------
+              if (dropEl) {
+                // Block the browser's default "open file in new tab" handler
+                // for the drop target AND the document, otherwise dropping
+                // outside the canvas-pixel area would navigate away.
+                ['dragenter', 'dragover'].forEach(function(name) {
+                  dropEl.addEventListener(name, function(evt) {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    dropEl.classList.add('rom-drop-hover');
+                  });
+                });
+                ['dragleave', 'drop'].forEach(function(name) {
+                  dropEl.addEventListener(name, function(evt) {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    dropEl.classList.remove('rom-drop-hover');
+                  });
+                });
+                dropEl.addEventListener('drop', function(evt) {
+                  var dt = evt.dataTransfer;
+                  if (!dt || !dt.files || dt.files.length === 0) {
+                    setStatus('No file in drop.');
+                    return;
+                  }
+                  loadRomFile(dt.files[0]);
+                });
+                // Also block doc-level default so a misaimed drop doesn't
+                // navigate away from the page.
+                ['dragover', 'drop'].forEach(function(name) {
+                  document.addEventListener(name, function(evt) {
+                    evt.preventDefault();
+                  });
+                });
               }
        </script>
 </html>

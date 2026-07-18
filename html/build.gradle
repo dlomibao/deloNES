@@ -49,9 +49,11 @@ tasks.named('generateJavaScript').configure {
         def scriptDir = file("${buildDir}/generated/teavm/js/scripts")
         scriptDir.mkdirs()
         
-        // Extract required runtime files from gdx-teavm backend JAR
+        // Extract required runtime files from gdx-teavm backend JAR.
+        // The artifact was renamed `backend-teavm` → `backend-web` in
+        // gdx-teavm 1.5.0; accept both names so older versions still work.
         configurations.runtimeClasspath.each { file ->
-            if (file.name.contains('backend-teavm')) {
+            if (file.name.contains('backend-teavm') || file.name.contains('backend-web')) {
                 copy {
                     from zipTree(file)
                     into scriptDir
@@ -77,6 +79,18 @@ tasks.named('generateJavaScript').configure {
         copy {
             from "${project.rootDir}/assets"
             into assetsDir
+        }
+
+        // gdx-teavm 1.5.x preload hangs forever if it can't fetch
+        // assets/startup-logo.png (the splash image shown during preload).
+        // Most libGDX templates ship one; we don't have a dedicated logo
+        // so fall back to badlogic.jpg renamed. Any valid image works.
+        def logoTarget = new File(assetsDir, "startup-logo.png")
+        if (!logoTarget.exists()) {
+            def fallback = new File(assetsDir, "badlogic.jpg")
+            if (fallback.exists()) {
+                logoTarget.bytes = fallback.bytes
+            }
         }
 
         // Phase 0+: surface core's classpath ROMs + opcode table under
@@ -159,8 +173,6 @@ tasks.register('dist') {
     }
 }
 
-sourceCompatibility = JavaVersion.VERSION_11
-targetCompatibility = JavaVersion.VERSION_11
 sourceSets.main.java.srcDirs = [ "src/" ]
 
 eclipse.project.name = appName + "-html"

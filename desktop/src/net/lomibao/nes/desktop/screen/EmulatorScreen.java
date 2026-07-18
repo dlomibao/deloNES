@@ -17,7 +17,6 @@ import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.Ram;
-import net.lomibao.nes.components.ppu.NameTableMemory;
 import net.lomibao.nes.render.NesMasterPalette;
 import net.lomibao.nes.render.PixelRenderer;
 
@@ -56,7 +55,6 @@ public class EmulatorScreen implements Screen {
     private PPU ppu;
     private PPUBus ppuBus;
     private Cartridge cartridge;
-    private NameTableMemory nameTableMemory;
 
     // State.
     private boolean paused = false;
@@ -168,9 +166,11 @@ public class EmulatorScreen implements Screen {
     private void setupNESSystem() {
         ppu = new PPU();
         ppuBus = new PPUBus();
-        nameTableMemory = new NameTableMemory();
-
-        ppuBus.connect(nameTableMemory);
+        // The PPU owns its NameTableMemory and registers it on the bus in
+        // connectPPUBus(); loadROM()'s ppu.setCartridge() wires the cartridge
+        // into it for mirroring. Do NOT connect a second NameTableMemory —
+        // PPUBus routes to the first match, so an extra one would shadow the
+        // PPU's and pin mirroring to the cartridge-less HORIZONTAL default.
         ppu.connectPPUBus(ppuBus);
 
         cpu = new CPU6502();

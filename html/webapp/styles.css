@@ -5,6 +5,58 @@ canvas {
 
 body {
     background-color: #222222;
+    color: #dddddd;
+    font-family: sans-serif;
+    margin: 0;
+}
+
+/* Phase F — ROM picker toolbar. Kept compact so the canvas is still the
+   visual focus. */
+#rom-toolbar {
+    padding: 8px 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid #444444;
+}
+
+#rom-button {
+    background-color: #3a7bd5;
+    color: #ffffff;
+    border: 0;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#rom-button:hover {
+    background-color: #5b94e1;
+}
+
+#rom-button:active {
+    background-color: #2d62ab;
+}
+
+#rom-status {
+    font-size: 13px;
+    color: #b0b0b0;
+}
+
+/* Drag-drop target — the wrapper around the canvas. The dashed border
+   shows up only while a file is being hovered over the page so the
+   normal idle UI is uncluttered. */
+#rom-drop {
+    display: inline-block;
+    padding: 4px;
+    border: 2px dashed transparent;
+    transition: border-color 120ms ease-in-out;
+}
+
+#rom-drop.rom-drop-hover {
+    border-color: #3a7bd5;
+    background-color: #2a3a55;
 }
 
 .superdev {

@@ -88,6 +88,14 @@ public class NesSystem {
      */
     public void tick() {
         cpuBus.clock();
+        // Mapper IRQ line (MMC3 scanline counter): level-asserted by the
+        // mapper until the CPU actually takes the interrupt. While the I
+        // flag masks it, the line stays asserted and is retried each tick —
+        // matching hardware, where the line is held low until serviced.
+        Cartridge cart = cpuBus.getCartridge();
+        if (cart != null && cart.mapperIrqPending() && cpu.irq()) {
+            cart.mapperIrqClear();
+        }
         if (ppu.consumeNmi()) {
             cpu.nmi();
             Consumer<NesSystem> listener = frameRenderedListener;
