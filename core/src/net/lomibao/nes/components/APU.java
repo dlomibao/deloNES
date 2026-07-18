@@ -1,6 +1,7 @@
 package net.lomibao.nes.components;
 
 import lombok.extern.log4j.Log4j2;
+import net.lomibao.nes.components.apu.DmcChannel;
 import net.lomibao.nes.components.apu.FrameCounter;
 import net.lomibao.nes.components.apu.NoiseChannel;
 import net.lomibao.nes.components.apu.PulseChannel;
@@ -54,6 +55,7 @@ public class APU extends CPUBusComponent {
     private final PulseChannel pulse2 = new PulseChannel(false);
     private final TriangleChannel triangle = new TriangleChannel();
     private final NoiseChannel noise = new NoiseChannel();
+    private final DmcChannel dmc = new DmcChannel();
 
     /**
      * Last value written to $4017 — reapplied on {@link #reset()}
@@ -62,12 +64,14 @@ public class APU extends CPUBusComponent {
      */
     private int last4017;
 
-    /** $4015 bit 4 — DMC enable. Restart/stop rules land in Phase D. */
+    /** $4015 bit 4 as last written — DMC enable (rules in {@link DmcChannel#setEnabled}). */
     private boolean dmcEnabled;
 
     /**
-     * DMC interrupt flag ($4015 bit 7). Never set until Phase D — but the
-     * clear paths ($4015 write; NOT $4015 read) exist now (A3).
+     * DMC interrupt flag ($4015 bit 7) — set on the last-byte fetch (D1),
+     * cleared by any $4015 write or a $4010 write with bit 7 clear (never
+     * by a $4015 read). Lives here beside the $4015 semantics; the
+     * channel signals set-events via {@code acceptSampleByte}'s return.
      * Package-visible so same-package tests can pin the clear semantics.
      */
     boolean dmcIrqFlag;
@@ -105,12 +109,32 @@ public class APU extends CPUBusComponent {
         }
         // Triangle timer runs at CPU rate — the one fast-clock channel.
         triangle.clockTimer();
-        // Pulse (and noise) timers run at APU rate (every 2nd CPU cycle).
+        // Pulse, noise and DMC timers run at APU rate (every 2nd CPU cycle).
         oddCpuCycle = !oddCpuCycle;
         if (!oddCpuCycle) {
             pulse1.clockTimer();
             pulse2.clockTimer();
             noise.clockTimer();
+            dmc.clockTimer();
+            // D1: a refill that drained the buffer refetches immediately —
+            // the byte "magically arrives" via cpuBus.read() (stall-free;
+            // the D2 stall machine takes this over).
+            if (dmc.needsSampleByte()) {
+                fetchDmcByte();
+            }
+        }
+    }
+
+    /**
+     * Perform the DMC memory-reader fetch through the CPU bus (D1 — no
+     * stall; the CPU-cycle cost lands in D2/seam S5) and raise the DMC
+     * IRQ flag when the channel reports a last-byte fetch.
+     */
+    private void fetchDmcByte() {
+        CPUBus bus = getBus();
+        int value = bus != null ? bus.read(dmc.currentAddress(), false) : 0;
+        if (dmc.acceptSampleByte(value)) {
+            dmcIrqFlag = true;
         }
     }
 
@@ -213,6 +237,24 @@ public class APU extends CPUBusComponent {
             case 0x400F:
                 noise.writeLength(v);
                 break;
+            // -- DMC ($4010-$4013, D1) --
+            case 0x4010:
+                dmc.writeControl(v);
+                // Clearing the IRQ-enable bit also clears the DMC IRQ
+                // flag (NESdev "APU DMC" $4010 semantics).
+                if ((v & 0x80) == 0) {
+                    dmcIrqFlag = false;
+                }
+                break;
+            case 0x4011:
+                dmc.writeDirectLoad(v);
+                break;
+            case 0x4012:
+                dmc.writeSampleAddress(v);
+                break;
+            case 0x4013:
+                dmc.writeSampleLength(v);
+                break;
             // -- $4015 control (A3): enables + DMC-IRQ-flag clear --
             case 0x4015:
                 // C2: the enable change lands on the store's final cycle —
@@ -224,8 +266,16 @@ public class APU extends CPUBusComponent {
                 noise.lengthCounter().setEnabled((v & 0x08) != 0);
                 dmcEnabled = (v & 0x10) != 0;
                 // Any $4015 write clears the DMC IRQ flag — never the
-                // frame IRQ flag (§1.7). DMC restart/stop rules: Phase D.
+                // frame IRQ flag (§1.7).
                 dmcIrqFlag = false;
+                // D1 restart/stop rules: bit-4 set with bytes==0 restarts
+                // the sample; clear zeroes bytes (buffered byte plays out).
+                dmc.setEnabled(dmcEnabled);
+                // A $4015-triggered start with an empty buffer fetches at
+                // once (D1 — stall-free; D2 makes this the 3-cycle stall).
+                if (dmc.needsSampleByte()) {
+                    fetchDmcByte();
+                }
                 break;
             case 0x4017:
                 last4017 = v;
@@ -287,7 +337,10 @@ public class APU extends CPUBusComponent {
             if (noise.lengthCounter().isActive()) {
                 status |= 0x08;
             }
-            // Bit 4: DMC bytes remaining > 0 — always 0 until Phase D.
+            // Bit 4: DMC bytes remaining > 0 (D1).
+            if (dmc.bytesRemaining() > 0) {
+                status |= 0x10;
+            }
             if (frameCounter.isFrameIrqFlag()) {
                 status |= 0x40;
             }
@@ -329,6 +382,10 @@ public class APU extends CPUBusComponent {
         noise.lengthCounter().setEnabled(false);
         dmcEnabled = false;
         dmcIrqFlag = false;
+        // DMC reset (D1, research §1.9): reader stopped (bytes := 0) and
+        // $4011 &= 1 applied to the delta counter.
+        dmc.setEnabled(false);
+        dmc.resetOutputLevel();
         // Retained $4017 reapplied immediately at the boot offset (C1);
         // the frame IRQ flag and any pending delayed write are dropped
         // (apu_reset/irq_flag_cleared, 4017_timing).
@@ -367,6 +424,10 @@ public class APU extends CPUBusComponent {
 
     public NoiseChannel noise() {
         return noise;
+    }
+
+    public DmcChannel dmc() {
+        return dmc;
     }
 
     /** Last value written to $4017 (retained across reset — A4). */

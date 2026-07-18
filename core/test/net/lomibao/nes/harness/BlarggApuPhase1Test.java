@@ -1,6 +1,5 @@
 package net.lomibao.nes.harness;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -56,20 +55,18 @@ class BlarggApuPhase1Test {
      * PLAN CONFLICT (docs/apu-plan.md Phase A gate vs. the ROM's actual
      * requirements) — surfaced 2026-07-18; ADJUDICATED in Phase A review
      * round 1 (both reviewers unanimous, corroborated against the ROM
-     * binary): the gate is formally RELOCATED to Phase D, which
-     * re-enables this test as part of its definition-of-done. Original
-     * analysis:
+     * binary): the gate was formally RELOCATED to Phase D and this test
+     * RE-ENABLED there (Phase D1 — the DMC now provides the $4015
+     * bits 4/7 the ROM requires). Original analysis:
      * {@code works_immediately.s} log check #1 requires a $4015 read of
      * $1F (bit 4 = DMC bytes-remaining &gt; 0, primed via $4010=$8F /
      * $4013=1) ~6000 cycles after power, and check #2 requires $8F
      * (bit 7 = DMC IRQ flag set once the 17-byte sample at rate 15
-     * finishes). Phase A3's spec pins both bits to "always 0 until
-     * Phase D", so this ROM is unpassable before the DMC lands. The
-     * other six Phase A gate ROMs pass.
+     * finishes). Phase A3's spec pinned both bits to "always 0 until
+     * Phase D", so this ROM was unpassable before the DMC landed. The
+     * other six Phase A gate ROMs passed from Phase A on.
      */
     @Test
-    @Disabled("Phase A plan conflict: ROM requires Phase D DMC state "
-            + "($4015 bits 4/7) — see Javadoc; re-enable in Phase D")
     void apuReset_works_immediately() {
         assertPasses("test-roms/blargg/apu_reset/works_immediately.nes");
     }
