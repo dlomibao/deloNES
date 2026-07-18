@@ -319,6 +319,19 @@ public final class NesHarness {
     }
 
     // -------------------------------------------------------------------------
+    // Frame capture (Phase C1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Snapshot the visible framebuffer as it is now (ARGB ints — see
+     * {@link ScreenCapture} for the channel-order contract). Typically used
+     * at a frame boundary: {@code h.runToFrame(n); h.screen().assertPixel(...)}.
+     */
+    public ScreenCapture screen() {
+        return ScreenCapture.of(loaded.ppu);
+    }
+
+    // -------------------------------------------------------------------------
     // Census helpers (Phase B4)
     // -------------------------------------------------------------------------
 
