@@ -171,9 +171,14 @@ public final class NesHarness {
     private void onBusWrite(int addr, int oldValue, byte newValue, int pc) {
         int canonical = Watch.canonical(addr);
         Watch.Write write = null;
-        // Index loop: a callback may remove watches; never CMEs.
-        for (int i = 0; i < watches.size(); i++) {
-            Watch watch = watches.get(i);
+        // Dispatch over a snapshot: a callback may remove watches (one-shot
+        // pattern); mutating the live list mid-loop would shift a matching
+        // watch into an already-visited slot and silently skip it for this
+        // write. Removed watches are still filtered (dispatch no-ops after
+        // remove()) so a snapshot never fires a stale watch.
+        Watch[] snapshot = watches.toArray(new Watch[0]);
+        for (int i = 0; i < snapshot.length; i++) {
+            Watch watch = snapshot[i];
             if (watch.matches(canonical)) {
                 if (write == null) {
                     write = new Watch.Write(

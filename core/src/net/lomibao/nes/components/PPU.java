@@ -902,10 +902,17 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * @return the byte at that address as an unsigned int (0-255)
      */
     public int peekPpuBus(int addr) {
+        int a = addr & 0x3FFF;
+        // Palette RAM lives inside the PPU, not on the bus — route it here
+        // (with the standard $3F10/$14/$18/$1C mirroring) so the "byte at
+        // that address" contract holds across the whole $0000-$3FFF space.
+        if (a >= 0x3F00) {
+            return Byte.toUnsignedInt(paletteRAM[mirrorPaletteAddress(a)]);
+        }
         if (ppuBus == null) {
             return 0;
         }
-        return ppuBus.peek(addr) & 0xFF;
+        return ppuBus.peek(a) & 0xFF;
     }
 
     /**

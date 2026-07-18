@@ -69,8 +69,15 @@ public final class Watch {
         return canonicalAddr >= lo && canonicalAddr <= hi;
     }
 
+    private boolean removed = false;
+
     /** Evaluate the trigger against one bus write; fire the callback if it trips. */
     void dispatch(Write w) {
+        if (removed) {
+            // Dispatch runs over a snapshot; a watch removed by an earlier
+            // callback in the same write must not fire.
+            return;
+        }
         switch (kind) {
             case WRITE:
                 fire(w);
@@ -109,6 +116,7 @@ public final class Watch {
 
     /** Unregister this watch; when the last watch goes, the S1 listener detaches. */
     public void remove() {
+        removed = true;
         harness.removeWatch(this);
     }
 

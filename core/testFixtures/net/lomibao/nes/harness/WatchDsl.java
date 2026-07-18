@@ -29,7 +29,10 @@ public final class WatchDsl {
         this.harness = harness;
         int lo = Watch.canonical(loAddr);
         int hi = Watch.canonical(hiAddr);
-        if (lo > hi) {
+        // The canonical span must equal the requested span, or the range
+        // crosses a mirror boundary and would silently narrow — e.g.
+        // $0100-$0900 canonicalizes to $0100-$0100, dropping $0200-$07FF.
+        if (lo > hi || (hi - lo) != ((hiAddr & 0xFFFF) - (loAddr & 0xFFFF))) {
             throw new IllegalArgumentException(String.format(
                     "watch range $%04X-$%04X canonicalizes to $%04X-$%04X — "
                     + "ranges must not span mirror regions",
