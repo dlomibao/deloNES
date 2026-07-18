@@ -29,10 +29,17 @@ public final class WatchDsl {
         this.harness = harness;
         int lo = Watch.canonical(loAddr);
         int hi = Watch.canonical(hiAddr);
-        // The canonical span must equal the requested span, or the range
+        // Both endpoints must live in the same mirror region AND the
+        // canonical span must equal the requested span, or the range
         // crosses a mirror boundary and would silently narrow — e.g.
         // $0100-$0900 canonicalizes to $0100-$0100, dropping $0200-$07FF.
-        if (lo > hi || (hi - lo) != ((hiAddr & 0xFFFF) - (loAddr & 0xFFFF))) {
+        // The region check closes the cross-region hole (round-2 review):
+        // regions canonicalize with different offsets, so a RAM→PPU range
+        // like $1000-$3005 can have a coincidentally equal span while
+        // still silently dropping addresses inside the request.
+        if (region(loAddr) != region(hiAddr)
+                || lo > hi
+                || (hi - lo) != ((hiAddr & 0xFFFF) - (loAddr & 0xFFFF))) {
             throw new IllegalArgumentException(String.format(
                     "watch range $%04X-$%04X canonicalizes to $%04X-$%04X — "
                     + "ranges must not span mirror regions",
@@ -40,6 +47,14 @@ public final class WatchDsl {
         }
         this.lo = lo;
         this.hi = hi;
+    }
+
+    /** Mirror-region discriminator: 0 = RAM, 1 = PPU registers, 2 = other. */
+    private static int region(int addr) {
+        int a = addr & 0xFFFF;
+        if (a < 0x2000) return 0;
+        if (a < 0x4000) return 1;
+        return 2;
     }
 
     // -------------------------------------------------------------------------
