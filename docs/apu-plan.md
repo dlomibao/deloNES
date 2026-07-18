@@ -528,6 +528,24 @@ Deliverables:
   per master-visible generation; this branch is one generation).
 - ✅ Web runFrame within the D9 perf band (like every phase gate —
   round-2 review caught this line missing from C alone).
+
+> **☑ PHASE C GATES (closed 2026-07-18):** `core:check` green (1003
+> tests, 0 failed); `NestestTest` 8992/8992; blargg `4-jitter`,
+> `5-len_timing`, `6-irq_flag_timing`, `apu_reset/4017_timing`,
+> `apu_reset/4017_written` all PASS (re-enabled in
+> `BlarggApuPhaseCTest`); determinism proofs re-run green; committed
+> movie ITs (nestest + Micro Mages boot) replay unmodified — the
+> input-only `.dmov` artifacts stay valid, so no regeneration was
+> needed; golden `nestest-frame60.png` exact-match unchanged;
+> EMU_VERSION stays 2 (D2). **Kill-pivot NOT taken** — the atomic CPU
+> + C2 compensation satisfied all three timing ROMs.
+>
+> **D9 (advisory per the Phase B waiver):** interleaved JVM proxy,
+> best-of (3×5 runs) × 600 frames, nestest, same machine/method:
+> pre-APU base `734a4ed` 1.512 ms/frame vs Phase C 1.548 ms/frame =
+> **+2.4%** cumulative (A+B+C), within the ≤5% band; run noise ±5%
+> observed (one CUR round beat two PRE rounds). The REAL web number
+> remains OWED before the Phase E gate per the Phase B waiver.
 - **Kill-pivot:** if C0+C2 show the atomic CPU cannot satisfy 4/5/6
   without micro-stepped execution, descope those three ROMs to a
   follow-up "cycle-stepped CPU" project, keep C1/C3 (flag semantics +
