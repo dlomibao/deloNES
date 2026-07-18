@@ -107,6 +107,36 @@ public class APU extends CPUBusComponent {
         }
     }
 
+    /**
+     * C2 access-cycle compensation (seam S6): a $4015/$4017 access made
+     * during an atomically-executed instruction is serviced as-of
+     * {@code cpuCycle + (instructionBaseClocks − 1)} — reads/writes land
+     * on the final cycle of read/store instructions on a real 6502, while
+     * our CPU issues them at instruction start. Runs the frame counter
+     * forward to the access cycle (dispatching any frame clocks fired on
+     * the way) and returns the number of cycles run ahead, which also
+     * shifts the $4017 write-parity. RMW instructions to APU space are
+     * pinned to the same rule (documented approximation). Returns 0 when
+     * no instruction is in flight (DMA, reset paths, harness pokes).
+     */
+    private int catchUpForAccess() {
+        CPUBus bus = getBus();
+        if (bus == null) {
+            return 0;
+        }
+        CPU6502 cpu = bus.getCpu();
+        if (cpu == null) {
+            return 0;
+        }
+        int base = cpu.getInFlightBaseClocks();
+        int ahead = base > 0 ? base - 1 : 0;
+        int events = frameCounter.catchUpTo(ahead);
+        if (events != 0) {
+            dispatchFrameClocks(events);
+        }
+        return ahead;
+    }
+
     /** Route quarter/half-frame clocks to the channels (research §1.2). */
     private void dispatchFrameClocks(int events) {
         if ((events & FrameCounter.QUARTER) != 0) {
@@ -178,6 +208,9 @@ public class APU extends CPUBusComponent {
                 break;
             // -- $4015 control (A3): enables + DMC-IRQ-flag clear --
             case 0x4015:
+                // C2: the enable change lands on the store's final cycle —
+                // half-frame clocks up to that cycle fire first.
+                catchUpForAccess();
                 pulse1.lengthCounter().setEnabled((v & 0x01) != 0);
                 pulse2.lengthCounter().setEnabled((v & 0x02) != 0);
                 triangle.lengthCounter().setEnabled((v & 0x04) != 0);
@@ -189,12 +222,20 @@ public class APU extends CPUBusComponent {
                 break;
             case 0x4017:
                 last4017 = v;
-                // C1 write parity: this CPU cycle contained an APU-cycle
-                // tick iff oddCpuCycle is false after clock()'s toggle
-                // (the pulse/noise timers just clocked) → 3-cycle delay;
-                // otherwise 4. The delayed reset/mode/bit-7 clock emerge
-                // from frameCounter.clock() at the apply cycle.
-                frameCounter.write4017(v, !oddCpuCycle);
+                // C2: the write is effective on the store's final cycle.
+                int ahead = catchUpForAccess();
+                // C1 write parity AT THE EFFECTIVE CYCLE: this CPU cycle
+                // contained an APU-cycle tick iff oddCpuCycle is false
+                // after clock()'s toggle (the pulse/noise timers just
+                // clocked) → 3-cycle delay; otherwise 4. An odd
+                // compensation shift flips the parity. The delayed
+                // reset/mode/bit-7 clock emerge from frameCounter.clock()
+                // at the apply cycle.
+                boolean duringApuCycle = !oddCpuCycle;
+                if ((ahead & 1) != 0) {
+                    duringApuCycle = !duringApuCycle;
+                }
+                frameCounter.write4017(v, duringApuCycle);
                 break;
             default:
                 // Remaining registers decode into channel/unit state as
@@ -220,6 +261,12 @@ public class APU extends CPUBusComponent {
         // ratified non-goal (D10). Bits 4/7 stay 0 until the DMC lands
         // (Phase D); the flag/enable plumbing already exists.
         if (address == 0x4015) {
+            // C2: a real $4015 read observes state as-of the load's final
+            // cycle. readOnly peeks are side-effect free (harness
+            // observation contract) — never compensated.
+            if (!readOnly) {
+                catchUpForAccess();
+            }
             int status = 0;
             if (pulse1.lengthCounter().isActive()) {
                 status |= 0x01;

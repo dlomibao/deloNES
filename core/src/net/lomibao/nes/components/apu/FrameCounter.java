@@ -45,11 +45,6 @@ public final class FrameCounter {
     boolean irqInhibit;
     /** Level-held frame interrupt flag (cleared by software, not by clocking). */
     boolean frameIrqFlag;
-    /**
-     * True while the current CPU cycle is one of the flag-set cycles —
-     * the $4015 same-cycle read race reads 1 without clearing (§1.7).
-     */
-    boolean irqSetThisCycle;
 
     /**
      * Cycles until a pending $4017 write's delayed sequencer reset lands
@@ -60,11 +55,46 @@ public final class FrameCounter {
     int pendingValue;
 
     /**
+     * C2 access-cycle compensation marker ({@code syncedTo}): the number
+     * of future real CPU cycles this counter has already consumed via
+     * {@link #catchUpTo}. While positive, eager {@link #clock()} calls are
+     * no-ops (the time was already stepped) — the contained, partial
+     * Mesen-catch-up adoption pinned by the plan.
+     */
+    int aheadCycles;
+
+    /**
      * Advance one CPU cycle; returns a {@link #QUARTER}/{@link #HALF} bit
-     * mask of the frame clocks (0 most cycles).
+     * mask of the frame clocks (0 most cycles). No-op while real time is
+     * still catching up to a compensated access ({@link #catchUpTo}).
      */
     public int clock() {
-        irqSetThisCycle = false;
+        if (aheadCycles > 0) {
+            aheadCycles--;
+            return 0;
+        }
+        return step();
+    }
+
+    /**
+     * C2 (seam S6 consumer): run the counter forward so its state is
+     * as-of {@code targetAhead} CPU cycles past real time — the
+     * compensated access cycle {@code cpuCycle + (baseClocks − 1)}. Steps
+     * only the difference when a previous access already ran ahead.
+     * Returns the OR of all frame-clock masks fired during catch-up; the
+     * APU dispatches them to the channel units exactly like eager clocks.
+     */
+    public int catchUpTo(int targetAhead) {
+        int events = 0;
+        while (aheadCycles < targetAhead) {
+            events |= step();
+            aheadCycles++;
+        }
+        return events;
+    }
+
+    /** One effective CPU cycle of sequencer time (real or catch-up). */
+    private int step() {
         // Delayed $4017 apply (C1): on the 3rd/4th cycle after the write the
         // sequencer resets, the mode bit lands, and — bit 7 set — an
         // immediate quarter+half clock fires. The sequence does not also
@@ -105,7 +135,6 @@ public final class FrameCounter {
     private void setIrqFlag() {
         if (!irqInhibit) {
             frameIrqFlag = true;
-            irqSetThisCycle = true;
         }
     }
 
@@ -140,8 +169,8 @@ public final class FrameCounter {
         mode5 = (value & 0x80) != 0;
         irqInhibit = (value & 0x40) != 0;
         frameIrqFlag = false;
-        irqSetThisCycle = false;
         pendingDelay = 0;
+        aheadCycles = 0;
         cpuCycle = bootOffset;
     }
 
@@ -151,19 +180,22 @@ public final class FrameCounter {
     }
 
     /**
-     * Clear the flag (a $4015 read). No-op on a flag-set cycle — the
-     * same-cycle race returns 1 without clearing (§1.7).
+     * Clear the flag (a $4015 read). The read has already observed 1 when
+     * the flag was up (status computed before the clear); the flag is
+     * simply <b>re-asserted</b> by any remaining window cycle
+     * (29829/29830), which is what makes mid-window reads appear not to
+     * clear. A read on the LAST set cycle (29830) clears for good —
+     * blargg {@code 6-irq_flag_timing} check #5 rejects the "no-clear on
+     * a set cycle" race model (C2 finding: it reported the flag's last
+     * set cycle one too late).
      */
     public void clearFrameIrqFlagOnRead() {
-        if (!irqSetThisCycle) {
-            frameIrqFlag = false;
-        }
+        frameIrqFlag = false;
     }
 
     /** Unconditional clear (reset path). */
     public void clearFrameIrqFlag() {
         frameIrqFlag = false;
-        irqSetThisCycle = false;
     }
 
     /** Current frame-counter-local CPU cycle (test/diagnostic seam). */

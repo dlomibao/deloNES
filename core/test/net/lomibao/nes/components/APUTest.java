@@ -252,12 +252,17 @@ class APUTest {
     }
 
     @Test
-    void a3_read4015_sameCycleAsSet_returns1WithoutClearing() {
+    void a3_read4015_sameCycleAsSet_returns1_windowReAsserts() {
         APU apu = apuWithFrameIrqSet(); // current cycle 29828 = a set cycle
         assertEquals(0x40, apu.cpuBusRead(0x4015, false) & 0x40,
                 "same-cycle read returns 1");
+        // C2 model correction (blargg 6-irq_flag_timing #5): the read DOES
+        // clear; the remaining window cycles (29829/29830) re-assert. A
+        // read on the LAST set cycle clears for good.
+        assertFalse(apu.frameCounter().isFrameIrqFlag(), "read clears the register");
+        apu.clock(); // 29829 re-asserts
         assertTrue(apu.frameCounter().isFrameIrqFlag(),
-                "…but must not clear the flag (§1.7 race)");
+                "mid-window clear is re-asserted by the next window cycle");
     }
 
     @Test

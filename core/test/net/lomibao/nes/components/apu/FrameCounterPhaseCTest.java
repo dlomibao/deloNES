@@ -116,19 +116,26 @@ class FrameCounterPhaseCTest {
     // ------------------------------------------------------------------
 
     @Test
-    void flagWindow_readOnEachWindowCycle_neverEndsUpClear() {
-        // A $4015 read that clears the flag mid-window sees it re-set on the
-        // next window cycle; a read ON a set cycle races and does not clear.
+    void flagWindow_midWindowReadsReAsserted_lastCycleReadClearsForGood() {
+        // A $4015 read observes 1 on any window cycle and clears the
+        // register; the REMAINING window cycles re-assert it. Reading on
+        // the last set cycle (29830) therefore clears for good — blargg
+        // 6-irq_flag_timing #5 ("flag last set too late") rejects a
+        // no-clear-on-set-cycle race model.
         for (int readAt = 29828; readAt <= 29830; readAt++) {
             FrameCounter fc = new FrameCounter();
             clockAll(fc, readAt);
             assertTrue(fc.isFrameIrqFlag(), "flag set at " + readAt);
-            fc.clearFrameIrqFlagOnRead(); // same-cycle race: no clear
-            assertTrue(fc.isFrameIrqFlag(),
-                    "read on set cycle " + readAt + " must not clear (race)");
+            fc.clearFrameIrqFlagOnRead();
+            assertFalse(fc.isFrameIrqFlag(), "the read clears the register at " + readAt);
             fc.clock(); // next cycle
-            assertTrue(fc.isFrameIrqFlag(),
-                    "flag still held after window cycle " + readAt);
+            if (readAt < 29830) {
+                assertTrue(fc.isFrameIrqFlag(),
+                        "window re-asserts after a read on " + readAt);
+            } else {
+                assertFalse(fc.isFrameIrqFlag(),
+                        "a read on the last set cycle (29830) clears for good");
+            }
         }
     }
 

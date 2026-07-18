@@ -1,9 +1,11 @@
 package net.lomibao.nes.components;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.log4j.Log4j2;
 
@@ -349,6 +351,22 @@ public class CPU6502 {
     @Builder.Default
     private long clockCount = 0; // global clock count since start
 
+    /**
+     * Seam S6 (docs/apu-plan.md Phase C2): the in-flight instruction's
+     * <b>base clocks as of the access, pre-page-cross</b>. Non-zero only
+     * while {@link #clock()} is inside the atomically-executed instruction
+     * body (runAddressMode/runInstruction) — the window in which every one
+     * of the instruction's bus accesses lands. {@code additionalCycle1 &
+     * additionalCycle2} are added <em>after</em> the body runs, so an APU
+     * access made mid-body cannot see them: indexed-read page-cross cycles
+     * are invisible to compensation (documented caveat, harmless for
+     * blargg's absolute-addressing access pattern — C0 findings). Zero at
+     * every other time (idle cycles, interrupts, DMA, harness peeks).
+     */
+    @Builder.Default
+    @Setter(AccessLevel.NONE)
+    private int inFlightBaseClocks = 0;
+
     private Instruction[] instructions;
 
     public CPU6502() {
@@ -526,9 +544,14 @@ public class CPU6502 {
 
             cycles = i.getClocks();
 
+            // Seam S6: expose base clocks for the duration of the body —
+            // APU access-cycle compensation (C2) reads this mid-body.
+            inFlightBaseClocks = cycles;
+
             // process addressing
             int additionalCycle1 = i.runAddressMode();
             int additionalCycle2 = i.runInstruction();
+            inFlightBaseClocks = 0;
             cycles += (additionalCycle1 & additionalCycle2);
 
             setFlag(Flag.U, true);// just to be sure

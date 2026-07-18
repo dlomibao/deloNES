@@ -467,6 +467,25 @@ Deliverables:
   boot-time frame-counter offset ("as if $4017 written 9–12 cycles
   before the first instruction", pinned to whatever constant makes
   `apu_reset/4017_timing` pass — document the chosen constant).
+
+  > **☑ C1 BOOT OFFSET (calibrated at C2 close):**
+  > `APU.FRAME_COUNTER_BOOT_OFFSET = 0`. Our reset path applies the
+  > offset while the CPU still burns its 7 reset cycles (the APU clocks
+  > through them), so the effective sequencer position at the first
+  > instruction is **7** — inside the §1.9 "9–12 cycles before the
+  > first instruction, minus the 3/4-cycle write delay" ≈ 5–9 window.
+  > `apu_reset/4017_timing` passes with this constant both before and
+  > after the C1 write delay landed.
+  >
+  > **☑ C2 MODEL CORRECTION (found by `6-irq_flag_timing` #5):** the
+  > research §1.7 "same-cycle $4015 read returns 1 without clearing"
+  > race is the wrong mechanism — with it, the flag's last set cycle
+  > reads one too late ("flag last set too late"). Hardware truth: the
+  > read always clears the register; the *remaining* window cycles
+  > (29829/29830) re-assert it, which is what makes mid-window reads
+  > appear not to clear. A read on the last set cycle (29830) clears
+  > for good. `FrameCounter.clearFrameIrqFlagOnRead()` now always
+  > clears; the window re-assertion carries the observable semantics.
 - **C2 — access-cycle compensation (seam S6).** When the CPU
   reads/writes $4015/$4017 during an atomically-executed instruction,
   the APU services the access as-of

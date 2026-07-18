@@ -187,21 +187,25 @@ class FrameCounterTest {
     // ---------------------------------------------------------------------
 
     @Test
-    void clearOnRead_isNoOp_onFlagSetCycle_thenWorksNextCycle() {
+    void clearOnRead_midWindowReAsserted_postWindowClearsForGood() {
         FrameCounter fc = new FrameCounter();
         for (int i = 0; i < 29828; i++) {
             fc.clock();
         }
-        // Same cycle as the set: read sees 1 and must not clear (§1.7).
+        // Set-cycle read: the status was observed as 1 by the caller; the
+        // clear lands but the remaining window cycles re-assert (C2 model,
+        // pinned by blargg 6-irq_flag_timing #5).
         assertTrue(fc.isFrameIrqFlag());
         fc.clearFrameIrqFlagOnRead();
-        assertTrue(fc.isFrameIrqFlag(), "same-cycle read must not clear the flag");
-        // Next non-set cycle: the read clears normally.
+        assertFalse(fc.isFrameIrqFlag(), "the read itself clears the register");
+        fc.clock(); // 29829 re-asserts
+        assertTrue(fc.isFrameIrqFlag(), "window re-asserts after a mid-window read");
+        // Past the window: the read clears and nothing re-asserts.
         for (int i = 0; i < 5; i++) {
-            fc.clock(); // past 29830 (also set cycles), into plain cycles
+            fc.clock();
         }
         assertTrue(fc.isFrameIrqFlag());
         fc.clearFrameIrqFlagOnRead();
-        assertFalse(fc.isFrameIrqFlag(), "read on a non-set cycle clears the flag");
+        assertFalse(fc.isFrameIrqFlag(), "post-window read clears for good");
     }
 }

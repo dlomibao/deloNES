@@ -1,6 +1,5 @@
 package net.lomibao.nes.harness;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,22 +24,16 @@ class BlarggApuPhaseCTest {
     // ---- apu_test/rom_singles (blargg 2011) — ±1-cycle $4015 timing ----
 
     @Test
-    @Disabled("C0 baseline: fails #2 'too soon' against the Phase B APU "
-            + "(see the C0 findings note in docs/apu-plan.md) — re-enabled by C2")
     void apuTest_4_jitter() {
         assertPasses("test-roms/blargg/apu_test/rom_singles/4-jitter.nes");
     }
 
     @Test
-    @Disabled("C0 baseline: fails #2 'too soon' against the Phase B APU "
-            + "(see the C0 findings note in docs/apu-plan.md) — re-enabled by C2")
     void apuTest_5_len_timing() {
         assertPasses("test-roms/blargg/apu_test/rom_singles/5-len_timing.nes");
     }
 
     @Test
-    @Disabled("C0 baseline: fails #2 'too soon' against the Phase B APU "
-            + "(see the C0 findings note in docs/apu-plan.md) — re-enabled by C2")
     void apuTest_6_irq_flag_timing() {
         assertPasses("test-roms/blargg/apu_test/rom_singles/6-irq_flag_timing.nes");
     }
