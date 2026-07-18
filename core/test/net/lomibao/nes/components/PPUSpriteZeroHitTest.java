@@ -96,6 +96,47 @@ class PPUSpriteZeroHitTest {
         assertTrue(spriteZeroHit());
     }
 
+    /**
+     * Full-pipeline regression: the hit must fire WITHOUT the test-seam
+     * shadow seeding above — i.e., from bgPatternPixel values written by
+     * renderBackgroundPixel itself during the same frame. This is the
+     * real-hardware path every game exercises. It failed when
+     * checkSpriteZeroHit ran before renderBackgroundPixel in clock():
+     * the shadow is cleared at pre-render, so the check always read a
+     * stale zero and bit 6 never set through the live pipeline — games
+     * spin-waiting on $2002 bit 6 for raster splits froze (Micro Mages).
+     */
+    @Test
+    void bit6_setThroughRealPipeline_noShadowSeeding() {
+        // Undo setUp's shadow seeding — the pipeline must do the work.
+        for (int y = 0; y < PPU.VISIBLE_HEIGHT; y++) {
+            for (int x = 0; x < PPU.VISIBLE_WIDTH; x++) {
+                ppu.setBgPatternPixelForTest(y, x, 0);
+            }
+        }
+        // Opaque background everywhere: every NT0 cell → tile 1 (opaque in FakeChr).
+        for (int i = 0; i < 30 * 32; i++) {
+            ppu.ppuBus().write(0x2000 + i, (byte) 1);
+        }
+        putSprite0(49, 100);
+        enableBothLayers();
+
+        // Run two full frames from power-on: frame 1 crosses pre-render
+        // (which clears the shadow), frame 2 renders + must detect the hit.
+        for (int t = 0; t < 2 * 341 * 262; t++) {
+            ppu.clock();
+            if (ppu.getScanline() == 261) {
+                // Don't let the pre-render clear also wipe the STATUS bit
+                // read below — sample right after the sprite's scanlines.
+            }
+            if (ppu.getScanline() == 60 && spriteZeroHit()) {
+                return; // hit fired through the real pipeline
+            }
+        }
+        fail("sprite-0 hit never fired through the real render pipeline "
+                + "(opaque BG + opaque sprite 0 at (100,50))");
+    }
+
     // ---- gating by PPUMASK ----
 
     @Test
@@ -270,17 +311,25 @@ class PPUSpriteZeroHitTest {
     void bit6_notSet_whenBgPixelIsTransparent_atOverlapCell() {
         putSprite0(49, 100);            // sprite-0 spans x=100..107 on scanlines 50..57
         enableBothLayers();
-        // Zero the BG pattern shadow across the full 8-pixel overlap row on scanline 50
-        // (sprite columns x=100..107). With BG transparent here, no overlap cycle on
-        // this scanline may set bit 6.
-        for (int x = 100; x < 108; x++) {
-            ppu.setBgPatternPixelForTest(50, x, 0);
+        // Since the hit check now runs against shadow values the LIVE
+        // pipeline writes (post-ordering-fix), transparency must come from
+        // real CHR data, not seam-seeded shadow zeros (those get
+        // overwritten by renderBackgroundPixel before the check).
+        // Tile 2: transparent on fine-Y 2 (scanline 50 in tile row 6),
+        // opaque on every other row (scanline 51 = fine-Y 3 hits).
+        for (int row = 0; row < 8; row++) {
+            chr.data[2 * 16 + row]     = (byte) (row == 2 ? 0x00 : 0xFF); // low plane
+            chr.data[2 * 16 + 8 + row] = 0x00;                            // high plane
         }
+        // Place tile 2 under the sprite: tile row 6 (scanlines 48-55),
+        // tile cols 12-13 (x 96-111).
+        ppu.ppuBus.write(0x2000 + 6 * 32 + 12, (byte) 2);
+        ppu.ppuBus.write(0x2000 + 6 * 32 + 13, (byte) 2);
         tickTo(50, 256);
         assertFalse(spriteZeroHit(),
                 "bit 6 must not set when the BG pixel at the overlap cell is transparent");
-        // Sanity: scanline 51's bg-pattern shadow is still opaque, so the hit fires there.
-        tickTo(51, 105);
+        // Sanity: scanline 51 (fine-Y 3) is opaque again, so the hit fires there.
+        tickTo(51, 115);
         assertTrue(spriteZeroHit(),
                 "bit 6 must fire on the next scanline where BG is opaque again");
     }

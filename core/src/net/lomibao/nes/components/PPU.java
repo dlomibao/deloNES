@@ -324,15 +324,6 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             clearBgPatternShadow();
         }
 
-        // Sprite-0 hit (per-pixel opacity): once it's fired we don't re-check
-        // until pre-render scanline clears the flag. The helper still does
-        // its own per-tick visible-cycle gating; this is the outer skip that
-        // avoids paying the function-call cost for the ~89k/frame ticks after
-        // the hit has happened.
-        if (!spriteZeroHitChecked) {
-            checkSpriteZeroHit();
-        }
-
         // Perform background tile fetching on visible and pre-render scanlines.
         // Inlined the isVisible/isPreRender/isRenderingEnabled checks — the
         // method calls were ~3.7% of total CPU on the web profile (TeaVM
@@ -345,6 +336,17 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
             // discard that pixel.
             if (isVisibleScanline() && cycle >= 1 && cycle <= 256) {
                 renderBackgroundPixel();
+                // Sprite-0 hit MUST be checked AFTER renderBackgroundPixel
+                // writes bgPatternPixel[scanline][x] for this pixel — the
+                // shadow is cleared every frame at pre-render, so checking
+                // before the write reads a stale zero and the hit can never
+                // fire through the real pipeline (games spin-waiting on
+                // $2002 bit 6 for raster splits freeze their main loop —
+                // Micro Mages' player never spawned). Once fired, skip the
+                // call for the rest of the frame (perf: ~61k calls/frame).
+                if (!spriteZeroHitChecked) {
+                    checkSpriteZeroHit();
+                }
             }
 
             // In the VISIBLE region (cycles 1-256), LOAD must run BEFORE
