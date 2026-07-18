@@ -102,6 +102,35 @@ tasks.register('runNestest', JavaExec) {
     }
 }
 
+// Phase 0 APU POC-D (derisk; docs/apu-plan.md "Phase 0 / 0-D"): streams a
+// 440Hz square through Gdx.audio.newAudioDevice from the render loop and
+// logs latency / writeSamples p99 / FPS once per second.
+//   ./gradlew desktop:audioPoc
+//   ./gradlew desktop:audioPoc -Ddelones.audioPoc.bufferSize=1024 -Ddelones.audioPoc.bufferCount=4
+//   ./gradlew desktop:audioPoc -Ddelones.audioPoc.stereo=true
+//   ./gradlew desktop:audioPoc -Ddelones.audioPoc.underrunTest=true
+tasks.register('audioPoc', JavaExec) {
+    group = 'debugging'
+    description = 'Phase 0 APU POC-D: 440Hz square wave via Gdx.audio.newAudioDevice'
+    dependsOn classes
+    mainClass = 'net.lomibao.nes.desktop.audio.TonePocLauncher'
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+    workingDir = project.assetsDir
+    ignoreExitValue = true
+
+    // Forward all delones.audioPoc.* -D flags from the Gradle invocation.
+    System.properties.each { k, v ->
+        if (k.toString().startsWith('delones.audioPoc')) {
+            systemProperty k.toString(), v
+        }
+    }
+
+    if (OperatingSystem.current() == OperatingSystem.MAC_OS) {
+        jvmArgs += "-XstartOnFirstThread"
+    }
+}
+
 tasks.register('dist', Jar) {
     duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
     manifest {
