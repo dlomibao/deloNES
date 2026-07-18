@@ -73,6 +73,11 @@ public class LogManager {
         }
         
         @Override
+        public void warn(String message, Object p0, Object p1, Object p2) {
+            warn(format(message, p0, p1, p2));
+        }
+
+        @Override
         public void warn(String message, Object... params) {
             warn(format(message, params));
         }
