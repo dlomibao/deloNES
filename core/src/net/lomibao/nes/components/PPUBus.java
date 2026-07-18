@@ -97,6 +97,30 @@ public class PPUBus {
     }
 
     /**
+     * Seam S2 plumbing (headless-harness plan, Phase B4): side-effect-free
+     * read for {@link PPU#peekPpuBus(int)}. Unlike {@link #read(int)} this
+     * does NOT notify the cartridge of A12 transitions (no MMC3 IRQ-counter
+     * clocking) and does NOT update {@code previousPpuAddress}; components
+     * are read with {@code readOnly = true}. Package-private — diagnostics
+     * plumbing only, never a production read path.
+     *
+     * @param address PPU address space (masked to 0x3FFF)
+     * @return the byte at that address, with no observable side effects
+     */
+    int peek(int address) {
+        int addr = address & 0x3FFF;
+        for (PPUBusComponent component : components) {
+            if (component.inPPUusRange(addr)) {
+                return component.ppuBusRead(addr, true);
+            }
+        }
+        if (addr < 0x2000 && cartridge != null) {
+            return cartridge.chrRead(addr); // pure mapper lookup, no A12 clocking
+        }
+        return 0;
+    }
+
+    /**
      * Reads a byte from the PPU bus
      * Routes to appropriate component based on address range
      * @param address PPU address space (0x0000-0x3FFF)

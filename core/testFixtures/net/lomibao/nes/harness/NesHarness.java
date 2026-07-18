@@ -314,6 +314,33 @@ public final class NesHarness {
     }
 
     // -------------------------------------------------------------------------
+    // Census helpers (Phase B4)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Snapshot census of real OAM (via public {@code PPU.readOam}) — the
+     * sanctioned view of OAM contents; bus write watches never see OAM-DMA
+     * bursts (they bypass {@code CPUBus.write} via {@code ppu.writeOam}).
+     */
+    public OamCensus oamCensus() {
+        return OamCensus.of(loaded.ppu);
+    }
+
+    /**
+     * Snapshot census of a shadow-OAM RAM page — the OAM-DMA source, e.g.
+     * {@code shadowOamCensus(0x02)} for the classic $0200 page. Read via
+     * side-effect-free peeks; no new seam needed.
+     */
+    public OamCensus shadowOamCensus(int page) {
+        return OamCensus.ofRamPage(this, page);
+    }
+
+    /** Nametable census over seam S2 ({@code PPU.peekPpuBus}) — side-effect free. */
+    public NametableCensus nametable() {
+        return new NametableCensus(loaded.ppu);
+    }
+
+    // -------------------------------------------------------------------------
     // Component access
     // -------------------------------------------------------------------------
 
