@@ -9,6 +9,16 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 7-18-2026 (headless harness + TAS foundation shipped)
+* **Headless test/automation harness delivered end-to-end** (plan + phases A-D, PRs #38-#41), turning this morning's ad-hoc debugging diagnostics into a first-class toolkit. Every phase went through the two-reviewer review-fix loop to double-CLEAN before merge.
+  * **A — input scripting**: fluent `InputTimeline` (`press(START).atFrame(1650).holdFrames(20)`, seconds sugar at NTSC 60.0988), `NesHarness` facade, 0-based frame semantics; `MicroMagesBootIT` drives title→join→start→gameplay in five lines and permanently regression-gates the BRK fix.
+  * **B — memory watches**: single hot-path-safe bus write-listener (null-check-only fast path, nestest-parity gated), watch DSL (`whenBecomes`/`crossesAbove` RAM-only, mirror-canonicalized, watch-gated input), `RamTrace` ("who writes $03B4"), OAM/nametable census over a side-effect-free `peekPpuBus` (proven not to clock MMC3 A12 via an armed-IRQ-counter test). Production seams: bus listener, PPU peek, Controller readOnly honor.
+  * **C — capture + assertions**: framebuffer→PNG snapshots, pixel/region/golden assertions with XOR-diff failure artifacts, committed deterministic nestest golden, trigger-driven snapshots, CI-safety audit proving no LibGDX reachable from the fixtures tier. **Discovery: the framebuffer was ARGB all along** — CLAUDE.md's channel-order note stated the inverse; docs corrected repo-wide.
+  * **D — TAS record/replay**: own edge-list movie format v1 (FM2 RLDUTSBA column order; header pins rom-sha256/frames/region/loader/emu-version; indexOf-tokenized, TeaVM-safe), desktop live recording (`-Ddelones.recordMovie`), determinism proofs (2000-frame dual-boot + record→serialize→parse→replay hash-stream identity; 10k-frame gate verified), committed replayable movies incl. the Micro Mages boot. Review loop caught and fixed two record-vs-replay environment-parity bugs (missing APU on the desktop host; stale reused-controller shift state) — exactly the silent-desync class TAS work dies on.
+* **Known infra note**: Gradle 9.1's binary test-results store in `core/build/test-results` occasionally corrupts (Kryo EOFException; report-writing fails while tests all pass) — `rm -rf core/build/test-results` clears it.
+* Phase E (savestates) is scoped in `docs/headless-harness-plan.md` for a future session.
+* Test count: **684 → 836 core tests** across the harness work, all green; nestest 8992/8992 untouched.
+
 ### 7-18-2026 (Micro Mages playable — three rendering/CPU bugs down)
 * **Micro Mages fully playable**: title text clean, player mage visible from spawn. Three root-caused fixes (PRs #34-#36), each found by headless diagnosis (framebuffer PNG dumps + scripted inputs + PPU/OAM introspection) and shipped through the two-reviewer loop:
   * **Fine-Y scroll carry (PR #34, PPU)** — the scrolled BG fetcher computed the tile row as `scanline/8 + scrollY/8`, dropping the carry when the fine parts sum past 8. Every tile row rendered once correctly and once garbled one band below whenever `scrollY % 8 != 0` — the doubled/garbled title-screen text (title rests at scrollY=236). One-expression fix: derive the row from the pixel-space sum.
