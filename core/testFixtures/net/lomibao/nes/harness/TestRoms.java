@@ -74,6 +74,25 @@ public final class TestRoms {
     }
 
     /**
+     * sha-256 of a ROM image as 64 lowercase hex chars — the movie header's
+     * {@code rom-sha256} pin (Phase D1/D3: the fixtures tier computes the
+     * digest; the core {@code Movie} model just carries the string).
+     */
+    public static String sha256Hex(byte[] bytes) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder sb = new StringBuilder(64);
+            for (byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("JVM lacks SHA-256", e);
+        }
+    }
+
+    /**
      * Path a real (uncommitted) ROM is expected at:
      * {@code ~/projects/deloNES/core/src/main/resources/roms/<fileName>}.
      */
