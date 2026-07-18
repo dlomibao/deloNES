@@ -185,12 +185,12 @@ public class DKDiagnosticRunner {
         // Renders as ASCII where:
         //   '.' = backdrop color (palette[0])
         //   '#' = non-backdrop, opaque color
-        // Plus prints actual RGBA hex values for the first scanline of each row.
+        // Plus prints actual ARGB hex values for the first scanline of each row.
         System.out.println();
         System.out.println("--- Framebuffer left edge: x=0..15 at every 8th scanline ---");
         int[][] screen = ppu.getScreen();
         int backdrop = getBackdropRgba(ppu);
-        System.out.printf("  (backdrop palette[0]=0x%02X → RGBA 0x%08X)%n",
+        System.out.printf("  (backdrop palette[0]=0x%02X → ARGB 0x%08X)%n",
                 ppu.getPaletteColor(0), backdrop);
         for (int y = 0; y < 240; y += 8) {
             StringBuilder ascii = new StringBuilder();

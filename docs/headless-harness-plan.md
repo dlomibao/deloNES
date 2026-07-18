@@ -402,7 +402,7 @@ precedent).
 Deliverables:
 
 - **C1 — `ScreenCapture`** (fixtures tier). Wrap
-  `ppu.getVisibleScreenPixels1D()`; RGBA-int → `BufferedImage`
+  `ppu.getVisibleScreenPixels1D()`; ARGB-int → `BufferedImage`
   conversion with an explicit channel-order unit test (the 2026-01-01
   RGBA/ARGB alpha-flip bug is the named regression risk — CLAUDE.md).
   `savePng(Path)` via `javax.imageio` (fixtures only — D6). Default
