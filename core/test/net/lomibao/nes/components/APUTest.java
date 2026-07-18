@@ -297,6 +297,67 @@ class APUTest {
                 "bit4 (DMC bytes remaining) and bit5 (open bus) read 0");
     }
 
+    // ---------------------------------------------------------------------
+    // A4 — reset/power-up semantics (research §1.9)
+    // ---------------------------------------------------------------------
+
+    /** APU with every channel running and both IRQ-ish flags primed. */
+    private static APU runningApu() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4015, (byte) 0x1F);
+        apu.cpuBusWrite(0x4003, (byte) 0x08);
+        apu.cpuBusWrite(0x4007, (byte) 0x08);
+        apu.cpuBusWrite(0x400B, (byte) 0x08);
+        apu.cpuBusWrite(0x400F, (byte) 0x08);
+        return apu;
+    }
+
+    @Test
+    void a4_reset_actsAs4015Zero() {
+        APU apu = runningApu();
+        apu.reset();
+        assertEquals(0x00, apu.cpuBusRead(0x4015, true),
+                "reset acts as $4015 = $00 — status reads fully clear");
+        assertEquals(0, apu.pulse1().lengthCounter().value());
+        assertFalse(apu.pulse1().lengthCounter().isEnabled());
+        assertFalse(apu.noise().lengthCounter().isEnabled());
+        assertFalse(apu.isDmcEnabled());
+    }
+
+    @Test
+    void a4_reset_blocksReloadsUntilReEnable() {
+        APU apu = runningApu();
+        apu.reset();
+        apu.cpuBusWrite(0x4003, (byte) 0x08);
+        assertEquals(0, apu.pulse1().lengthCounter().value(),
+                "channels are disabled after reset — reloads blocked");
+    }
+
+    @Test
+    void a4_reset_retainsLast4017() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4017, (byte) 0xC0);
+        apu.reset();
+        assertEquals(0xC0, apu.getLast4017());
+        assertTrue(apu.frameCounter().isMode5(), "$4017 bit 7 retained");
+        assertTrue(apu.frameCounter().isIrqInhibit(), "$4017 bit 6 retained");
+        assertEquals(0, apu.frameCounter().cycle(), "sequencer repositioned");
+    }
+
+    @Test
+    void a4_reset_clearsFrameAndDmcIrqFlags() {
+        APU apu = apuWithFrameIrqSet();
+        apu.dmcIrqFlag = true;
+        apu.reset();
+        assertFalse(apu.frameCounter().isFrameIrqFlag(),
+                "apu_reset/irq_flag_cleared state");
+        assertFalse(apu.dmcIrqFlag);
+    }
+
+    // (LFSR := 1 and triangle phase := 0 on apu.reset() are pinned in
+    // ApuResetPinningTest — the fields are package-visible to
+    // components.apu tests only.)
+
     @Test
     void writeOnlyRegisters_readAsZero_notEchoed() {
         // The stub's byte-array echo is gone: APU registers are

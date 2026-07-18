@@ -195,13 +195,26 @@ public class APU extends CPUBusComponent {
     }
 
     /**
-     * Power-on/soft reset (seam S3; semantics finalized in Phase A4).
-     * Acts as $4015 = $00, retains and reapplies the last $4017 value.
+     * Power-on/soft reset (seam S3; Phase A4, research §1.9): acts as
+     * $4015 = $00 (all channels off, lengths forced to 0, DMC IRQ flag
+     * cleared), retains and reapplies the last $4017 value, pins the
+     * noise LFSR to 1 and the triangle sequence phase to 0. The frame
+     * IRQ flag is cleared ({@code apu_reset/irq_flag_cleared}).
      */
     public void reset() {
+        // Acts as $4015 = $00.
+        pulse1.lengthCounter().setEnabled(false);
+        pulse2.lengthCounter().setEnabled(false);
+        triangle.lengthCounter().setEnabled(false);
+        noise.lengthCounter().setEnabled(false);
+        dmcEnabled = false;
+        dmcIrqFlag = false;
         frameCounter.clearFrameIrqFlag();
+        // Retained $4017 reapplied; the bit-7 immediate clock mask is
+        // dropped at reset (nothing is running to clock).
         frameCounter.write4017(last4017);
-        frameCounter.resetSequencer();
+        noise.resetLfsr();
+        triangle.resetPhase();
     }
 
     /** Narrow test/diagnostic seam onto the frame counter. */

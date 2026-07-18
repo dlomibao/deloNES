@@ -320,6 +320,17 @@ TDD sub-stages & floors (RED → GREEN → REFACTOR → SUITE per mapper-plan):
 - ✅ Blargg: `1-len_ctr`, `2-len_table`, `3-irq_flag`,
   `apu_reset/{4015_cleared, len_ctrs_enabled, irq_flag_cleared,
   works_immediately}` all pass via the runner.
+  - **PLAN BUG, surfaced 2026-07-18 (Phase A execution):**
+    `works_immediately` is unpassable in Phase A as specified. Its ROM
+    source (log check #1) requires `$4015` to read `$1F` — bit 4 = DMC
+    bytes-remaining > 0, primed by `$4010=$8F`/`$4013=1` — ~6000 cycles
+    after power, and check #2 requires `$8F` (bit 7 = DMC IRQ flag set
+    when the 17-byte sample at rate 15 completes). A3's own spec pins
+    bits 4/7 to "always 0 until D". The other six Phase A ROMs pass;
+    `works_immediately` is committed as a `@Disabled` test citing this
+    note, pending a decision (move it to the Phase D gate set, or pull
+    a minimal DMC bytes-remaining counter forward). No code was
+    improvised around it.
 - ✅ Web build: avg `runFrame` ms measured against the pre-APU baseline
   (record the baseline before A1; this benches seam S2's per-CPU-cycle
   call), judged by the **D9 perf band**: ≤5% = pass; **5–10% = advisory
