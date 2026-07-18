@@ -116,8 +116,9 @@ class PPUBusTest {
         ppuBus.write(0x2000, (byte) 0x55);
         
         // Read from mirrored address
-        // nestest.nes uses vertical mirroring, so 0x2000 mirrors to 0x2800
-        int value = ppuBus.read(0x2800);
+        // nestest.nes header bit 0 is clear ⇒ HORIZONTAL mirroring per the
+        // iNES spec, so 0x2000 mirrors to 0x2400.
+        int value = ppuBus.read(0x2400);
         assertEquals(0x55, value, "Mirroring should work through PPUBus");
     }
     

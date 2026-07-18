@@ -152,7 +152,8 @@ class INESHeaderTest {
         byte[] h = makeHeader(0);
         h[6] = (byte) 0x0F; // all four low bits set
         INESHeader header = new INESHeader(h);
-        assertTrue(header.isHorizontalMirroring());
+        // Bit 0 SET = vertically mirrored per the iNES spec.
+        assertFalse(header.isHorizontalMirroring());
         assertTrue(header.hasBatteryBackedRAM());
         assertTrue(header.hasTrainer());
         assertTrue(header.isFourScreenVRAM());
@@ -163,7 +164,8 @@ class INESHeaderTest {
     void flags6_allClear_reportsFalse() {
         byte[] h = makeHeader(0); // makeHeader clears flags
         INESHeader header = new INESHeader(h);
-        assertFalse(header.isHorizontalMirroring());
+        // Bit 0 CLEAR = horizontally mirrored per the iNES spec.
+        assertTrue(header.isHorizontalMirroring());
         assertFalse(header.hasBatteryBackedRAM());
         assertFalse(header.hasTrainer());
         assertFalse(header.isFourScreenVRAM());

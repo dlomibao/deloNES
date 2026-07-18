@@ -161,9 +161,10 @@ class PPUNametableAccessTest {
         int val2 = ppuRead(0x2800);
         int val3 = ppuRead(0x2C00);
         
-        // nestest.nes uses vertical mirroring, so 0x2000 == 0x2800 and 0x2400 == 0x2C00
-        assertEquals(val0, val2, "Nametables 0 and 2 should mirror (vertical)");
-        assertEquals(val1, val3, "Nametables 1 and 3 should mirror (vertical)");
+        // nestest.nes header byte 6 = 0x00 (bit 0 clear) ⇒ HORIZONTAL
+        // mirroring per the iNES spec: 0x2000 == 0x2400 and 0x2800 == 0x2C00.
+        assertEquals(val0, val1, "Nametables 0 and 1 should mirror (horizontal)");
+        assertEquals(val2, val3, "Nametables 2 and 3 should mirror (horizontal)");
     }
     
     @Test
@@ -173,9 +174,10 @@ class PPUNametableAccessTest {
             ppuWrite(0x2000 + i, (byte) i);
         }
         
-        // Write different data to nametable 1 (non-overlapping with vertical mirroring)
+        // Write different data to nametable 2 — with nestest's HORIZONTAL
+        // mirroring, NT2 is the physically distinct table (NT1 aliases NT0).
         for (int i = 0; i < 100; i++) {
-            ppuWrite(0x2400 + i, (byte) (200 - i));
+            ppuWrite(0x2800 + i, (byte) (200 - i));
         }
         
         // Verify first pattern still intact at nametable 0
@@ -185,9 +187,9 @@ class PPUNametableAccessTest {
                 Integer.toHexString(0x2000 + i) + " should persist");
         }
         
-        // Verify second pattern at nametable 1
+        // Verify second pattern at nametable 2
         for (int i = 0; i < 100; i++) {
-            int value = ppuRead(0x2400 + i);
+            int value = ppuRead(0x2800 + i);
             assertEquals((200 - i) & 0xFF, value, "Second pattern data should persist");
         }
     }

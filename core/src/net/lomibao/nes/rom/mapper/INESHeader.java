@@ -78,8 +78,19 @@ public class INESHeader {
         return headerBytes[5] & 0xFF;
     }
 
+    /**
+     * True when the cart is horizontally mirrored ($2000≡$2400, $2800≡$2C00).
+     *
+     * <p>Per the iNES spec, flags-6 bit 0 = <b>0</b> means horizontally
+     * mirrored and bit 0 = <b>1</b> means vertically mirrored. (NESdev names
+     * the field by nametable <em>arrangement</em>, which is the opposite of
+     * the mirroring direction — an infamous point of confusion. This method
+     * answers in mirroring terms.) The polarity was inverted here until
+     * PR #33 review round 2; the bug was masked by an orphan NameTableMemory
+     * that pinned everything to HORIZONTAL regardless.
+     */
     public boolean isHorizontalMirroring() {
-        return (headerBytes[6] & 0x01) != 0;
+        return (headerBytes[6] & 0x01) == 0;
     }
 
     public boolean hasBatteryBackedRAM() {

@@ -48,7 +48,7 @@ class RomLoaderTest {
         rom[3] = (byte) 0x1A;
         rom[4] = (byte) prgBanks;
         rom[5] = (byte) chrBanks;
-        // Flags 6/7 = 0 ⇒ mapper 0, horizontal-only off ⇒ vertical mirroring.
+        // Flags 6/7 = 0 ⇒ mapper 0, bit 0 clear ⇒ horizontal mirroring.
 
         // Reset vector: PRG window is mapped to $8000-$FFFF; for 1-bank NROM
         // $C000-$FFFF mirrors $8000-$BFFF, so offset $3FFC inside the PRG bank
@@ -78,15 +78,18 @@ class RomLoaderTest {
      * one and pinned mirroring to the HORIZONTAL default, making header and
      * runtime mirroring inert on the web path.
      *
-     * <p>The synthetic ROM's flags-6 bit 0 is clear ⇒ VERTICAL mirroring in
-     * this codebase's convention ⇒ $2000 and $2800 alias the same physical
-     * nametable. Under the orphan-nametable bug they were distinct tables
-     * and the readback returned 0.
+     * <p>Flags-6 bit 0 is SET here ⇒ vertical mirroring per the iNES spec
+     * ⇒ $2000 and $2800 alias the same physical nametable. Under the
+     * orphan-nametable bug they were distinct tables and the readback
+     * returned 0 (and under the pre-round-2 inverted polarity, a set bit
+     * wrongly resolved to horizontal).
      */
     @Test
     void load_cartridgeMirroring_reachesNametables() {
+        byte[] rom = buildSyntheticNROM(1, 1);
+        rom[6] |= 0x01;  // vertical mirroring
         RomLoader.Loaded loaded = RomLoader.loadFromBytes(
-                buildSyntheticNROM(1, 1), "mirroring.nes", opcodeCsv());
+                rom, "mirroring.nes", opcodeCsv());
 
         // Write 0x42 to $2000 via PPUADDR/PPUDATA.
         loaded.ppu.cpuBusWrite(0x2006, (byte) 0x20);

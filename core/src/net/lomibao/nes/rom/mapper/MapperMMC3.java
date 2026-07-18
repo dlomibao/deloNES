@@ -176,6 +176,15 @@ public class MapperMMC3 implements Mapper {
 
     @Override
     public int ppuMapRead(int address) {
+        return chrTranslate(address);
+    }
+
+    /**
+     * Shared CHR address translation for reads and CHR-RAM writes: the 8KB
+     * CHR window splits into eight 1KB slots banked by R0-R5 (with the
+     * CHR-invert swap); the result wraps to the cart's CHR size.
+     */
+    private int chrTranslate(int address) {
         if (address < 0x0000 || address > 0x1FFF) {
             return UNMAPPED;
         }
@@ -215,6 +224,13 @@ public class MapperMMC3 implements Mapper {
 
     @Override
     public int ppuMapWrite(int address) {
+        // CHR-RAM cart (TNROM-class, nCHRBanks == 0): writes land at the
+        // same bank-translated offset as reads — otherwise the RAM the
+        // read path banks over could never be populated. CHR-ROM carts
+        // remain read-only.
+        if (nCHRBanks == 0) {
+            return chrTranslate(address);
+        }
         return UNMAPPED;
     }
 

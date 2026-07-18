@@ -165,3 +165,20 @@ hang. `CPU6502.irq()` now returns whether the interrupt was taken;
 fixed the round-1 finding that the IRQ counter was dead code — `tick()` now
 polls `Cartridge.mapperIrqPending()` every master tick.
 (Added after PR review round 1.)
+
+## D12 — iNES mirroring bit polarity corrected (flags-6 bit 0 = 1 ⇒ vertical)
+
+A corrected premise like D9, recorded because round 2 caught it and round 1
+accidentally armed it: `INESHeader.isHorizontalMirroring()` read flags-6
+bit 0 as "1 = horizontal", but the iNES spec is the opposite — bit 0 = 0 is
+horizontally mirrored, bit 0 = 1 is vertically mirrored (NESdev names the
+field by nametable *arrangement*, which inverts the mirroring direction —
+an infamous confusion, and evidently how the bug was born). The inversion
+was pre-existing on master but *inert*: the orphan NameTableMemory (fixed
+in round 1) pinned all mirroring to HORIZONTAL, so nothing ever consumed
+the header bit. Removing the orphan made the inverted decode live, which
+is how round 2 caught it. The accessor is flipped to spec; five test files
+that had codified the inverted convention (including round 1's own
+RomLoader regression test) were corrected — notably nestest.nes (byte 6 =
+0x00) is horizontally mirrored per spec, not vertically as the old test
+comments claimed.

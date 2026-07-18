@@ -18,17 +18,17 @@ class CartridgeMirrorModeTest {
 
     /**
      * MapperTestSupport.buildSyntheticROM always emits flags6 with bit
-     * 0 = 0 (vertical mirroring in {@link net.lomibao.nes.rom.mapper.INESHeader}'s
-     * convention). Helper builds a horizontal-mirroring variant by
-     * flipping that bit post-construction so we can test both fallbacks.
+     * 0 = 0 — horizontal mirroring per the iNES spec. Helper builds a
+     * vertical-mirroring variant by setting that bit post-construction so
+     * we can test both fallbacks.
      */
-    private static Cartridge buildCartridge(boolean horizontalMirroring) {
+    private static Cartridge buildCartridge(boolean verticalMirroring) {
         byte[] rom = MapperTestSupport.buildSyntheticROM(0, 16, 8, null, null);
-        if (horizontalMirroring) {
+        if (verticalMirroring) {
             rom[6] = (byte) (rom[6] | 0x01);
         }
         return new Cartridge(new ByteArrayInputStream(rom),
-                horizontalMirroring ? "horiz.nes" : "vert.nes");
+                verticalMirroring ? "vert.nes" : "horiz.nes");
     }
 
     @Test
@@ -39,19 +39,19 @@ class CartridgeMirrorModeTest {
         assertEquals(Mapper.Mirror.HARDWARE,
                 new net.lomibao.nes.rom.mapper.Mapper000(1, 1).mirror());
         // Cart-level resolution then yields a concrete direction.
-        assertEquals(Mapper.Mirror.VERTICAL, cart.getMirrorMode());
-    }
-
-    @Test
-    void getMirrorMode_headerHorizontalBit_yieldsHorizontal() {
-        Cartridge cart = buildCartridge(true);
         assertEquals(Mapper.Mirror.HORIZONTAL, cart.getMirrorMode());
     }
 
     @Test
     void getMirrorMode_headerVerticalBit_yieldsVertical() {
-        Cartridge cart = buildCartridge(false);
+        Cartridge cart = buildCartridge(true);
         assertEquals(Mapper.Mirror.VERTICAL, cart.getMirrorMode());
+    }
+
+    @Test
+    void getMirrorMode_headerHorizontalBit_yieldsHorizontal() {
+        Cartridge cart = buildCartridge(false);
+        assertEquals(Mapper.Mirror.HORIZONTAL, cart.getMirrorMode());
     }
 
     /**

@@ -38,6 +38,31 @@ class MapperBankWrapTest {
         assertEquals(3 * PRG_16K, m.cpuMapRead(0x8000));
     }
 
+    /**
+     * 32KB PRG mode on a malformed odd bank count: the wrap must happen at
+     * 32KB granularity, or the last (even) 16KB bank pairs with one past
+     * the end of PRG ROM (round-2 review finding).
+     */
+    @Test
+    void mmc1_32kMode_oddBankCount_staysInBounds() {
+        MapperMMC1 m = new MapperMMC1(3, 1);  // 3 banks — no clean 32KB pairing
+        // Serial-write control = 0 ($8000) → PRG mode 0 (32KB switchable).
+        for (int i = 0; i < 5; i++) {
+            m.cpuMapWrite(0x8000, 0x00);
+        }
+        // Serial-write PRG register = 2 ($E000): bank 2 = the odd last bank.
+        int[] bits = {0, 1, 0, 0, 0};  // LSB first → 0b00010 = 2
+        for (int b : bits) {
+            m.cpuMapWrite(0xE000, b);
+        }
+        // Only one full 32KB pair exists (banks 0-1); bank 2 wraps to it.
+        // The high half of the window must stay inside the 3-bank ROM.
+        int offset = m.cpuMapRead(0xFFFF);
+        assertTrue(offset < 3 * PRG_16K,
+                "32KB window must not address past the end of a 3-bank ROM, got " + offset);
+        assertEquals(0x7FFF, offset, "bank 2 wraps to pair 0 → offset $7FFF");
+    }
+
     @Test
     void mmc3_prgBankBeyondCartSize_wraps() {
         // 2×16KB = 4 8KB banks; R6 = 0x3F wraps to 0x3F % 4 = 3.

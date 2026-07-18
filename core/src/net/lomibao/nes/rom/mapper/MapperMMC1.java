@@ -110,8 +110,10 @@ public class MapperMMC1 implements Mapper {
         int bank = (prgBank & PRG_BANK_MASK) % nPRGBanks;
         switch (prgMode) {
             case 0: case 1: {
-                // 32KB switchable: low bit of bank is ignored.
-                int base = (bank & ~0x01) * PRG_16K;
+                // 32KB switchable: low bit of bank is ignored. Wrap at 32KB
+                // granularity — a 16KB-level wrap on an odd (malformed) bank
+                // count could pair the last bank with one past the end.
+                int base = ((bank >> 1) % Math.max(1, nPRGBanks / 2)) * PRG_32K;
                 return base + (address - 0x8000);  // offset within 32KB pair
             }
             case 2: {
@@ -188,30 +190,42 @@ public class MapperMMC1 implements Mapper {
 
     @Override
     public int ppuMapRead(int address) {
+        return chrTranslate(address);
+    }
+
+    /**
+     * Shared CHR address translation for reads and CHR-RAM writes. Bank
+     * indexes wrap to the cart's actual 4KB CHR bank count (CHR-RAM carts:
+     * 8KB = 2 banks) — SNROM-class boards latch PRG-RAM control bits into
+     * chrBank0's upper bits, and hardware wraps those out via unwired
+     * address lines rather than blanking the graphics.
+     */
+    private int chrTranslate(int address) {
         if (address < 0x0000 || address > 0x1FFF) {
             return UNMAPPED;
         }
+        int chr4kCount = Math.max(1, (nCHRBanks == 0 ? 1 : nCHRBanks) * 2);
         boolean fourKbMode = (control & 0x10) != 0;
         if (fourKbMode) {
             // Two independent 4KB banks.
             if (address < 0x1000) {
-                return (chrBank0 & CHR_BANK_MASK) * CHR_4K + address;
+                return ((chrBank0 & CHR_BANK_MASK) % chr4kCount) * CHR_4K + address;
             }
-            return (chrBank1 & CHR_BANK_MASK) * CHR_4K + (address - 0x1000);
+            return ((chrBank1 & CHR_BANK_MASK) % chr4kCount) * CHR_4K + (address - 0x1000);
         }
         // 8KB mode: CHR bank 0 holds the 8KB bank, low bit ignored.
-        int bank8 = (chrBank0 & CHR_BANK_MASK) >> 1;
+        int bank8 = ((chrBank0 & CHR_BANK_MASK) >> 1) % Math.max(1, chr4kCount / 2);
         return bank8 * CHR_8K + address;
     }
 
     @Override
     public int ppuMapWrite(int address) {
-        if (address >= 0x0000 && address <= 0x1FFF) {
-            // CHR-RAM cart (nCHRBanks == 0) lets writes through; CHR-ROM
-            // (nCHRBanks > 0) is read-only.
-            if (nCHRBanks == 0) {
-                return address;
-            }
+        // CHR-RAM cart (nCHRBanks == 0): writes land at the same
+        // bank-translated offset as reads — with a nonzero CHR bank
+        // latched, an untranslated write would land in bank 0 while
+        // reads came from the banked offset. CHR-ROM is read-only.
+        if (nCHRBanks == 0) {
+            return chrTranslate(address);
         }
         return UNMAPPED;
     }

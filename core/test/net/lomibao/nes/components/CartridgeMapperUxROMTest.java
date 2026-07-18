@@ -142,15 +142,14 @@ class CartridgeMapperUxROMTest {
 
     @Test
     void mirrorModeReflectsHeader_notSwitchableByMapper() {
-        // MapperTestSupport builds carts with flags6 bit 0 = 0. In this
-        // codebase's INESHeader.isHorizontalMirroring() that bit means
-        // "horizontal", so a synthetic ROM falls back to VERTICAL.
-        // UxROM.mirror() returns HARDWARE → Cartridge uses the header.
-        // The contract under test is: UxROM does not switch mirroring
-        // at runtime; whatever the header said is what surfaces.
+        // MapperTestSupport builds carts with flags6 bit 0 = 0 —
+        // horizontal mirroring per the iNES spec. UxROM.mirror()
+        // returns HARDWARE → Cartridge uses the header. The contract
+        // under test is: UxROM does not switch mirroring at runtime;
+        // whatever the header said is what surfaces.
         Cartridge cart = buildCart();
-        assertEquals(net.lomibao.nes.rom.mapper.Mapper.Mirror.VERTICAL,
+        assertEquals(net.lomibao.nes.rom.mapper.Mapper.Mirror.HORIZONTAL,
                 cart.getMirrorMode(),
-                "synthetic ROM with bit0=0 falls through to VERTICAL");
+                "synthetic ROM with bit0=0 resolves to HORIZONTAL");
     }
 }

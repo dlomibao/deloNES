@@ -171,8 +171,9 @@ class CartridgeNes2Test {
     @Test
     void nes2_mirroring_resolves() {
         byte[] rom = makeRom(0, true, 2, 1);
-        rom[6] |= 0x01; // horizontal
-        assertEquals(Mapper.Mirror.HORIZONTAL, load(rom).getMirrorMode());
+        rom[6] |= 0x01; // bit 0 set = vertical per the iNES spec
+        assertEquals(Mapper.Mirror.VERTICAL, load(rom).getMirrorMode());
+        assertEquals(Mapper.Mirror.HORIZONTAL, load(makeRom(0, true, 2, 1)).getMirrorMode());
     }
 
     // ---------------------------------------------------------------------------

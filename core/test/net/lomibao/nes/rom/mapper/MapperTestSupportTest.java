@@ -52,7 +52,7 @@ class MapperTestSupportTest {
         assertEquals(0, header.getMapperNumber());
         assertEquals(1, header.getPRGROMSize());
         assertEquals(1, header.getCHRROMSize());
-        assertFalse(header.isHorizontalMirroring());
+        assertTrue(header.isHorizontalMirroring(), "flags6 bit 0 clear = horizontal per iNES spec");
         assertFalse(header.hasBatteryBackedRAM());
         assertFalse(header.hasTrainer());
         assertFalse(header.isFourScreenVRAM());

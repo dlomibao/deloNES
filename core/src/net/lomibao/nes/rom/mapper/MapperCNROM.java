@@ -78,7 +78,10 @@ public class MapperCNROM implements Mapper {
     @Override
     public int ppuMapRead(int address) {
         if (address >= 0x0000 && address <= 0x1FFF) {
-            return chrBank * CHR_BANK_BYTES + address;
+            // Wrap to the cart's actual CHR bank count — hardware ignores
+            // unwired upper address lines, so a 2-bit register on a
+            // smaller cart wraps rather than reading past CHR ROM.
+            return (chrBank % Math.max(1, nCHRBanks)) * CHR_BANK_BYTES + address;
         }
         return UNMAPPED;
     }
