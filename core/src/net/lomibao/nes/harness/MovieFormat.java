@@ -62,8 +62,13 @@ public final class MovieFormat {
      * Emulation-behavior version pin. Bump whenever a change alters
      * deterministic replay (timing, power-on state, loader seed sequence);
      * parse rejects movies recorded under any other value.
+     *
+     * <p>v1 → v2 (feature/apu Phase A, docs/apu-plan.md D2): seam S1 makes
+     * $6000-$7FFF PRG-RAM round-trip for all carts (previously dropped /
+     * read 0) and $4015 reads return live APU status — both CPU-visible,
+     * so v1 movies must fail loudly at parse instead of desyncing.
      */
-    public static final int EMU_VERSION = 1;
+    public static final int EMU_VERSION = 2;
 
     /** Magic word opening every movie file. */
     static final String MAGIC = "deloNES-movie";

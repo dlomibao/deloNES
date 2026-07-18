@@ -38,6 +38,22 @@ public class Cartridge extends CPUBusComponent {
     private byte[] vPRGMemory;
     private byte[] vCHRMemory;
 
+    /**
+     * Seam S1 (docs/apu-plan.md): dedicated 8KB PRG-RAM backing
+     * $6000-$7FFF. Zero-filled at construction — consistent with the
+     * pinned zero-RAM boot determinism. {@code vPRGMemory} is sized
+     * exactly to ROM and is never the backing store for RAM; mappers are
+     * not consulted for this window. Flat always-present 8KB (battery /
+     * header-declared sizes are out of scope) — enough for the blargg
+     * $6000 result protocol and matches Family-Basic-style NROM.
+     */
+    private final byte[] prgRam = new byte[8192];
+
+    /** First CPU address of the PRG-RAM window (inclusive). */
+    private static final int PRG_RAM_START = 0x6000;
+    /** Last CPU address of the PRG-RAM window (inclusive). */
+    private static final int PRG_RAM_END = 0x7FFF;
+
     public static final int HEADER_SIZE = 16;
     public static final int TRAINER_SIZE = 512;
 
@@ -212,6 +228,13 @@ public class Cartridge extends CPUBusComponent {
 
     @Override
     public void cpuBusWrite(int address, byte value) {
+        // Seam S1: the $6000-$7FFF PRG-RAM window is handled AHEAD of the
+        // mapper call — mappers only ever produce vPRGMemory offsets and
+        // are never consulted for PRG-RAM.
+        if (address >= PRG_RAM_START && address <= PRG_RAM_END) {
+            prgRam[address & 0x1FFF] = value;
+            return;
+        }
         // Use the value-aware overload so register-latching mappers
         // (UxROM, CNROM, AxROM, MMC1, MMC3, UNROM-512) can capture the
         // byte being written. The default Mapper implementation
@@ -220,10 +243,18 @@ public class Cartridge extends CPUBusComponent {
         if (mappedAddress >= 0) {
             vPRGMemory[mappedAddress] = value;
         }
+        // UNMAPPED writes are silently dropped here by design — the
+        // "no device" error line lives in CPUBus.write, not the cartridge
+        // (S1 logging semantics; add a debug-level log if diagnosis ever
+        // needs it, no behavior depends on one).
     }
 
     @Override
     public int cpuBusRead(int address, boolean readOnly) {
+        // Seam S1: PRG-RAM window ahead of the mapper (see cpuBusWrite).
+        if (address >= PRG_RAM_START && address <= PRG_RAM_END) {
+            return Byte.toUnsignedInt(prgRam[address & 0x1FFF]);
+        }
         int mappedAddress = mapper.cpuMapRead(address);
         if (mappedAddress >= 0) {
             return Byte.toUnsignedInt(vPRGMemory[mappedAddress]);

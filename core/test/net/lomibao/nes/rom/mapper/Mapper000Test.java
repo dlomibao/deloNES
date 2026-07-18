@@ -45,10 +45,12 @@ class Mapper000Test {
     }
 
     @Test
-    void cpuMapWrite_inRange_returnsMappedAddress() {
-        // Mapper 0 has no PRG register; addresses round-trip the same as reads.
+    void cpuMapWrite_inRange_returnsUNMAPPED() {
+        // Seam S1 defensive fix (docs/apu-plan.md): NROM has no registers
+        // and its PRG is ROM — cpuMapWrite must never hand back a
+        // vPRGMemory offset, or stray stores corrupt PRG-ROM.
         Mapper000 m = new Mapper000(2, 1);
-        assertEquals(0x4000, m.cpuMapWrite(0xC000));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0xC000));
     }
 
     @Test
@@ -58,10 +60,11 @@ class Mapper000Test {
     }
 
     @Test
-    void cpuMapWrite_16KB_mirrorsLikeRead() {
+    void cpuMapWrite_16KB_alsoUNMAPPED() {
+        // S1: UNMAPPED regardless of bank count — PRG is ROM either way.
         Mapper000 m = new Mapper000(1, 1);
-        assertEquals(0x0000, m.cpuMapWrite(0xC000));
-        assertEquals(0x3FFF, m.cpuMapWrite(0xFFFF));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0xC000));
+        assertEquals(Mapper.UNMAPPED, m.cpuMapWrite(0xFFFF));
     }
 
     @Test

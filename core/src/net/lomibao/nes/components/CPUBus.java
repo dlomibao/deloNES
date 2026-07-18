@@ -100,11 +100,19 @@ public class CPUBus {
             } else {
                 log.error("no device found in range of address {}", address);
             }
+        } else if (cartridge != null && addr < 0x8000) {         // $4020-$7FFF
+            // Seam S1 (docs/apu-plan.md): route $4020-$7FFF writes to the
+            // cartridge — $6000-$7FFF lands in its PRG-RAM (blargg $6000
+            // result protocol), $4020-$5FFF is silently dropped by the
+            // cartridge (genuinely unmapped). Routing is deliberately
+            // scoped: $8000-$FFFF writes keep the historical drop-with-log
+            // below — full write routing to mapper registers is a future
+            // mapper-branch item that owns its determinism/movie impact.
+            cartridge.cpuBusWrite(addr, value);
         } else {
-            // $4020-$FFFF — historically CPU writes here just log as a
-            // "no device" miss (NROM PRG is read-only, the cart's
-            // cpuBusWrite is intentionally not wired into this path). Format
-            // is now regex-free in the html stub so the cost is small.
+            // $8000-$FFFF (or no cartridge) — CPU writes here just log as
+            // a "no device" miss (NROM PRG is read-only). Format is now
+            // regex-free in the html stub so the cost is small.
             log.error("no device found in range of address {}", address);
         }
     }

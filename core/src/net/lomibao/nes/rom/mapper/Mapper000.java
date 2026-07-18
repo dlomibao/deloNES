@@ -23,10 +23,12 @@ public class Mapper000 implements Mapper {
 
     @Override
     public int cpuMapWrite(int address) {
-        // Mapper 000 usually doesn't have PRG RAM/Registers in the $8000 range
-        if (address >= 0x8000 && address <= 0xFFFF) {
-            return (address - 0x8000) & (nPRGBanks > 1 ? 0x7FFF : 0x3FFF);
-        }
+        // NROM has no registers and its PRG is ROM — every CPU write is
+        // UNMAPPED. The old mapping returned $8000+ offsets into
+        // vPRGMemory, which would let stray stores corrupt PRG-ROM
+        // through Cartridge.cpuBusWrite (a public surface). Defensive
+        // fix per seam S1 of docs/apu-plan.md, RED-tested in
+        // CartridgePrgRamTest.
         return UNMAPPED;
     }
 
