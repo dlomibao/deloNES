@@ -184,6 +184,29 @@ public final class NesHarness {
         }
     }
 
+    /**
+     * Phase B3: collect every RAM write in the inclusive window
+     * {@code [lo, hi]} that occurs while {@code body} runs — the supported
+     * "who writes $X" trace. RAM-only ($0000-$1FFF, mirrors canonicalized);
+     * throws {@link IllegalArgumentException} for a non-RAM window. The
+     * temporary watch is removed even if {@code body} throws.
+     */
+    public List<RamTrace.Write> trace(int lo, int hi, Runnable body) {
+        if (Watch.canonical(lo) > 0x07FF || Watch.canonical(hi) > 0x07FF) {
+            throw new IllegalArgumentException(String.format(
+                    "trace window $%04X-$%04X must lie in CPU RAM ($0000-$1FFF)", lo, hi));
+        }
+        final List<RamTrace.Write> out = new ArrayList<RamTrace.Write>();
+        Watch watch = watchRange(lo, hi).onWrite(w -> out.add(new RamTrace.Write(
+                w.frame(), w.pc(), w.addr(), w.oldValue(), w.newValue())));
+        try {
+            body.run();
+        } finally {
+            watch.remove();
+        }
+        return out;
+    }
+
     /** Called by {@link Watch.Context#press}; applied at the next boundary. */
     void queueGatedPress(int player, Button button, int holdFrames) {
         if (holdFrames < 1) {
