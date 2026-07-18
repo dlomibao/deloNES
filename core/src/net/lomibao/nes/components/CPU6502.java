@@ -755,8 +755,13 @@ public class CPU6502 {
 
     /** break **/
     int BRK() {
-        pc++;
-
+        // BRK is a 2-byte instruction: opcode + padding byte. The pushed
+        // return address is (BRK opcode address + 2). By the time we get
+        // here, clock() advanced pc past the opcode and IMM() advanced it
+        // past the padding byte, so pc is already opcode+2 — push it as-is.
+        // (The old extra pc++ pushed opcode+3, which broke software that
+        // uses BRK with inline argument bytes, e.g. Micro Mages' BRK-based
+        // set-animation calls: its handler reads args at pushedPC-2+1/+2.)
         writeShortToStack(pc);
 
         // BRK pushes status with bits 4 and 5 set
