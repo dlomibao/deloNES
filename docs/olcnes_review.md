@@ -708,7 +708,7 @@ olc's monolith.
 - The `olcPixelGameEngine.h` and `olcPGEX_Sound.h` headers are third-party and specific to
   the PGE framework; they can be ignored entirely for the Java port — LibGDX equivalents
   (`Pixmap`, `Texture`, `AudioDevice`) are in no way the same, and the right boundary is
-  "PPU produces an `int[VISIBLE_WIDTH * VISIBLE_HEIGHT]` RGBA frame buffer, renderer
+  "PPU produces an `int[VISIBLE_WIDTH * VISIBLE_HEIGHT]` ARGB (0xAARRGGBB) frame buffer, renderer
   uploads it."
 - olc's APU `olcNes_Sounds1.cpp` main file was not reviewed; the relevant APU logic is all
   in `olc2A03.h/.cpp`.

@@ -62,7 +62,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     public static final int VISIBLE_WIDTH = 256;  // Visible pixels
     public static final int VISIBLE_HEIGHT = 240; // Visible scanlines
     
-    private int[][] screen = new int[SCREEN_HEIGHT][SCREEN_WIDTH];  // screen[y][x] = RGBA as int
+    private int[][] screen = new int[SCREEN_HEIGHT][SCREEN_WIDTH];  // screen[y][x] = ARGB (0xAARRGGBB) as int
     /**
      * Shadow of the per-pixel background pattern value (0..3). Recorded
      * during background rendering so the sprite renderer can apply the
@@ -625,7 +625,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     /**
      * Gets the current screen buffer
-     * @return screen[y][x] containing RGBA values as integers
+     * @return screen[y][x] containing ARGB (0xAARRGGBB) values as integers
      */
     public int[][] getScreen() {
         return screen;
@@ -633,7 +633,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     /**
      * Gets only the visible portion of the screen (256x240)
-     * @return screen[y][x] containing RGBA values for visible area
+     * @return screen[y][x] containing ARGB (0xAARRGGBB) values for visible area
      */
     public int[][] getVisibleScreen() {
         int[][] visible = new int[VISIBLE_HEIGHT][VISIBLE_WIDTH];
@@ -645,7 +645,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     /**
      * Gets the full screen buffer as a 2D array compatible with PixelRenderer
-     * Format: pixels[y][x] = RGBA
+     * Format: pixels[y][x] = ARGB (0xAARRGGBB)
      * @return 2D array of size [SCREEN_HEIGHT][SCREEN_WIDTH] (262 x 341)
      */
     public int[][] getScreenPixels2D() {
@@ -658,7 +658,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     /**
      * Gets only the visible screen as a 2D array compatible with PixelRenderer
-     * Format: pixels[y][x] = RGBA
+     * Format: pixels[y][x] = ARGB (0xAARRGGBB)
      * @return 2D array of size [VISIBLE_HEIGHT][VISIBLE_WIDTH] (240 x 256)
      */
     public int[][] getVisibleScreenPixels2D() {
@@ -671,7 +671,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     /**
      * Gets the full screen buffer as a 1D array compatible with PixelRenderer
-     * Format: pixels[y * SCREEN_WIDTH + x] = RGBA
+     * Format: pixels[y * SCREEN_WIDTH + x] = ARGB
      * @return 1D array of size SCREEN_WIDTH * SCREEN_HEIGHT (341 * 262)
      */
     public int[] getScreenPixels1D() {
@@ -686,7 +686,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
 
     /**
      * Gets only the visible screen as a 1D array compatible with PixelRenderer
-     * Format: pixels[y * VISIBLE_WIDTH + x] = RGBA
+     * Format: pixels[y * VISIBLE_WIDTH + x] = ARGB
      * @return 1D array of size VISIBLE_WIDTH * VISIBLE_HEIGHT (256 * 240)
      */
     public int[] getVisibleScreenPixels1D() {
@@ -703,7 +703,7 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
      * Sets a pixel in the screen buffer
      * @param x horizontal position (0-340)
      * @param y vertical position (0-261)
-     * @param rgba color value as RGBA8888 integer
+     * @param rgba color value in the framebuffer's native ARGB (0xAARRGGBB) format
      */
     public void setPixel(int x, int y, int rgba) {
         if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {

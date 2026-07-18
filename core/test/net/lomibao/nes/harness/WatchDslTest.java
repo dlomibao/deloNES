@@ -311,4 +311,19 @@ class WatchDslTest {
         assertTrue(frames.contains(0) && frames.contains(1) && frames.contains(2),
                 "writes attributed to frames 0,1,2 — got " + frames);
     }
+
+    /**
+     * Round-2 review: a RAM-to-PPU range with a coincidentally equal
+     * canonical span must still be rejected — regions canonicalize with
+     * different offsets, so the bounds check would silently drop
+     * addresses inside the request (e.g. $2006/$2007 for $1000-$3005).
+     */
+    @org.junit.jupiter.api.Test
+    void watchRange_crossRegion_equalSpan_throws() {
+        NesHarness h = harness();
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> h.watchRange(0x1000, 0x3005).onWrite(w -> { }));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> h.watchRange(0x0800, 0x2801).onWrite(w -> { }));
+    }
 }

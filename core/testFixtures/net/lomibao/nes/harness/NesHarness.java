@@ -8,6 +8,11 @@ import net.lomibao.nes.components.Controller;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.rom.RomLoader;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -316,6 +321,76 @@ public final class NesHarness {
      */
     public int peek(int addr) {
         return loaded.nes.getCpuBus().read(addr, true) & 0xFF;
+    }
+
+    // -------------------------------------------------------------------------
+    // Frame capture (Phase C1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Snapshot the visible framebuffer as it is now (ARGB ints — see
+     * {@link ScreenCapture} for the channel-order contract). Typically used
+     * at a frame boundary: {@code h.runToFrame(n); h.screen().assertPixel(...)}.
+     */
+    public ScreenCapture screen() {
+        return ScreenCapture.of(loaded.ppu);
+    }
+
+    /**
+     * Phase C3: dump a named diagnostic snapshot — {@code <name>.png} (the
+     * visible screen) plus {@code <name>.txt} (frame number,
+     * PPUCTRL/PPUMASK/PPUSTATUS peeks, the full 2KB CPU RAM, and the
+     * 256-byte OAM) — into {@link ScreenCapture#defaultOutputDir()}
+     * ({@code build/test-output/<testClass>/}). All reads are side-effect
+     * free ({@code peek}/{@code peekCtrl}/{@code readOam}).
+     *
+     * <p>{@code name} is caller-chosen and must be deterministic (no
+     * timestamps) so replayed runs overwrite identical paths — include
+     * {@link #frame()} yourself when capturing a series, e.g.
+     * {@code h.snapshot("change-" + h.frame())}.
+     *
+     * @return the directory containing both files
+     */
+    public Path snapshot(String name) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("snapshot name must be non-empty");
+        }
+        Path dir = ScreenCapture.defaultOutputDir();
+        screen().savePng(dir.resolve(name + ".png"));
+        Path txt = dir.resolve(name + ".txt");
+        try {
+            Files.write(txt, snapshotText(name).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed writing snapshot " + txt, e);
+        }
+        return dir;
+    }
+
+    /** Text half of {@link #snapshot(String)} — deterministic layout. */
+    private String snapshotText(String name) {
+        StringBuilder sb = new StringBuilder(16 * 1024);
+        sb.append("snapshot ").append(name).append('\n');
+        sb.append("frame ").append(frame).append('\n');
+        sb.append(String.format("ppuctrl $%02X\n", loaded.ppu.peekCtrl()));
+        sb.append(String.format("ppumask $%02X\n", loaded.ppu.peekMask()));
+        sb.append(String.format("ppustatus $%02X\n", loaded.ppu.peekStatus()));
+        sb.append("ram\n");
+        for (int base = 0x0000; base < 0x0800; base += 16) {
+            sb.append(String.format("%04X:", base));
+            for (int i = 0; i < 16; i++) {
+                sb.append(String.format(" %02X", peek(base + i)));
+            }
+            sb.append('\n');
+        }
+        sb.append("oam\n");
+        for (int base = 0; base < 256; base += 16) {
+            sb.append(String.format("%02X:", base));
+            for (int i = 0; i < 16; i++) {
+                sb.append(String.format(" %02X", loaded.ppu.readOam(base + i) & 0xFF));
+            }
+            sb.append('\n');
+        }
+        return sb.toString();
     }
 
     // -------------------------------------------------------------------------

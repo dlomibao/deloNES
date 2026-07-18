@@ -245,5 +245,22 @@ public final class Watch {
         public void press(int player, Button button, int holdFrames) {
             harness.queueGatedPress(player, button, holdFrames);
         }
+
+        // ---- Phase C3: trigger-driven capture -------------------------------
+
+        /**
+         * Save the visible screen as {@code fileName} under
+         * {@code build/test-output/<testClass>/} — mid-frame capture at the
+         * tripping write. Use a deterministic name (no timestamps), e.g.
+         * {@code "hit-frame" + harness().frame() + ".png"}.
+         */
+        public java.nio.file.Path savePng(String fileName) {
+            return harness.screen().savePng(fileName);
+        }
+
+        /** Full diagnostic snapshot at the tripping write — see {@link NesHarness#snapshot}. */
+        public java.nio.file.Path snapshot(String name) {
+            return harness.snapshot(name);
+        }
     }
 }
