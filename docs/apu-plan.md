@@ -639,6 +639,40 @@ pass; `dmc_tests/{status,status_irq,buffer_retained}` pass;
 determinism proofs re-run + committed movies regenerated (stalls are
 movie-visible); web runFrame within the D9 perf band.
 
+> **☑ PHASE D GATES (closed 2026-07-18):** `core:check` green (1044
+> tests, 0 failed, 1 pre-existing MMC3 real-ROM skip); **`NestestTest`
+> 8992/8992 with zero CYC drift** — nestest plays no DMC ⇒ no stalls ⇒
+> the per-line CYC assertions pass untouched, backed by the D2 unit
+> guard "1000 idle CPU turns → exactly 1000 CPU clocks"; blargg
+> `7-dmc_basics`, `8-dmc_rates` PASS (`BlarggApuPhaseDTest`);
+> `apu_reset` full set PASS **including `works_immediately`**
+> (`BlarggApuPhase1Test.apuReset_works_immediately` re-enabled per the
+> Phase A adjudication — the relocated gate is honored); D3 tier
+> recorded above — `dmc_tests/{status,status_irq,buffer_retained}` PASS
+> plus the `latency` stretch, via the behavioral substitute (the ROMs
+> are audio-reporting; see the D3 plan-bug note); the D2 parity
+> tripwire ("OAM burst resumes with intact get/put alternation after a
+> mid-burst DMC stall") is green with byte-exact OAM content.
+> Determinism proofs re-run green (replay-twice hash identity,
+> record/serialize/parse/replay, no-wall-clock grep); committed movie
+> ITs (nestest + Micro Mages boot) replay unmodified — neither ROM
+> triggers DMC in the recorded segments, so the input-only `.dmov`
+> artifacts stay valid and no regeneration was needed; EMU_VERSION
+> stays 2 (D2 one-generation rule).
+>
+> **D9 (advisory per the Phase B waiver):** interleaved JVM proxy,
+> best-of (3×5 runs) × 600 frames, nestest, same machine/method.
+> Initial Phase D measurement: pre-APU base `734a4ed` 1.5573 vs Phase D
+> 1.6458 ms/frame = **+5.7%** cumulative — inside the 5-10% advisory
+> band, so the D9-mandated cheap micro-fix was applied: the per-APU-
+> cycle DMC reader poll (`needsSampleByte()`) now runs only on DMC
+> output-clock cycles (`clockTimer()` returns whether it fired — the
+> only clock-driven trigger; $4015 starts arm at the write site).
+> Post-fix: pre-APU 1.5311 vs Phase D 1.5851 ms/frame = **+3.5%**
+> cumulative best-of (+4.4% by medians), within the ≤5% pass band;
+> inter-round noise ±4-5% observed. The REAL web number remains OWED
+> before the Phase E gate per the Phase B waiver.
+
 ## Phase E — Mixer, sample buffer, audible output on both hosts
 
 Depends on A–B for channel outputs; benefits from C–D landing first so

@@ -144,14 +144,22 @@ public final class DmcChannel {
         return false;
     }
 
-    /** APU-cycle clock: fires an output-unit step every {@code timerPeriod}. */
-    public void clockTimer() {
+    /**
+     * APU-cycle clock: fires an output-unit step every {@code timerPeriod}.
+     *
+     * @return true when an output-unit step fired this cycle — the only
+     *         clock-driven event that can raise {@link #needsSampleByte()}
+     *         (a refill draining the buffer), so the APU polls the reader
+     *         only on these cycles (D9 hot-path economy)
+     */
+    public boolean clockTimer() {
         if (timerCounter == 0) {
             timerCounter = timerPeriod - 1;
             clockOutput();
-        } else {
-            timerCounter--;
+            return true;
         }
+        timerCounter--;
+        return false;
     }
 
     /** One output-unit step (research §1.6). */

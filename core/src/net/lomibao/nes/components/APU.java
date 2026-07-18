@@ -134,12 +134,15 @@ public class APU extends CPUBusComponent {
             pulse1.clockTimer();
             pulse2.clockTimer();
             noise.clockTimer();
-            dmc.clockTimer();
             // D2: a refill that drained the buffer arms the 4-cycle
             // reload stall; the CPU-turn slot of this same bus tick
             // (apu.clock() runs first — seam S2) is stall cycle 1, and
             // the fetch lands on the last stall cycle via tickDmcStall().
-            if (dmcStallRemaining == 0 && dmc.needsSampleByte()) {
+            // The reader is polled only on output-clock cycles — the sole
+            // clock-driven trigger (D9 hot-path economy); the other
+            // trigger, a $4015 start, arms at the write site.
+            if (dmc.clockTimer()
+                    && dmcStallRemaining == 0 && dmc.needsSampleByte()) {
                 dmcStallRemaining = RELOAD_STALL_CYCLES;
             }
         }
