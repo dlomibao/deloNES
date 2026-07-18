@@ -121,24 +121,17 @@ class DeterminismProofTest {
         assertTrue(Files.isDirectory(root), "expected core sources at " + root.toAbsolutePath());
 
         String[] forbidden = {
-                "java.util.Random", "ThreadLocalRandom", "Math.random(",
+                "java.util.Random", "new Random(", "ThreadLocalRandom",
+                "Math.random(",
                 "System.nanoTime", "System.currentTimeMillis",
                 "Instant.now", "LocalDate.now", "LocalDateTime.now",
-                "new java.util.Date", "SecureRandom",
+                "new java.util.Date", "new Date(", "SecureRandom",
         };
         List<String> offenders = new ArrayList<String>();
         int scanned = 0;
         try (Stream<Path> files = Files.walk(root)) {
             for (Path p : (Iterable<Path>) files::iterator) {
                 if (!p.toString().endsWith(".java")) {
-                    continue;
-                }
-                // Known, documented exclusion: net.lomibao.nes.debug holds
-                // offline dump/visualization tools (TileDebugger stamps its
-                // dump files with LocalDateTime.now()). Nothing in that
-                // package runs on the emulation path, so it cannot desync a
-                // replay. Everything else in core/src is guarded.
-                if (p.startsWith(root.resolve("debug"))) {
                     continue;
                 }
                 scanned++;

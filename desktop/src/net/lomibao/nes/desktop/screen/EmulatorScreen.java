@@ -212,6 +212,12 @@ public class EmulatorScreen implements Screen {
                 .ram(ram)
                 .ppu(ppu)
                 .controller(controller)
+                // APU wired to match the movie header's pinned romloader-v1
+                // replay environment: without it, $4000-$4015 reads return 0
+                // here but echo register values under replay — games polling
+                // $4015 would branch differently and recorded movies would
+                // silently desync (Phase D review finding).
+                .apu(new net.lomibao.nes.components.APU())
                 .dma(new DmaController())
                 .build();
         cpuBus = nesSystem.getCpuBus();

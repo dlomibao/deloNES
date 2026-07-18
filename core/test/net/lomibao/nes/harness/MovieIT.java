@@ -71,8 +71,12 @@ class MovieIT {
      */
     @Test
     void microMagesMovie_bootsToGameplay() {
-        NesHarness h = NesHarness.fromRealRom(TestRoms.MICRO_MAGES); // skips if absent
+        // Parse the committed artifact BEFORE the skip-if-absent ROM load,
+        // so CI without the commercial ROM still validates the movie file
+        // (Phase D review finding — otherwise the artifact was unchecked
+        // in ROM-less environments).
         Movie movie = loadMovie("/movies/micromages-boot.dmov");
+        NesHarness h = NesHarness.fromRealRom(TestRoms.MICRO_MAGES); // skips if absent
         assertEquals(TestRoms.sha256Hex(
                         TestRoms.realRomBytesOrSkip(TestRoms.MICRO_MAGES)),
                 movie.romSha256(), "movie must pin the exact Micro Mages dump");

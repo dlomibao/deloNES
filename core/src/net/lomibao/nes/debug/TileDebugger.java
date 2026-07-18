@@ -35,7 +35,6 @@ public class TileDebugger {
             )) {
             
             writer.println("=== NES CHR ROM Debug Information ===");
-            writer.println("Generated: " + java.time.LocalDateTime.now());
             writer.println();
             
             writer.println("CHR ROM Size: " + chrData.length + " bytes");
