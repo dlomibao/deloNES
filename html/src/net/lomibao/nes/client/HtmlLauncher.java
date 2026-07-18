@@ -129,6 +129,13 @@ public class HtmlLauncher {
          */
         private byte[] opcodeCsvBytes;
 
+        /**
+         * Phase 0 APU POC-W (derisk; docs/apu-plan.md "Phase 0 / 0-W") —
+         * non-null only when the page URL carries {@code ?audioPoc=1}.
+         * Flag off ⇒ stays null and no WebAudio object is ever created.
+         */
+        private WebAudioTonePoc audioPoc;
+
         @Override
         public void create() {
             batch = new SpriteBatch();
@@ -148,6 +155,9 @@ public class HtmlLauncher {
                 Gdx.app.error("web", "OPCODES CSV LOAD FAIL: " + t.getMessage(), t);
             }
             setupEmulator();
+
+            // Phase 0 APU POC-W probe — flag-gated, see WebAudioTonePoc.
+            audioPoc = WebAudioTonePoc.createIfEnabled();
 
             // Publish ourselves so the @JSExport bridge can reach the live
             // launcher. Done LAST so an INSTANCE is never visible in a
@@ -310,6 +320,13 @@ public class HtmlLauncher {
         @Override
         public void render() {
             frame++;
+
+            // Phase 0 APU POC-W: produce this frame's tone samples + stats.
+            // Runs on top of the live emulation so the 60 FPS main-thread
+            // contention soak is real.
+            if (audioPoc != null) {
+                audioPoc.onFrame();
+            }
 
             if (nes != null) {
                 renderEmulatorFrame();
