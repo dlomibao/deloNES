@@ -327,6 +327,17 @@ public class APU extends CPUBusComponent {
         triangle.resetPhase();
     }
 
+    /**
+     * Seam S4 (C3): the APU's level-held IRQ line — asserted while the
+     * frame-IRQ or DMC-IRQ flag is up, dropped only when software clears
+     * them ($4015 read / $4017 bit 6 for the frame flag; $4015 write for
+     * the DMC flag). Polled from {@code NesSystem.tick()}; never cleared
+     * by the CPU taking the interrupt.
+     */
+    public boolean irqAsserted() {
+        return frameCounter.isFrameIrqFlag() || dmcIrqFlag;
+    }
+
     /** Narrow test/diagnostic seam onto the frame counter. */
     public FrameCounter frameCounter() {
         return frameCounter;
