@@ -318,8 +318,9 @@ TDD sub-stages & floors (RED → GREEN → REFACTOR → SUITE per mapper-plan):
   match *better* than the stub. Any diff is a bus-wiring/semantics bug
   to fix in-phase, not to waive.
 - ✅ Blargg: `1-len_ctr`, `2-len_table`, `3-irq_flag`,
-  `apu_reset/{4015_cleared, len_ctrs_enabled, irq_flag_cleared,
-  works_immediately}` all pass via the runner.
+  `apu_reset/{4015_cleared, len_ctrs_enabled, irq_flag_cleared}` all
+  pass via the runner. (`works_immediately` RELOCATED to the Phase D
+  gate set — see the plan-bug note below and the Phase D gates.)
   - **PLAN BUG, surfaced 2026-07-18 (Phase A execution):**
     `works_immediately` is unpassable in Phase A as specified. Its ROM
     source (log check #1) requires `$4015` to read `$1F` — bit 4 = DMC
@@ -328,9 +329,13 @@ TDD sub-stages & floors (RED → GREEN → REFACTOR → SUITE per mapper-plan):
     when the 17-byte sample at rate 15 completes). A3's own spec pins
     bits 4/7 to "always 0 until D". The other six Phase A ROMs pass;
     `works_immediately` is committed as a `@Disabled` test citing this
-    note, pending a decision (move it to the Phase D gate set, or pull
-    a minimal DMC bytes-remaining counter forward). No code was
-    improvised around it.
+    note. **ADJUDICATED 2026-07-18 (Phase A review round 1, both
+    reviewers unanimous, each corroborating the analysis against the
+    ROM binary): moved to the Phase D gate set.** Pulling a minimal DMC
+    counter forward would violate A3's bit-4/7 contract, duplicate
+    D1-owned work, and add movie-visible DMC state a phase early with
+    no gate coverage. Phase D's definition-of-done inherits the ROM and
+    re-enables the test. No code was improvised around it.
 - ✅ Web build: avg `runFrame` ms measured against the pre-APU baseline
   (record the baseline before A1; this benches seam S2's per-CPU-cycle
   call), judged by the **D9 perf band**: ≤5% = pass; **5–10% = advisory
@@ -513,7 +518,9 @@ Deliverables:
 
 **Gates:** `core:check` green; **`NestestTest` 8992/8992 — the critical
 one** (DMC stalls add CPU cycles, but nestest plays no DMC samples, so
-any CYC drift = arbitration bug); blargg `7-dmc_basics`, `8-dmc_rates`
+any CYC drift = arbitration bug); blargg `7-dmc_basics`, `8-dmc_rates`,
+`apu_reset/works_immediately` (relocated from Phase A — re-enable
+`BlarggApuPhase1Test.apuReset_works_immediately`)
 pass; `dmc_tests/{status,status_irq,buffer_retained}` pass;
 determinism proofs re-run + committed movies regenerated (stalls are
 movie-visible); web runFrame within the D9 perf band.
