@@ -38,9 +38,9 @@ import java.util.function.Consumer;
  * drives {@code runFrame()} exclusively (D11).
  *
  * <h2>Observation</h2>
- * {@link #peek(int)} is {@code cpuBus.read(addr, true)}. Note: until seam
- * S3 lands (Phase B1), peeking $4016/$4017 advances the controller shift
- * register — avoid those two addresses.
+ * {@link #peek(int)} is {@code cpuBus.read(addr, true)} and is side-effect
+ * free everywhere — including $4016/$4017, which since seam S3 (Phase B1)
+ * no longer advance the controller shift register on readOnly reads.
  *
  * <h2>Skip-if-absent (D8/D12)</h2>
  * {@link #fromRealRom(String)} throws {@link org.opentest4j.TestAbortedException}
@@ -190,7 +190,7 @@ public final class NesHarness {
 
     /**
      * Side-effect-free CPU-bus read ({@code read(addr, true)}), returned as
-     * an unsigned int 0-255. Avoid $4016/$4017 until seam S3 (Phase B1).
+     * an unsigned int 0-255. Safe for every address incl. $4016/$4017 (S3).
      */
     public int peek(int addr) {
         return loaded.nes.getCpuBus().read(addr, true) & 0xFF;

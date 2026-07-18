@@ -99,14 +99,20 @@ public class Controller extends CPUBusComponent {
     @Override
     public int cpuBusRead(int address, boolean readOnly) {
         if (address == CONTROLLER_1_ADDRESS) {
-            return readPlayer(0);
+            return readPlayer(0, readOnly);
         } else if (address == CONTROLLER_2_ADDRESS) {
-            return readPlayer(1);
+            return readPlayer(1, readOnly);
         }
         return 0;
     }
 
-    private int readPlayer(int player) {
+    /**
+     * Seam S3 (headless-harness plan, Phase B1): when {@code readOnly} is
+     * true, return the bit at the current {@code readIndex} WITHOUT
+     * advancing it (and with no other side effects), so harness peeks of
+     * $4016/$4017 cannot desync the joypad shift register mid-game.
+     */
+    private int readPlayer(int player, boolean readOnly) {
         if (strobe) {
             // While strobe is high, the shift register is continuously reloaded
             // with live state — every read returns the A button bit (index 0).
@@ -119,7 +125,9 @@ public class Controller extends CPUBusComponent {
             return 1 | 0x40;
         }
         int bit = latchedState[player][readIndex[player]] ? 1 : 0;
-        readIndex[player]++;
+        if (!readOnly) {
+            readIndex[player]++;
+        }
         return bit | 0x40;
     }
 

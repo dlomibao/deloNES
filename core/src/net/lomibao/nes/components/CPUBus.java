@@ -32,6 +32,16 @@ public class CPUBus {
     @Builder.Default
     int phase = 0;
 
+    /**
+     * Seam S1 (headless-harness plan, Phase B1): single nullable bus-write
+     * observer. Null in production — the hot-path cost is then exactly one
+     * null-check branch per write (nestest 8992/8992 parity gate). Set via
+     * the Lombok-generated {@code setWriteListener}; only the headless
+     * harness installs one.
+     */
+    @ToString.Exclude
+    BusWriteListener writeListener;
+
     public CPUBus connect() {
         Optional.ofNullable(testRam).ifPresent(testRam -> testRam.connectCpuBus(this));
         Optional.ofNullable(cpu).ifPresent(cpu -> cpu.connectCpuBus(this));
@@ -46,6 +56,16 @@ public class CPUBus {
 
     public void write(int address, byte value) {
         final int addr = address & 0xFFFF;// mask to 16b
+        // Seam S1: dispatch to the (rarely installed) write listener BEFORE
+        // routing, so the old-value snapshot below reads pre-write state.
+        // The readOnly RAM snapshot is taken ONLY when a listener is
+        // installed; old values exist only for CPU RAM ($0000-$1FFF) — every
+        // other address reports -1 (no well-defined bus-level old value).
+        if (writeListener != null) {
+            int old = (ram != null && addr < 0x2000)
+                    ? ram.cpuBusRead(addr, true) : -1;   // readOnly snapshot
+            writeListener.onWrite(addr, old, value, cpu != null ? cpu.getPc() : -1);
+        }
         // Inlined address-range checks. Was `component.inCPUBusRange(addr)`,
         // which made 3 virtual calls per check (the wrapper + two getter
         // methods). At ~21 virtual calls per bus write × thousands of writes
