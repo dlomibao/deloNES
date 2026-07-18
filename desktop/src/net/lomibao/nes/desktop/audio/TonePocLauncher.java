@@ -100,7 +100,6 @@ public class TonePocLauncher extends ApplicationAdapter {
     private int writeCount;
     private long lastLogMs;
     private long startMs;
-    private int framesThisSecond;
     private int skippedWritesTotal;
     /** Frames still to skip for the in-progress underrun burst. */
     private int underrunSkipRemaining;
@@ -148,7 +147,6 @@ public class TonePocLauncher extends ApplicationAdapter {
     public void render() {
         Gdx.gl.glClearColor(0.1f, 0.1f, 0.2f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        framesThisSecond++;
 
         long now = System.currentTimeMillis();
         long elapsedSec = (now - startMs) / 1000;
@@ -199,7 +197,6 @@ public class TonePocLauncher extends ApplicationAdapter {
                     p99 / 1_000_000.0, max / 1_000_000.0,
                     device.getLatency(), skippedWritesTotal));
             writeCount = 0;
-            framesThisSecond = 0;
             lastLogMs = now;
         }
 

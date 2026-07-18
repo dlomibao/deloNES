@@ -86,7 +86,6 @@ final class WebAudioTonePoc {
     private int starvedSamplesThisSecond;
     private int droppedSamplesThisSecond;
     private int producedThisSecond;
-    private boolean resumed;
     private String lastState;
 
     /**
@@ -154,10 +153,15 @@ final class WebAudioTonePoc {
     }
 
     private void resumeFromGesture(String gesture) {
-        if (resumed) {
+        // Gate on the context STATE, not a boolean latch: the JSO resume()
+        // binding returns void, so a rejected resume promise is invisible —
+        // a one-shot flag would block all retries after a gesture the
+        // browser didn't honor. Repeat resume() on a running context is a
+        // spec'd no-op, so state-gating is also the correct idempotency.
+        // (Phase 0 review finding; Phase E must use the same pattern.)
+        if ("running".equals(ctx.getState())) {
             return;
         }
-        resumed = true;
         String before = ctx.getState();
         ctx.resume();
         Gdx.app.log(TAG, "resume() called from '" + gesture

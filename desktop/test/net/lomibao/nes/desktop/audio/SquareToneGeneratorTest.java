@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SquareToneGeneratorTest {
 
     @Test
-    void frameSampleCountsAlternate733And734At44100() {
+    void frameSampleCountsAre733Or734At44100_noCumulativeDrift() {
         SquareToneGenerator gen = new SquareToneGenerator(44100f, 440.0, 0.15f);
         long total = 0;
         for (int i = 0; i < 601; i++) {

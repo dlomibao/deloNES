@@ -4,7 +4,7 @@ package net.lomibao.nes.desktop.audio;
  * Phase 0 APU POC (derisk code — docs/apu-plan.md, "Phase 0 / 0-D").
  * Synthesizes a fixed-frequency square wave at NES-realistic volume and
  * meters out per-video-frame sample counts from a fractional accumulator
- * (44100 / 60.0988 → 733/734 alternating), exactly the pacing scheme the
+ * (44100 / 60.0988 = 733.77 → a ~77/23 weighted mix of 734- and 733-sample frames), exactly the pacing scheme the
  * real APU output path (Phase E) will use.
  *
  * <p>May be absorbed or deleted by Phase E. Keep it host-side only —

@@ -235,3 +235,12 @@ Then:
 4. **Second engine:** repeat 1–2 in Firefox or Safari.
 5. **Flag off:** reload without `?audioPoc=1` — no `[audioPoc]` console
    lines, no tone, emulator unchanged.
+
+## Fallback notes
+
+**SPN zero-input-channel quirk (check BEFORE concluding binding failure):**
+several engines have historically not fired `onaudioprocess` when
+`numberOfInputChannels == 0` (long-standing Chromium/WebKit SPN quirk).
+If the soak yields silence with `callbacks=0` in the per-second log, try
+`createScriptProcessor(2048, 1, 1)` (ignore the input) before pivoting
+to the AudioBufferSourceNode fallback.
