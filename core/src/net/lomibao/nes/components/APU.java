@@ -2,6 +2,9 @@ package net.lomibao.nes.components;
 
 import lombok.extern.log4j.Log4j2;
 import net.lomibao.nes.components.apu.FrameCounter;
+import net.lomibao.nes.components.apu.NoiseChannel;
+import net.lomibao.nes.components.apu.PulseChannel;
+import net.lomibao.nes.components.apu.TriangleChannel;
 
 /**
  * Audio Processing Unit (Ricoh 2A03 APU side) — rewritten in place from
@@ -30,6 +33,10 @@ public class APU extends CPUBusComponent {
     public static final int END_ADDRESS = 0x4020; // exclusive
 
     private final FrameCounter frameCounter = new FrameCounter();
+    private final PulseChannel pulse1 = new PulseChannel(true);
+    private final PulseChannel pulse2 = new PulseChannel(false);
+    private final TriangleChannel triangle = new TriangleChannel();
+    private final NoiseChannel noise = new NoiseChannel();
 
     /**
      * Last value written to $4017 — reapplied on {@link #reset()}
@@ -59,17 +66,49 @@ public class APU extends CPUBusComponent {
         }
     }
 
-    /** Route quarter/half-frame clocks to the channels (grows in A2/B). */
+    /** Route quarter/half-frame clocks to the channels (grows in Phase B). */
     private void dispatchFrameClocks(int events) {
-        // Phase A1: no clocked units exist yet. Length counters (A2)
-        // hang off the HALF bit; envelopes/linear counter (Phase B) off
-        // the QUARTER bit.
+        if ((events & FrameCounter.HALF) != 0) {
+            pulse1.lengthCounter().clockHalfFrame();
+            pulse2.lengthCounter().clockHalfFrame();
+            triangle.lengthCounter().clockHalfFrame();
+            noise.lengthCounter().clockHalfFrame();
+            // Sweeps also clock on HALF — Phase B.
+        }
+        // Envelopes + triangle linear counter clock on QUARTER — Phase B.
     }
 
     @Override
     public void cpuBusWrite(int address, byte value) {
         int v = Byte.toUnsignedInt(value);
         switch (address) {
+            // -- length-counter halt flags (A2; other bits decode in B) --
+            case 0x4000:
+                pulse1.lengthCounter().setHalt((v & 0x20) != 0);
+                break;
+            case 0x4004:
+                pulse2.lengthCounter().setHalt((v & 0x20) != 0);
+                break;
+            case 0x4008:
+                // Bit 7 is the triangle control flag AND length halt.
+                triangle.lengthCounter().setHalt((v & 0x80) != 0);
+                break;
+            case 0x400C:
+                noise.lengthCounter().setHalt((v & 0x20) != 0);
+                break;
+            // -- length-counter loads, register bits 7-3 (A2) --
+            case 0x4003:
+                pulse1.lengthCounter().load(v >> 3);
+                break;
+            case 0x4007:
+                pulse2.lengthCounter().load(v >> 3);
+                break;
+            case 0x400B:
+                triangle.lengthCounter().load(v >> 3);
+                break;
+            case 0x400F:
+                noise.lengthCounter().load(v >> 3);
+                break;
             case 0x4017:
                 last4017 = v;
                 int immediate = frameCounter.write4017(v);
@@ -115,6 +154,22 @@ public class APU extends CPUBusComponent {
     /** Narrow test/diagnostic seam onto the frame counter. */
     public FrameCounter frameCounter() {
         return frameCounter;
+    }
+
+    public PulseChannel pulse1() {
+        return pulse1;
+    }
+
+    public PulseChannel pulse2() {
+        return pulse2;
+    }
+
+    public TriangleChannel triangle() {
+        return triangle;
+    }
+
+    public NoiseChannel noise() {
+        return noise;
     }
 
     /** Last value written to $4017 (retained across reset — A4). */

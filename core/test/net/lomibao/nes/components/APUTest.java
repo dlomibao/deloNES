@@ -96,6 +96,89 @@ class APUTest {
         assertTrue(apu.frameCounter().isIrqInhibit());
     }
 
+    // ---------------------------------------------------------------------
+    // A2 — length-counter decode + half-frame cadence
+    // ---------------------------------------------------------------------
+
+    @Test
+    void a2_haltFlags_decodeFromChannelRegisters() {
+        APU apu = new APU();
+        apu.cpuBusWrite(0x4000, (byte) 0x20);
+        apu.cpuBusWrite(0x4004, (byte) 0x20);
+        apu.cpuBusWrite(0x4008, (byte) 0x80); // triangle: bit 7
+        apu.cpuBusWrite(0x400C, (byte) 0x20);
+        assertTrue(apu.pulse1().lengthCounter().isHalt());
+        assertTrue(apu.pulse2().lengthCounter().isHalt());
+        assertTrue(apu.triangle().lengthCounter().isHalt());
+        assertTrue(apu.noise().lengthCounter().isHalt());
+        apu.cpuBusWrite(0x4008, (byte) 0x7F); // bit 7 clear despite bit 5 set
+        assertFalse(apu.triangle().lengthCounter().isHalt(),
+                "triangle halt is bit 7, not bit 5");
+    }
+
+    @Test
+    void a2_lengthLoads_decodeBits7to3_perChannel() {
+        APU apu = new APU();
+        apu.pulse1().lengthCounter().setEnabled(true);
+        apu.pulse2().lengthCounter().setEnabled(true);
+        apu.triangle().lengthCounter().setEnabled(true);
+        apu.noise().lengthCounter().setEnabled(true);
+        apu.cpuBusWrite(0x4003, (byte) 0x08); // index 1 → 254
+        apu.cpuBusWrite(0x4007, (byte) 0x10); // index 2 → 20
+        apu.cpuBusWrite(0x400B, (byte) 0x18); // index 3 → 2
+        apu.cpuBusWrite(0x400F, (byte) 0x00); // index 0 → 10
+        assertEquals(254, apu.pulse1().lengthCounter().value());
+        assertEquals(20, apu.pulse2().lengthCounter().value());
+        assertEquals(2, apu.triangle().lengthCounter().value());
+        assertEquals(10, apu.noise().lengthCounter().value());
+    }
+
+    @Test
+    void a2_disabledChannel_blocksLoadThroughRegisterWrite() {
+        APU apu = new APU(); // power-up: all channels disabled
+        apu.cpuBusWrite(0x4003, (byte) 0x08);
+        assertEquals(0, apu.pulse1().lengthCounter().value(),
+                "load must be blocked while the channel is disabled");
+    }
+
+    @Test
+    void a2_halfFrameCadence_clocksAllFourLengthCounters() {
+        APU apu = new APU();
+        apu.pulse1().lengthCounter().setEnabled(true);
+        apu.pulse2().lengthCounter().setEnabled(true);
+        apu.triangle().lengthCounter().setEnabled(true);
+        apu.noise().lengthCounter().setEnabled(true);
+        apu.cpuBusWrite(0x4003, (byte) 0x00); // 10
+        apu.cpuBusWrite(0x4007, (byte) 0x00);
+        apu.cpuBusWrite(0x400B, (byte) 0x00);
+        apu.cpuBusWrite(0x400F, (byte) 0x00);
+        // First half-frame clock lands at CPU cycle 14913 (mode 0).
+        for (int i = 0; i < 14912; i++) {
+            apu.clock();
+        }
+        assertEquals(10, apu.pulse1().lengthCounter().value(), "no half clock before 14913");
+        apu.clock(); // 14913
+        assertEquals(9, apu.pulse1().lengthCounter().value());
+        assertEquals(9, apu.pulse2().lengthCounter().value());
+        assertEquals(9, apu.triangle().lengthCounter().value());
+        assertEquals(9, apu.noise().lengthCounter().value());
+        // Second half clock of the period at 29829.
+        for (int i = 14913; i < 29829; i++) {
+            apu.clock();
+        }
+        assertEquals(8, apu.noise().lengthCounter().value(), "second half clock at 29829");
+    }
+
+    @Test
+    void a2_immediate4017Clock_alsoClocksLengthCounters() {
+        APU apu = new APU();
+        apu.pulse1().lengthCounter().setEnabled(true);
+        apu.cpuBusWrite(0x4003, (byte) 0x00); // 10
+        apu.cpuBusWrite(0x4017, (byte) 0x80); // bit 7 → immediate quarter+half
+        assertEquals(9, apu.pulse1().lengthCounter().value(),
+                "$4017 bit-7 write force-clocks the length counters");
+    }
+
     @Test
     void writeOnlyRegisters_readAsZero_notEchoed() {
         // The stub's byte-array echo is gone: APU registers are
