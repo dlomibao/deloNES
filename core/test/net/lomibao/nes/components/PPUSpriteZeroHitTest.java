@@ -125,10 +125,9 @@ class PPUSpriteZeroHitTest {
         // (which clears the shadow), frame 2 renders + must detect the hit.
         for (int t = 0; t < 2 * 341 * 262; t++) {
             ppu.clock();
-            if (ppu.getScanline() == 261) {
-                // Don't let the pre-render clear also wipe the STATUS bit
-                // read below — sample right after the sprite's scanlines.
-            }
+            // Sample shortly after the sprite's scanlines (50-57) so the
+            // pre-render clear at scanline 261 can't wipe the status bit
+            // before we observe it.
             if (ppu.getScanline() == 60 && spriteZeroHit()) {
                 return; // hit fired through the real pipeline
             }
