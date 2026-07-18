@@ -45,10 +45,15 @@ class MicroMagesBootIT {
         h.runToFrame(3300); // gameplay stable well before here
 
         // The player sprite must be in OAM during gameplay — and stay there.
-        assertTrue(liveOamSprites(h.ppu()) > 0,
-                "expected live sprites in OAM during gameplay at frame " + h.frame());
+        // Threshold 3: with the BRK return-address fix, gameplay carries the
+        // player plus enemies (3+ live sprites in this session's census);
+        // before the fix the census was 1-2 (enemies only, player parked at
+        // y=$FF). >= 3 therefore discriminates the BRK regression, where a
+        // bare > 0 would pass on enemies alone.
+        assertTrue(liveOamSprites(h.ppu()) >= 3,
+                "expected >= 3 live sprites (player + enemies) during gameplay at frame " + h.frame());
         h.runFrames(60);
-        assertTrue(liveOamSprites(h.ppu()) > 0,
-                "expected live sprites to persist through gameplay at frame " + h.frame());
+        assertTrue(liveOamSprites(h.ppu()) >= 3,
+                "expected >= 3 live sprites to persist through gameplay at frame " + h.frame());
     }
 }

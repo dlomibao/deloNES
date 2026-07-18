@@ -42,9 +42,9 @@ class TimeBaseTest {
 
     @Test
     void roundHalfUpBoundary() {
-        // Choose seconds whose product lands just above/below x.5 to pin
-        // Math.round (half-up) rather than truncation.
-        // 5.5 × 60.0988 = 330.5434 → 331 (truncation would give 330).
+        // 5.5 × 60.0988 = 330.5434 → 331. Pins rounding (any half-mode)
+        // versus truncation, which would give 330; the exact half-up tie
+        // behavior of Math.round is not distinguishable at this value.
         assertEquals(331, TimeBase.framesAt(5.5));
     }
 
