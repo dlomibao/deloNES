@@ -168,6 +168,9 @@ public class CPUBus {
 
     public void reset() {
         cpu.reset();
+        // Seam S3 (docs/apu-plan.md): reset acts as $4015 = $00 on the
+        // APU while the last $4017 value is retained (apu_reset ROMs).
+        if (apu != null) apu.reset();
         masterClockCount = 0;
         phase = 0;
     }
@@ -180,6 +183,12 @@ public class CPUBus {
         // ppu is 3x faster than the cpu — phase counter avoids
         // (masterClockCount % 3) Long_rem on TeaVM.
         if (phase == 0) {
+            // Seam S2 (docs/apu-plan.md): the APU clocks once per CPU
+            // cycle, FIRST in the branch, before the DMA/CPU turn
+            // consumer — the APU never stops, even during DMA stalls.
+            // This ordering is part of the movie-determinism contract
+            // and does not change in later phases.
+            if (apu != null) apu.clock();
             // DMA preempts the CPU when active: instead of cpu.clock() this
             // CPU-turn goes to the DMA state machine. CPU is suspended for
             // the duration of the DMA burst (513 or 514 CPU cycles).

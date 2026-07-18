@@ -377,10 +377,14 @@ class ControllerTest {
         // Write to $4017 via the bus (frame counter write)
         bus.write(0x4017, (byte) 0xC0);
 
-        // Read back directly from APU (bypass the bus routing for reads)
-        int apuVal = Byte.toUnsignedInt(apu.registers[0x4017 - apu.START_ADDRESS]);
-        assertEquals(0xC0, apuVal,
-                "write to $4017 via bus must be stored in APU frame-counter register");
+        // Observe through the APU's frame-counter state (the stub's raw
+        // register array is gone — writes decode into real unit state).
+        assertEquals(0xC0, apu.getLast4017(),
+                "write to $4017 via bus must reach the APU frame counter");
+        assertTrue(apu.frameCounter().isMode5(),
+                "$C0 bit 7 → 5-step mode");
+        assertTrue(apu.frameCounter().isIrqInhibit(),
+                "$C0 bit 6 → IRQ inhibit");
     }
 
     @Test

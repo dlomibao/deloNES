@@ -1,63 +1,124 @@
 package net.lomibao.nes.components;
 
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.extern.log4j.Log4j2;
+import net.lomibao.nes.components.apu.FrameCounter;
 
-//Audio Processing Unit
-
-@Data
-@EqualsAndHashCode(callSuper = false)
+/**
+ * Audio Processing Unit (Ricoh 2A03 APU side) — rewritten in place from
+ * the register-echo stub per docs/apu-plan.md Phase A.
+ *
+ * <p>Registers $4000-$401F on the CPU bus (reads: only $4015 is
+ * readable; $4016/$4017 reads are routed to the controller by
+ * {@link CPUBus} and never reach here). {@link #clock()} is called once
+ * per CPU cycle from the {@code phase == 0} branch of
+ * {@link CPUBus#clock()}, first in the branch (seam S2) — the APU never
+ * stops, even during DMA stalls.
+ *
+ * <p>Power-up state (D8, research §1.9): $4017 = $00 — 4-step mode with
+ * the frame IRQ <em>enabled</em> — modeled faithfully from day one. The
+ * frame IRQ flag is set/read/cleared correctly in Phase A but not yet
+ * delivered to the CPU (delivery is Phase C, seam S4).
+ *
+ * <p>TeaVM hot path: {@code clock()} is int-only — no {@code long}, no
+ * allocation, no boxing, no String ops.
+ */
 @Log4j2
-public class APU  extends CPUBusComponent {
-    //https://www.nesdev.org/wiki/APU#Registers
+public class APU extends CPUBusComponent {
+    // https://www.nesdev.org/wiki/APU#Registers
 
+    public static final int START_ADDRESS = 0x4000;
+    public static final int END_ADDRESS = 0x4020; // exclusive
 
-    public int START_ADDRESS=0x4000;
-    public int REGISTER_SIZE=32;
-    public int END_ADDRESS=0x4020;//exclusive
+    private final FrameCounter frameCounter = new FrameCounter();
 
-    public byte[] registers;
-    public APU(){
-        registers=new byte[REGISTER_SIZE];
-    }
+    /**
+     * Last value written to $4017 — reapplied on {@link #reset()}
+     * (research §1.9: "the last-written $4017 value is retained").
+     * Power-up value is $00 (D8).
+     */
+    private int last4017;
 
     @Override
     public int getCPUBusStartAddress() {
         return START_ADDRESS;
     }
+
     @Override
-    public int getCPUBusEndAddress(){
+    public int getCPUBusEndAddress() {
         return END_ADDRESS;
     }
 
+    /**
+     * Advance one CPU cycle (seam S2). Dispatches the frame counter's
+     * quarter/half-frame clocks to the channel units.
+     */
+    public void clock() {
+        int events = frameCounter.clock();
+        if (events != 0) {
+            dispatchFrameClocks(events);
+        }
+    }
+
+    /** Route quarter/half-frame clocks to the channels (grows in A2/B). */
+    private void dispatchFrameClocks(int events) {
+        // Phase A1: no clocked units exist yet. Length counters (A2)
+        // hang off the HALF bit; envelopes/linear counter (Phase B) off
+        // the QUARTER bit.
+    }
+
     @Override
-    public void cpuBusWrite(int address, byte value){
-        int index=getIndex(address);
-        registers[index]=value;
+    public void cpuBusWrite(int address, byte value) {
+        int v = Byte.toUnsignedInt(value);
+        switch (address) {
+            case 0x4017:
+                last4017 = v;
+                int immediate = frameCounter.write4017(v);
+                if (immediate != 0) {
+                    dispatchFrameClocks(immediate);
+                }
+                break;
+            default:
+                // Remaining registers decode into channel/unit state as
+                // the channels land (A2/A3/B/D). Never stored in a raw
+                // byte array — the stub's echo behavior is gone.
+                break;
+        }
     }
 
     /**
-     * if read only is true, only reads current state. reads on 6502 can under normal operation have sideeffects
-     * @param address
-     * @param readOnly
-     * @return
+     * If read only is true, only reads current state — reads on the 6502
+     * can under normal operation have side effects ($4015 read clears the
+     * frame IRQ flag, Phase A3).
      */
     @Override
-    public int cpuBusRead(int address, boolean readOnly){
-        int index=getIndex(address);
-        if(index==-1){
+    public int cpuBusRead(int address, boolean readOnly) {
+        if (address < START_ADDRESS || address >= END_ADDRESS) {
+            log.error("attempting to read memory out of range {}. valid range [{},{}]",
+                    address, START_ADDRESS, END_ADDRESS);
             return 0;
         }
-        return Byte.toUnsignedInt(registers[index]);
+        // $4015 status read lands in Phase A3; every other APU register
+        // is write-only and reads as 0 (open bus is a non-goal, D10).
+        return 0;
     }
 
-    private int getIndex(int address){
-        if(address<START_ADDRESS || address>=END_ADDRESS){
-            log.error("attempting to read memory out of range {}. valid range [{},{}]",address,START_ADDRESS,END_ADDRESS);
-            return -1;
-        }
-        return (address-START_ADDRESS)%REGISTER_SIZE;
+    /**
+     * Power-on/soft reset (seam S3; semantics finalized in Phase A4).
+     * Acts as $4015 = $00, retains and reapplies the last $4017 value.
+     */
+    public void reset() {
+        frameCounter.clearFrameIrqFlag();
+        frameCounter.write4017(last4017);
+        frameCounter.resetSequencer();
+    }
+
+    /** Narrow test/diagnostic seam onto the frame counter. */
+    public FrameCounter frameCounter() {
+        return frameCounter;
+    }
+
+    /** Last value written to $4017 (retained across reset — A4). */
+    public int getLast4017() {
+        return last4017;
     }
 }
