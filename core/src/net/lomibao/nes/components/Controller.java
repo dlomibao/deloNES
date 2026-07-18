@@ -71,6 +71,24 @@ public class Controller extends CPUBusComponent {
     /** True while the most recent $4016 write had bit 0 set. */
     private boolean strobe = false;
 
+    /**
+     * Resets the shift-register state (strobe, latches, read indexes) to
+     * power-on values. Live button state is deliberately kept — it mirrors
+     * physically-held buttons, which the harness recorder samples at
+     * frame 0 anyway. Called by hosts at ROM load so a controller reused
+     * across play sessions (desktop NesGame) matches the fresh Controller
+     * a movie replay boots with — a stale strobe/latch/readIndex would
+     * otherwise diverge record vs replay for games that read $4016/$4017
+     * before their first strobe (Phase D round-2 review finding).
+     */
+    public void resetShiftState() {
+        strobe = false;
+        for (int p = 0; p < NUM_PLAYERS; p++) {
+            readIndex[p] = 0;
+            java.util.Arrays.fill(latchedState[p], false);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // CPUBusComponent interface
     // -------------------------------------------------------------------------

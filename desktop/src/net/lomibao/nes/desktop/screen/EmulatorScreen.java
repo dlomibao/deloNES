@@ -241,6 +241,10 @@ public class EmulatorScreen implements Screen {
             }
             cartridge = new Cartridge(cartridgeIn, rom.displayName());
 
+            // Power-on parity with the romloader-v1 replay environment: a
+            // controller reused from a prior session must not carry stale
+            // shift-register state into a recording.
+            controller.resetShiftState();
             cpuBus.setCartridge(cartridge);
             ppu.setCartridge(cartridge);
             ppuBus.connectCartridge(cartridge);
