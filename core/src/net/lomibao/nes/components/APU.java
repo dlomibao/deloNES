@@ -151,12 +151,15 @@ public class APU extends CPUBusComponent {
             case 0x400B:
                 triangle.writeTimerHigh(v);
                 break;
-            // -- noise ($400C-$400F; full decode in B5) --
+            // -- noise ($400C-$400F, B5) --
             case 0x400C:
-                noise.lengthCounter().setHalt((v & 0x20) != 0);
+                noise.writeControl(v);
+                break;
+            case 0x400E:
+                noise.writeMode(v);
                 break;
             case 0x400F:
-                noise.lengthCounter().load(v >> 3);
+                noise.writeLength(v);
                 break;
             // -- $4015 control (A3): enables + DMC-IRQ-flag clear --
             case 0x4015:
