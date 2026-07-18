@@ -28,7 +28,7 @@ class SquareToneGeneratorTest {
     }
 
     @Test
-    void frameSampleCountsAlternate798And799At48000() {
+    void frameSampleCountsAre798Or799At48000_noCumulativeDrift() {
         SquareToneGenerator gen = new SquareToneGenerator(48000f, 440.0, 0.15f);
         for (int i = 0; i < 601; i++) {
             int n = gen.nextFrameSampleCount();

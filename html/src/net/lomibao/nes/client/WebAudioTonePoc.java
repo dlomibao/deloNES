@@ -159,6 +159,10 @@ final class WebAudioTonePoc {
         // browser didn't honor. Repeat resume() on a running context is a
         // spec'd no-op, so state-gating is also the correct idempotency.
         // (Phase 0 review finding; Phase E must use the same pattern.)
+        // Literal string on purpose: the JSO binding's own state constants
+        // are not trustworthy (STATE_CLOSE is "close" vs the spec's
+        // "closed") — round-2 review verified getState() returns the raw
+        // DOM ctx.state, so spec literals are the safe comparison.
         if ("running".equals(ctx.getState())) {
             return;
         }
