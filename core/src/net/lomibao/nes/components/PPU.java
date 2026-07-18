@@ -889,6 +889,33 @@ public class PPU  extends CPUBusComponent implements PPUBusComponent{
     }
 
     /**
+     * Seam S2 (headless-harness plan, Phase B4): public, read-only PPU-bus
+     * read for diagnostics only — nametable/CHR census from the harness
+     * fixtures tier. No buffered-read side effects, no loopy-v increment,
+     * no A12 mapper notification; safe to call at any point in a frame.
+     *
+     * <p>Public deliberately (D10): package-private would be unreachable
+     * from {@code net.lomibao.nes.harness} fixtures classes. Production
+     * code MUST keep using the CPU-visible $2006/$2007 path.
+     *
+     * @param addr PPU address space (masked to 0x3FFF)
+     * @return the byte at that address as an unsigned int (0-255)
+     */
+    public int peekPpuBus(int addr) {
+        int a = addr & 0x3FFF;
+        // Palette RAM lives inside the PPU, not on the bus — route it here
+        // (with the standard $3F10/$14/$18/$1C mirroring) so the "byte at
+        // that address" contract holds across the whole $0000-$3FFF space.
+        if (a >= 0x3F00) {
+            return Byte.toUnsignedInt(paletteRAM[mirrorPaletteAddress(a)]);
+        }
+        if (ppuBus == null) {
+            return 0;
+        }
+        return ppuBus.peek(a) & 0xFF;
+    }
+
+    /**
      * Look up the RGB color (0xAARRGGBB) for a palette-RAM index. Public
      * because tests (and host renderers) need to compare against expected
      * colours without re-implementing the palette pipeline.

@@ -440,4 +440,80 @@ class ControllerTest {
         assertEquals(0, bus.read(0x4017) & 1, "P2 UP=0");
         assertEquals(1, bus.read(0x4017) & 1, "P2 DOWN=1");
     }
+
+    // =========================================================================
+    // Seam S3 (headless-harness plan, Phase B1): readOnly reads must be
+    // side-effect free — no readIndex advance — so harness peeks of
+    // $4016/$4017 cannot desync the joypad shift register.
+    // =========================================================================
+
+    @Test
+    void readOnly_read_doesNotAdvanceReadIndex() {
+        controller.setButton(0, Button.A, true);
+        controller.setButton(0, Button.SELECT, true);
+        strobeAndLatch(controller);
+
+        // Peek repeatedly — every peek must return the SAME (A) bit.
+        assertEquals(1, controller.cpuBusRead(0x4016, true) & 1, "peek #1 sees A");
+        assertEquals(1, controller.cpuBusRead(0x4016, true) & 1, "peek #2 still sees A");
+        assertEquals(1, controller.cpuBusRead(0x4016, true) & 1, "peek #3 still sees A");
+
+        // The real sequential read stream is untouched: A,B,SELECT,START...
+        assertEquals(1, controller.cpuBusRead(0x4016, false) & 1, "A");
+        assertEquals(0, controller.cpuBusRead(0x4016, false) & 1, "B");
+        assertEquals(1, controller.cpuBusRead(0x4016, false) & 1, "SELECT");
+        assertEquals(0, controller.cpuBusRead(0x4016, false) & 1, "START");
+    }
+
+    @Test
+    void readOnly_read_midSequence_returnsCurrentBitWithoutAdvancing() {
+        controller.setButton(0, Button.B, true);
+        strobeAndLatch(controller);
+
+        assertEquals(0, controller.cpuBusRead(0x4016, false) & 1, "A consumed");
+        // Now at index 1 (B). Peeks see B without consuming it.
+        assertEquals(1, controller.cpuBusRead(0x4016, true) & 1, "peek sees B");
+        assertEquals(1, controller.cpuBusRead(0x4016, true) & 1, "peek again sees B");
+        assertEquals(1, controller.cpuBusRead(0x4016, false) & 1, "real read consumes B");
+        assertEquals(0, controller.cpuBusRead(0x4016, false) & 1, "then SELECT");
+    }
+
+    @Test
+    void normalRead_stillAdvances() {
+        controller.setButton(0, Button.A, true);
+        strobeAndLatch(controller);
+
+        assertEquals(1, controller.cpuBusRead(0x4016, false) & 1, "A");
+        assertEquals(0, controller.cpuBusRead(0x4016, false) & 1,
+                "non-readOnly read advanced past A to B");
+    }
+
+    @Test
+    void readOnly_pastEnd_returnsOpenBusOneWithoutSideEffects() {
+        strobeAndLatch(controller);
+        for (int i = 0; i < 8; i++) {
+            controller.cpuBusRead(0x4016, false);
+        }
+        assertEquals(0x41, controller.cpuBusRead(0x4016, true), "past-end peek returns 1|0x40");
+        assertEquals(0x41, controller.cpuBusRead(0x4016, false), "past-end real read unchanged");
+    }
+
+    @Test
+    void readOnly_whileStrobeHigh_returnsLiveABitLikeNormalRead() {
+        controller.setButton(0, Button.A, true);
+        controller.cpuBusWrite(0x4016, (byte) 0x01); // strobe high
+        assertEquals(0x41, controller.cpuBusRead(0x4016, true), "peek sees live A while strobed");
+        assertEquals(0x41, controller.cpuBusRead(0x4016, false), "normal strobed read identical");
+    }
+
+    @Test
+    void readOnly_player2_independentOfPlayer1Index() {
+        controller.setButton(1, Button.A, true);
+        strobeAndLatch(controller);
+
+        assertEquals(1, controller.cpuBusRead(0x4017, true) & 1, "peek P2 A");
+        assertEquals(1, controller.cpuBusRead(0x4017, true) & 1, "peek P2 A again");
+        assertEquals(1, controller.cpuBusRead(0x4017, false) & 1, "P2 A consumed");
+        assertEquals(0, controller.cpuBusRead(0x4017, false) & 1, "P2 B");
+    }
 }
