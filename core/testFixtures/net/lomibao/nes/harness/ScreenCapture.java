@@ -130,6 +130,23 @@ public final class ScreenCapture {
         return "harness";
     }
 
+    /**
+     * 64-bit FNV-1a hash of the visible framebuffer, hashing each ARGB
+     * pixel's four bytes most-significant first (Phase D3 — the
+     * determinism-proof fingerprint: two captures hash equal iff they are
+     * bit-identical for all practical purposes of the replay tests).
+     */
+    public long fnv1a() {
+        long hash = 0xcbf29ce484222325L; // FNV-1a 64-bit offset basis
+        for (int px : argb) {
+            for (int shift = 24; shift >= 0; shift -= 8) {
+                hash ^= (px >>> shift) & 0xFF;
+                hash *= 0x100000001b3L;  // FNV-1a 64-bit prime
+            }
+        }
+        return hash;
+    }
+
     // -------------------------------------------------------------------------
     // Assertions (Phase C2) — see ScreenAssertions for conventions (D8)
     // -------------------------------------------------------------------------

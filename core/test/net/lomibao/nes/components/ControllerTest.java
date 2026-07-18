@@ -516,4 +516,48 @@ class ControllerTest {
         assertEquals(1, controller.cpuBusRead(0x4017, false) & 1, "P2 A consumed");
         assertEquals(0, controller.cpuBusRead(0x4017, false) & 1, "P2 B");
     }
+
+    // =========================================================================
+    // Seam S4 (headless-harness plan, Phase D2): isPressed — live-state read
+    // =========================================================================
+
+    @Test
+    void isPressed_reflectsLiveStateForBothPlayers() {
+        assertFalse(controller.isPressed(0, Button.A), "power-on: nothing pressed");
+        controller.setButton(0, Button.A, true);
+        controller.setButton(1, Button.START, true);
+        assertTrue(controller.isPressed(0, Button.A));
+        assertFalse(controller.isPressed(0, Button.START), "no cross-player leak");
+        assertTrue(controller.isPressed(1, Button.START));
+        assertFalse(controller.isPressed(1, Button.A));
+        controller.setButton(0, Button.A, false);
+        assertFalse(controller.isPressed(0, Button.A), "release visible immediately");
+    }
+
+    @Test
+    void isPressed_readsLiveStateNotLatchedState_andHasNoSideEffects() {
+        controller.setButton(0, Button.B, true);
+        strobeAndLatch(controller); // B latched into the shift register
+        controller.setButton(0, Button.B, false);
+
+        // Live state (S4's contract) says released even though the latch holds B.
+        assertFalse(controller.isPressed(0, Button.B), "isPressed is live, not latched");
+
+        // And isPressed must not disturb the shift register: sequential reads
+        // still deliver the latched snapshot from before the release.
+        for (Button b : Button.values()) {
+            controller.isPressed(0, b);
+            controller.isPressed(1, b);
+        }
+        assertEquals(0, controller.cpuBusRead(0x4016, false) & 1, "A");
+        assertEquals(1, controller.cpuBusRead(0x4016, false) & 1, "B (latched)");
+    }
+
+    @Test
+    void isPressed_invalidPlayerThrows() {
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.isPressed(-1, Button.A));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.isPressed(2, Button.A));
+    }
 }

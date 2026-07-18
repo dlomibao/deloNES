@@ -1,10 +1,18 @@
 package net.lomibao.nes.desktop.screen;
 
 import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
+import net.lomibao.nes.components.Button;
 import net.lomibao.nes.components.Controller;
 import net.lomibao.nes.desktop.HeadlessTestSupport;
+import net.lomibao.nes.harness.InputTimeline;
+import net.lomibao.nes.harness.Movie;
+import net.lomibao.nes.harness.MovieFormat;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -161,5 +169,73 @@ public class EmulatorScreenTest {
 
         assertDoesNotThrow(() -> HeadlessTestSupport.runFrames(listener, 2));
         assertFalse(ref.get().isPaused(), "pause toggled twice should end un-paused");
+    }
+
+    /**
+     * Phase D2 desktop wiring (headless-harness plan): with the record flag
+     * on, EmulatorScreen samples the controller immediately before each
+     * runFrame() (decision D9 boundary) and dumps a parseable v1 movie on
+     * dispose. The test presses START during frames 2-3 and expects exactly
+     * those edges at exactly those frame numbers.
+     */
+    @Test
+    void movieRecording_capturesBoundaryEdges_andDumpsParseableMovie(@TempDir Path tempDir) {
+        AtomicReference<EmulatorScreen> ref = new AtomicReference<>();
+        Controller controller = new Controller();
+
+        ApplicationAdapter listener = new ApplicationAdapter() {
+            private int frame = 0;
+
+            @Override
+            public void render() {
+                EmulatorScreen s = ref.get();
+                if (s == null) {
+                    s = new EmulatorScreen(
+                            new RomSource.ClasspathRomSource("/roms/nestest.nes"),
+                            controller, () -> { /* no-op */ }, false) {
+                        @Override
+                        protected boolean movieRecordingEnabled() {
+                            return true; // force the debug flag without global state
+                        }
+
+                        @Override
+                        protected FileHandle resolveMovieFile(String fileName) {
+                            return Gdx.files.absolute(
+                                    tempDir.resolve(fileName).toString());
+                        }
+                    };
+                    s.show();
+                    ref.set(s);
+                }
+                // D2/D9 semantics: state set before render(frame N) is what
+                // the recorder samples at boundary N.
+                controller.setButton(0, Button.START, frame == 2 || frame == 3);
+                s.render(1f / 60f);
+                frame++;
+            }
+
+            @Override
+            public void dispose() {
+                EmulatorScreen s = ref.get();
+                if (s != null) s.dispose(); // triggers the movie dump
+            }
+        };
+
+        assertDoesNotThrow(() -> HeadlessTestSupport.runFrames(listener, 6));
+
+        Path movieFile = tempDir.resolve("nestest.nes.dmov");
+        assertTrue(java.nio.file.Files.exists(movieFile),
+                "movie file should be dumped on dispose: " + movieFile);
+
+        Movie movie = assertDoesNotThrow(() -> MovieFormat.parse(
+                new String(java.nio.file.Files.readAllBytes(movieFile),
+                        java.nio.charset.StandardCharsets.UTF_8)));
+        assertEquals(6, movie.frames(), "movie length = emulated frame count");
+        assertEquals(
+                InputTimeline.builder()
+                        .press(Button.START).atFrame(2).holdFrames(2)
+                        .build().edges(),
+                movie.timeline().edges(),
+                "recorded edges must be the START press at frames 2-3");
     }
 }

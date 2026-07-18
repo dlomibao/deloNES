@@ -71,6 +71,24 @@ public class Controller extends CPUBusComponent {
     /** True while the most recent $4016 write had bit 0 set. */
     private boolean strobe = false;
 
+    /**
+     * Resets the shift-register state (strobe, latches, read indexes) to
+     * power-on values. Live button state is deliberately kept — it mirrors
+     * physically-held buttons, which the harness recorder samples at
+     * frame 0 anyway. Called by hosts at ROM load so a controller reused
+     * across play sessions (desktop NesGame) matches the fresh Controller
+     * a movie replay boots with — a stale strobe/latch/readIndex would
+     * otherwise diverge record vs replay for games that read $4016/$4017
+     * before their first strobe (Phase D round-2 review finding).
+     */
+    public void resetShiftState() {
+        strobe = false;
+        for (int p = 0; p < NUM_PLAYERS; p++) {
+            readIndex[p] = 0;
+            java.util.Arrays.fill(latchedState[p], false);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // CPUBusComponent interface
     // -------------------------------------------------------------------------
@@ -147,6 +165,25 @@ public class Controller extends CPUBusComponent {
             throw new IllegalArgumentException("player must be 0 or 1, got: " + player);
         }
         liveState[player][button.ordinal()] = pressed;
+    }
+
+    /**
+     * Seam S4 (headless-harness plan, Phase D2): read a single button's
+     * <em>live</em> state — what the host has set via
+     * {@link #setButton(int, Button, boolean)}, not the latched shift
+     * register. Side-effect free. The harness {@code InputRecorder} samples
+     * this once per frame boundary; recording here (rather than in a host's
+     * key-mapping layer) keeps the record path host-agnostic.
+     *
+     * @param player 0 for player 1, 1 for player 2
+     * @param button the button to query
+     * @return {@code true} while the button is held
+     */
+    public boolean isPressed(int player, Button button) {
+        if (player < 0 || player >= NUM_PLAYERS) {
+            throw new IllegalArgumentException("player must be 0 or 1, got: " + player);
+        }
+        return liveState[player][button.ordinal()];
     }
 
     // -------------------------------------------------------------------------
