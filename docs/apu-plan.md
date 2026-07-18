@@ -559,6 +559,16 @@ Deliverables:
   a measured error bar and the follow-up project inherits a baseline.
   Do not attempt a CPU rewrite inside this branch.
 
+> **C GATE-EVIDENCE NOTE (review round 1, mutation-verified):** the five
+> Phase C blargg ROMs do NOT pin the 3-vs-4 write-delay parity direction,
+> the 29829 re-assertion, or the C2 odd-shift parity flip — mutations of
+> each pass every ROM. Those mechanics rest on the NESdev citation
+> ("during an APU cycle -> 3, between -> 4", wiki verbatim) plus the
+> dedicated unit tests, which mutation testing confirmed DO kill each
+> mutant. Absolute phase alignment to hardware is unfalsifiable by the
+> current gates. Also corrected in this round: the boot-offset accounting
+> is +8, not +7 (APU-before-CPU ordering in the dispatch turn).
+
 ## Phase D — DMC + DMC DMA stalls
 
 The last correctness phase and the second interrupt/stall-timing change.

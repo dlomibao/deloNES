@@ -514,7 +514,7 @@ What the codebase offers today, and where the APU must plug in:
 1. Unit tests per hardware unit (envelope, sweep incl. one's/two's-complement split,
    length table, linear counter, LFSR both modes, duty sequences, DMC delta clamp,
    frame-counter event table incl. $4017 delay + immediate-clock, $4015 semantics
-   incl. read-clears-frame-IRQ and the same-cycle race).
+   incl. read-clears-frame-IRQ and the window re-assertion semantics (see the corrected §1.7)).
 2. Blargg harness: `NestestTest`-style headless runner for the $6000 protocol (needs
    nothing new — RAM at $6000 is already addressable via cartridge PRG-RAM or a test
    ram; support the $81-reset handshake). Progression per §5.6; gate CI on the Phase

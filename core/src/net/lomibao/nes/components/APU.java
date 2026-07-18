@@ -34,11 +34,18 @@ public class APU extends CPUBusComponent {
 
     /**
      * Frame-counter boot/reset offset (C1, research §1.9): the sequencer
-     * behaves "as if $4017 were written ~9–12 CPU cycles before the first
+     * behaves "as if $4017 were written ~9-12 CPU cycles before the first
      * instruction". Our reset path burns the CPU's 7 reset cycles WHILE
-     * the APU clocks, so the offset applied at reset time is the residue:
-     * effective offset at first instruction = this constant + 7.
-     * Calibrated against {@code apu_reset/4017_timing} (Phase C gate).
+     * the APU clocks, and apu.clock() runs before cpu.clock() within the
+     * dispatch turn, so the sequencer has stepped 8 times when the first
+     * opcode executes: effective offset = this constant + 8. (Review
+     * round 1 corrected the earlier "+7" accounting.) 8 sits below
+     * §1.9's raw 9-12 range; reconciled because that range includes the
+     * 3/4-cycle $4017 write delay the hardware "write" implies (9-12
+     * minus 3/4 = 5-9 sequencer-visible), and the constant is ultimately
+     * CALIBRATED against {@code apu_reset/4017_timing} (Phase C gate),
+     * which is the authoritative pin — the range is an error bar, not a
+     * spec.
      */
     static final int FRAME_COUNTER_BOOT_OFFSET = 0;
 
@@ -287,10 +294,13 @@ public class APU extends CPUBusComponent {
             if (dmcIrqFlag) {
                 status |= 0x80;
             }
-            // Reading clears the frame IRQ flag (never the DMC flag) —
-            // except on the very cycle the flag is being set, which reads
-            // 1 without clearing (§1.7 race). readOnly peeks are
-            // side-effect free (harness observation contract).
+            // Reading ALWAYS clears the frame IRQ flag (never the DMC
+            // flag); if the read lands inside the 3-cycle set window
+            // (29828-29830) the remaining window cycles re-assert it, so
+            // only a read on 29830 clears it for good. (Corrected in C2
+            // from the research's "same-cycle read returns 1 without
+            // clearing" model, which fails blargg 6-irq_flag_timing #5.)
+            // readOnly peeks are side-effect free (harness contract).
             if (!readOnly) {
                 frameCounter.clearFrameIrqFlagOnRead();
             }
