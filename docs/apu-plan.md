@@ -584,7 +584,8 @@ Deliverables:
 | E4 | 3 | twice-replay hash identity; register→frequency; silence when all channels disabled (post-HP) |
 
 **Gates:** `core:check` green; `NestestTest` 8992/8992; all prior
-blargg gates green; **manual audible smoke:** DK on desktop and web
+blargg gates green; **Phase B's owed D9 web-bench number on file (see
+the Phase B waiver block — the E gate cannot close without it)**; **manual audible smoke:** DK on desktop and web
 sounds recognizably correct (jump/walk effects, no sustained crackle
 over 5 minutes); `apu_mixer/*.nes` by-ear check is explicitly
 informational, not a gate (D10); web runFrame + audio callback hold
