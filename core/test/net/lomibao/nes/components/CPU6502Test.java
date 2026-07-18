@@ -188,7 +188,7 @@ public class CPU6502Test {
         //   PLA / SEC / SBC #$02 / STA $D6   ; lo(pushedPC) - 2
         //   PLA / SBC #$00 / STA $D7         ; hi -> ($D6) = BRK address
         //   LDY #$01 / LDA ($D6),Y / STA $10 ; read inline arg
-        //   JMP $9013                        ; spin
+        //   JMP $9012                        ; spin
         ram.writeRange(0x9000, hexStringtoByteArray(
                 "68 68 38 E9 02 85 D6 68 E9 00 85 D7 A0 01 B1 D6 85 10 4C 12 90"));
 
