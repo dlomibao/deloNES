@@ -16,6 +16,21 @@ public final class TriangleChannel {
         return lengthCounter;
     }
 
+    /** CPU-rate timer clock — sequencer lands in Phase B4. */
+    public void clockTimer() {
+        // B4: timer countdown + 32-step sequencer.
+    }
+
+    /** Quarter-frame clock — linear counter lands in Phase B4. */
+    public void clockQuarterFrame() {
+        // B4: linear counter reload/decrement dance.
+    }
+
+    /** Half-frame clock — length counter. */
+    public void clockHalfFrame() {
+        lengthCounter.clockHalfFrame();
+    }
+
     /** Reset pins the sequence phase to 0 (A4). */
     public void resetPhase() {
         sequencePhase = 0;

@@ -16,6 +16,21 @@ public final class NoiseChannel {
         return lengthCounter;
     }
 
+    /** APU-rate timer clock — LFSR stepping lands in Phase B5. */
+    public void clockTimer() {
+        // B5: timer countdown + LFSR feedback.
+    }
+
+    /** Quarter-frame clock — envelope lands in Phase B5. */
+    public void clockQuarterFrame() {
+        // B5: envelope.
+    }
+
+    /** Half-frame clock — length counter. */
+    public void clockHalfFrame() {
+        lengthCounter.clockHalfFrame();
+    }
+
     /** Reset pins the LFSR back to 1 (A4). */
     public void resetLfsr() {
         lfsr = 1;

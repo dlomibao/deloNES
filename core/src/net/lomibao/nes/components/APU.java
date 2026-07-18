@@ -66,55 +66,91 @@ public class APU extends CPUBusComponent {
     }
 
     /**
+     * CPU-cycle parity: pulse/noise timers clock every 2nd CPU cycle
+     * (1 APU cycle — research §1.1); the triangle timer every CPU cycle.
+     */
+    private boolean oddCpuCycle;
+
+    /**
      * Advance one CPU cycle (seam S2). Dispatches the frame counter's
-     * quarter/half-frame clocks to the channel units.
+     * quarter/half-frame clocks to the channel units and runs the
+     * channel timers at their native rates.
      */
     public void clock() {
         int events = frameCounter.clock();
         if (events != 0) {
             dispatchFrameClocks(events);
         }
+        // Triangle timer runs at CPU rate — the one fast-clock channel.
+        triangle.clockTimer();
+        // Pulse (and noise) timers run at APU rate (every 2nd CPU cycle).
+        oddCpuCycle = !oddCpuCycle;
+        if (!oddCpuCycle) {
+            pulse1.clockTimer();
+            pulse2.clockTimer();
+            noise.clockTimer();
+        }
     }
 
-    /** Route quarter/half-frame clocks to the channels (grows in Phase B). */
+    /** Route quarter/half-frame clocks to the channels (research §1.2). */
     private void dispatchFrameClocks(int events) {
-        if ((events & FrameCounter.HALF) != 0) {
-            pulse1.lengthCounter().clockHalfFrame();
-            pulse2.lengthCounter().clockHalfFrame();
-            triangle.lengthCounter().clockHalfFrame();
-            noise.lengthCounter().clockHalfFrame();
-            // Sweeps also clock on HALF — Phase B.
+        if ((events & FrameCounter.QUARTER) != 0) {
+            // Envelopes + triangle linear counter.
+            pulse1.clockQuarterFrame();
+            pulse2.clockQuarterFrame();
+            triangle.clockQuarterFrame();
+            noise.clockQuarterFrame();
         }
-        // Envelopes + triangle linear counter clock on QUARTER — Phase B.
+        if ((events & FrameCounter.HALF) != 0) {
+            // Sweeps + length counters.
+            pulse1.clockHalfFrame();
+            pulse2.clockHalfFrame();
+            triangle.clockHalfFrame();
+            noise.clockHalfFrame();
+        }
     }
 
     @Override
     public void cpuBusWrite(int address, byte value) {
         int v = Byte.toUnsignedInt(value);
         switch (address) {
-            // -- length-counter halt flags (A2; other bits decode in B) --
+            // -- pulse 1 ($4000-$4003, B3) --
             case 0x4000:
-                pulse1.lengthCounter().setHalt((v & 0x20) != 0);
+                pulse1.writeControl(v);
                 break;
+            case 0x4001:
+                pulse1.writeSweep(v);
+                break;
+            case 0x4002:
+                pulse1.writeTimerLow(v);
+                break;
+            case 0x4003:
+                pulse1.writeTimerHigh(v);
+                break;
+            // -- pulse 2 ($4004-$4007, B3) --
             case 0x4004:
-                pulse2.lengthCounter().setHalt((v & 0x20) != 0);
+                pulse2.writeControl(v);
                 break;
+            case 0x4005:
+                pulse2.writeSweep(v);
+                break;
+            case 0x4006:
+                pulse2.writeTimerLow(v);
+                break;
+            case 0x4007:
+                pulse2.writeTimerHigh(v);
+                break;
+            // -- triangle ($4008-$400B; full decode in B4) --
             case 0x4008:
                 // Bit 7 is the triangle control flag AND length halt.
                 triangle.lengthCounter().setHalt((v & 0x80) != 0);
                 break;
-            case 0x400C:
-                noise.lengthCounter().setHalt((v & 0x20) != 0);
-                break;
-            // -- length-counter loads, register bits 7-3 (A2) --
-            case 0x4003:
-                pulse1.lengthCounter().load(v >> 3);
-                break;
-            case 0x4007:
-                pulse2.lengthCounter().load(v >> 3);
-                break;
             case 0x400B:
                 triangle.lengthCounter().load(v >> 3);
+                break;
+            // -- noise ($400C-$400F; full decode in B5) --
+            case 0x400C:
+                noise.lengthCounter().setHalt((v & 0x20) != 0);
                 break;
             case 0x400F:
                 noise.lengthCounter().load(v >> 3);
