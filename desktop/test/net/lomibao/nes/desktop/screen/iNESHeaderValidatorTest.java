@@ -94,29 +94,34 @@ class iNESHeaderValidatorTest {
     }
 
     /**
-     * Mapper 1 (MMC1): byte6 upper nibble = 1, byte7 upper nibble = 0.
-     * Expected mapper = 1 — unsupported, validation must fail.
+     * Every mapper Cartridge can construct must validate. Single source of
+     * truth: {@link net.lomibao.nes.components.Cartridge#SUPPORTED_MAPPERS}.
      */
     @Test
-    void mapperComputation_mapper1_fails() {
-        byte[] h = makeHeader(1);
-        iNESHeaderValidator.ValidationResult r = iNESHeaderValidator.validate(h);
-        assertFalse(r.isValid(), "Mapper 1 should not be supported");
-        assertEquals(1, r.getDetectedMapper());
-        assertNotNull(r.getErrorMessage());
-        assertTrue(r.getErrorMessage().contains("1"), r.getErrorMessage());
+    void allSupportedMappers_pass() {
+        for (int mapperNumber : net.lomibao.nes.components.Cartridge.SUPPORTED_MAPPERS) {
+            iNESHeaderValidator.ValidationResult r =
+                    iNESHeaderValidator.validate(makeHeader(mapperNumber));
+            assertTrue(r.isValid(), "Mapper " + mapperNumber + " should be supported: "
+                    + r.getErrorMessage());
+            assertEquals(mapperNumber, r.getDetectedMapper());
+        }
     }
 
     /**
-     * Mapper 4 (MMC3): low nibble 4 in upper nibble of byte 6.
-     * Expected mapper = 4 — unsupported.
+     * Mapper 5 (MMC5) is not implemented — validation must fail and the
+     * message must name the mapper and list the supported set.
      */
     @Test
-    void mapperComputation_mapper4_fails() {
-        byte[] h = makeHeader(4);
+    void mapperComputation_mapper5_fails() {
+        byte[] h = makeHeader(5);
         iNESHeaderValidator.ValidationResult r = iNESHeaderValidator.validate(h);
-        assertFalse(r.isValid());
-        assertEquals(4, r.getDetectedMapper());
+        assertFalse(r.isValid(), "Mapper 5 should not be supported");
+        assertEquals(5, r.getDetectedMapper());
+        assertNotNull(r.getErrorMessage());
+        assertTrue(r.getErrorMessage().contains("5"), r.getErrorMessage());
+        assertTrue(r.getErrorMessage().contains("30"),
+                "Error should list the supported mappers, got: " + r.getErrorMessage());
     }
 
     /**
@@ -193,22 +198,67 @@ class iNESHeaderValidatorTest {
     }
 
     /**
-     * NES 2.0 detection: bits 2-3 of byte 7 set to 0b10 (i.e. byte7 & 0x0C == 0x08).
-     * deloNES does not yet parse NES 2.0; expect a specific rejection rather than
-     * silent misidentification.
+     * NES 2.0 headers (byte7 & 0x0C == 0x08) are accepted for every supported
+     * mapper. This mirrors real modern dumps — e.g. the Micro Mages NROM demo
+     * build ships bytes 4-7 = {@code 02 01 00 08}.
      */
     @Test
-    void nes2Format_rejectedWithSpecificMessage() {
-        byte[] h = makeHeader(0);
-        // Set the NES 2.0 signature in byte 7 (bits 2-3 = 0b10) without touching
-        // the mapper nibble.
-        h[7] = (byte) ((h[7] & 0xF3) | 0x08);
+    void nes2Format_supportedMappers_pass() {
+        for (int mapperNumber : net.lomibao.nes.components.Cartridge.SUPPORTED_MAPPERS) {
+            byte[] h = makeHeader(mapperNumber);
+            h[7] = (byte) ((h[7] & 0xF3) | 0x08);
+            iNESHeaderValidator.ValidationResult r = iNESHeaderValidator.validate(h);
+            assertTrue(r.isValid(), "NES 2.0 mapper " + mapperNumber + " should pass: "
+                    + r.getErrorMessage());
+            assertEquals(mapperNumber, r.getDetectedMapper());
+        }
+    }
 
+    /**
+     * NES 2.0 12-bit mapper: byte 8's low nibble contributes bits 8-11, so an
+     * unsupported high mapper number must be reported with its full value.
+     * Mapper 0x105 = 261: byte6/7 nibbles encode 0x05, byte 8 low nibble = 1.
+     */
+    @Test
+    void nes2Format_12BitMapper_reportedAndRejected() {
+        byte[] h = makeHeader(5);
+        h[7] = (byte) ((h[7] & 0xF3) | 0x08);
+        h[8] = 0x01; // mapper bits 8-11
         iNESHeaderValidator.ValidationResult r = iNESHeaderValidator.validate(h);
-        assertFalse(r.isValid(), "NES 2.0 header should be rejected");
+        assertFalse(r.isValid());
+        assertEquals(261, r.getDetectedMapper(),
+                "12-bit NES 2.0 mapper number must include byte 8's low nibble");
+    }
+
+    /**
+     * VS System console type (byte 7 bit 0) is rejected — different PPU and
+     * IO hardware. Applies to both header formats.
+     */
+    @Test
+    void vsSystemConsoleType_rejected() {
+        byte[] h = makeHeader(0);
+        h[7] = (byte) (h[7] | 0x01);
+        iNESHeaderValidator.ValidationResult r = iNESHeaderValidator.validate(h);
+        assertFalse(r.isValid(), "VS System ROM should be rejected");
+        assertTrue(r.getErrorMessage().contains("console"),
+                "Error should mention console type, got: " + r.getErrorMessage());
+    }
+
+    /**
+     * NES 2.0 exponent-form size over the 64 MiB cap fails validation
+     * gracefully (a clear message, not an exception escaping validate()).
+     */
+    @Test
+    void nes2Format_overCapExponentSize_failsGracefully() {
+        byte[] h = makeHeader(0);
+        h[7] = (byte) ((h[7] & 0xF3) | 0x08);
+        h[9] = 0x0F;         // PRG MSB nibble 0xF ⇒ exponent form
+        h[4] = (byte) 0xFC;  // E = 63, M = 0 ⇒ 2^63 bytes
+        iNESHeaderValidator.ValidationResult r = iNESHeaderValidator.validate(h);
+        assertFalse(r.isValid(), "2^63-byte PRG should be rejected");
         assertNotNull(r.getErrorMessage());
-        assertTrue(r.getErrorMessage().contains("NES 2.0"),
-                "Error must mention NES 2.0, got: " + r.getErrorMessage());
+        assertTrue(r.getErrorMessage().contains("cap"),
+                "Error should mention the size cap, got: " + r.getErrorMessage());
     }
 
     /**

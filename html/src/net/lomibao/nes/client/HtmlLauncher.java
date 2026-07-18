@@ -225,8 +225,8 @@ public class HtmlLauncher {
                 Gdx.app.log("web",
                         "EMULATOR READY rom=" + loadedRom
                         + " mapper=" + loaded.cartridge.header.getMapperNumber()
-                        + " prgBanks=" + loaded.cartridge.header.getPRGROMSize()
-                        + " chrBanks=" + loaded.cartridge.header.getCHRROMSize()
+                        + " prgBytes=" + loaded.cartridge.header.getPRGROMSizeBytes()
+                        + " chrBytes=" + loaded.cartridge.header.getCHRROMSizeBytes()
                         + " initialPC=0x" + Integer.toHexString(cpu.getPc()));
             } catch (Throwable t) {
                 Gdx.app.error("web", "EMULATOR SETUP FAIL: " + t.getMessage(), t);

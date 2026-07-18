@@ -203,4 +203,249 @@ class INESHeaderTest {
         // coverage and assert nothing throws.
         header.printHeaderBytes();
     }
+
+    // ---------------------------------------------------------------------------
+    // NES 2.0 — detection matrix, 12-bit mapper, submapper
+    // ---------------------------------------------------------------------------
+
+    /** Stamps the NES 2.0 signature (byte7 bits 2-3 = 0b10) onto a header. */
+    private static byte[] makeNes2Header(int mapperNumber) {
+        byte[] h = makeHeader(mapperNumber);
+        h[7] = (byte) ((h[7] & 0xF3) | 0x08);
+        return h;
+    }
+
+    /** Only byte7 bits 2-3 == 0b10 means NES 2.0 — 0b00, 0b01, 0b11 do not. */
+    @Test
+    void nes2Detection_matrix() {
+        for (int bits = 0; bits <= 3; bits++) {
+            byte[] h = makeHeader(0);
+            h[7] = (byte) (bits << 2);
+            assertEquals(bits == 2, new INESHeader(h).isNES2Format(),
+                    "byte7 bits 2-3 = " + bits);
+        }
+    }
+
+    /**
+     * NES 2.0 mapper is 12-bit: byte 8's low nibble contributes bits 8-11.
+     * Mapper 0x105 = 261 from byte6 nibble 5, byte7 nibble 0, byte8 low nibble 1.
+     */
+    @Test
+    void nes2MapperNumber_includesByte8LowNibble() {
+        byte[] h = makeNes2Header(5);
+        h[8] = 0x01;
+        assertEquals(261, new INESHeader(h).getMapperNumber());
+    }
+
+    /**
+     * Guard for the most dangerous line of the NES 2.0 change: iNES 1.0 uses
+     * byte 8 for PRG-RAM size — its bits must NEVER leak into the mapper
+     * number of a 1.0 header.
+     */
+    @Test
+    void ines10_nonZeroByte8_doesNotCorruptMapperNumber() {
+        byte[] h = makeHeader(0);
+        h[8] = 0x04; // 4 x 8KB PRG-RAM — NOT mapper bits
+        assertEquals(0, new INESHeader(h).getMapperNumber(),
+                "iNES 1.0 byte 8 (PRG-RAM size) must not contribute mapper bits");
+    }
+
+    /** Submapper is byte 8's high nibble; values >= 8 must not sign-extend. */
+    @Test
+    void nes2Submapper_highValues_noSignExtension() {
+        byte[] h = makeNes2Header(0);
+        h[8] = (byte) 0xF0; // submapper 15, mapper MSB nibble 0
+        INESHeader header = new INESHeader(h);
+        assertEquals(15, header.getSubmapper());
+        assertEquals(0, header.getMapperNumber());
+    }
+
+    @Test
+    void ines10_submapperIsAlwaysZero() {
+        byte[] h = makeHeader(0);
+        h[8] = (byte) 0xF0;
+        assertEquals(0, new INESHeader(h).getSubmapper());
+    }
+
+    // ---------------------------------------------------------------------------
+    // NES 2.0 — ROM sizes (unit form, exponent form, caps)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void ines10_romSizeBytes_fromLsbTimesBankSize() {
+        byte[] h = makeHeader(0);
+        h[4] = 0x02; // 2 x 16KB
+        h[5] = 0x01; // 1 x 8KB
+        INESHeader header = new INESHeader(h);
+        assertEquals(32768, header.getPRGROMSizeBytes());
+        assertEquals(8192, header.getCHRROMSizeBytes());
+    }
+
+    @Test
+    void nes2_unitForm_includesByte9MsbNibbles() {
+        byte[] h = makeNes2Header(0);
+        h[4] = 0x00;
+        h[5] = 0x02;
+        h[9] = 0x01; // PRG MSB nibble = 1 (units 0x100 = 256), CHR MSB nibble = 0
+        INESHeader header = new INESHeader(h);
+        assertEquals(256 * 16384, header.getPRGROMSizeBytes());
+        assertEquals(2 * 8192, header.getCHRROMSizeBytes());
+    }
+
+    /** Exponent form: 2^E * (M*2+1). E=15, M=1 ⇒ 32768 * 3 = 98304 bytes. */
+    @Test
+    void nes2_exponentForm_decodes() {
+        byte[] h = makeNes2Header(0);
+        h[9] = 0x0F;              // PRG MSB nibble 0xF ⇒ exponent form
+        h[4] = (byte) ((15 << 2) | 1); // E=15, M=1
+        assertEquals(98304, new INESHeader(h).getPRGROMSizeBytes());
+    }
+
+    @Test
+    void nes2_exponentForm_overCap_throwsNamingSize() {
+        byte[] h = makeNes2Header(0);
+        h[9] = 0x0F;
+        h[4] = (byte) 0xFC; // E=63, M=0 ⇒ 2^63
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new INESHeader(h).getPRGROMSizeBytes());
+        assertTrue(e.getMessage().contains("cap"), e.getMessage());
+    }
+
+    /**
+     * Unit form maxes out below the cap by construction (0xEFF units:
+     * ~63 MB PRG / ~31 MB CHR) — the largest encodable values must decode,
+     * not throw.
+     */
+    @Test
+    void nes2_unitForm_maxSizes_decodeUnderCap() {
+        byte[] h = makeNes2Header(0);
+        h[4] = (byte) 0xFF;
+        h[9] = 0x0E; // PRG: 0xEFF units * 16KB ≈ 60MB
+        assertEquals(0xEFF * 16384, new INESHeader(h).getPRGROMSizeBytes());
+        byte[] h2 = makeNes2Header(0);
+        h2[5] = (byte) 0xFF;
+        h2[9] = (byte) 0xE0; // CHR: 0xEFF units * 8KB ≈ 30MB
+        assertEquals(0xEFF * 8192, new INESHeader(h2).getCHRROMSizeBytes());
+    }
+
+    /**
+     * Sub-bank exponent sizes (e.g. 8KB PRG: E=13) are rejected — the mapper
+     * layer is bank-count based. Documented limitation (DECISIONS.md D2).
+     */
+    @Test
+    void nes2_exponentForm_subBankSize_throws() {
+        byte[] h = makeNes2Header(0);
+        h[9] = 0x0F;
+        h[4] = (byte) (13 << 2); // E=13, M=0 ⇒ 8192 bytes < 16KB PRG bank
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new INESHeader(h).getPRGROMSizeBytes());
+        assertTrue(e.getMessage().contains("8192"), e.getMessage());
+    }
+
+    // ---------------------------------------------------------------------------
+    // NES 2.0 — RAM shifts, timing, console type, misc fields
+    // ---------------------------------------------------------------------------
+
+    /** Shift 0 means NO RAM — not 64 << 0 = 64 bytes. */
+    @Test
+    void nes2_ramShiftZero_meansNone() {
+        byte[] h = makeNes2Header(0);
+        INESHeader header = new INESHeader(h);
+        assertEquals(0, header.getPRGRAMSizeBytes());
+        assertEquals(0, header.getCHRRAMSizeBytes());
+    }
+
+    @Test
+    void nes2_ramShifts_decode() {
+        byte[] h = makeNes2Header(0);
+        h[10] = (byte) 0x97; // PRG-RAM shift 7 = 8KB, PRG-NVRAM shift 9 = 32KB
+        h[11] = (byte) 0x59; // CHR-RAM shift 9 = 32KB, CHR-NVRAM shift 5 = 2KB
+        INESHeader header = new INESHeader(h);
+        assertEquals(8192, header.getPRGRAMSizeBytes());
+        assertEquals(32768, header.getPRGNVRAMSizeBytes());
+        assertEquals(32768, header.getCHRRAMSizeBytes());
+        assertEquals(2048, header.getCHRNVRAMSizeBytes());
+    }
+
+    @Test
+    void ines10_ramSizeBytesAccessors_returnZero() {
+        byte[] h = makeHeader(0);
+        h[10] = (byte) 0x97;
+        h[11] = (byte) 0x59;
+        INESHeader header = new INESHeader(h);
+        assertEquals(0, header.getPRGRAMSizeBytes());
+        assertEquals(0, header.getCHRRAMSizeBytes());
+    }
+
+    @Test
+    void timing_bothFormats() {
+        // iNES 1.0: byte 9 bit 0
+        byte[] h10 = makeHeader(0);
+        assertEquals(INESHeader.TvTiming.NTSC, new INESHeader(h10).getTimingMode());
+        h10[9] = 0x01;
+        assertEquals(INESHeader.TvTiming.PAL, new INESHeader(h10).getTimingMode());
+
+        // NES 2.0: byte 12 bits 0-1
+        INESHeader.TvTiming[] expected = {
+                INESHeader.TvTiming.NTSC, INESHeader.TvTiming.PAL,
+                INESHeader.TvTiming.MULTI, INESHeader.TvTiming.DENDY};
+        for (int t = 0; t <= 3; t++) {
+            byte[] h = makeNes2Header(0);
+            h[12] = (byte) t;
+            assertEquals(expected[t], new INESHeader(h).getTimingMode(), "timing " + t);
+        }
+    }
+
+    @Test
+    void consoleType_readsByte7LowBits() {
+        for (int type = 0; type <= 3; type++) {
+            byte[] h = makeHeader(0);
+            h[7] = (byte) type;
+            assertEquals(type, new INESHeader(h).getConsoleType());
+        }
+    }
+
+    /**
+     * Legacy accessors must not read NES 2.0 bytes with iNES 1.0 semantics:
+     * byte 8 is mapper/submapper, byte 9 is size MSBs, byte 10 is RAM shifts.
+     */
+    @Test
+    void nes2_legacyAccessors_areFormatAware() {
+        byte[] h = makeNes2Header(0);
+        h[8] = 0x04;  // would be "4 x 8KB PRG-RAM" in iNES 1.0 — here submapper 0/mapper MSB 4
+        h[9] = 0x00;
+        h[10] = 0x10; // would be "PRG-RAM present" in iNES 1.0 — here NVRAM shift 1
+        h[12] = 0x00; // NTSC
+        INESHeader header = new INESHeader(h);
+        assertEquals(0, header.getPRGRAMSize(), "legacy PRG-RAM units must be 0 under NES 2.0");
+        assertFalse(header.isPAL(), "PAL must come from byte 12 under NES 2.0");
+        assertFalse(header.hasPRGRAMPresent(),
+                "presence must derive from the byte-10 PRG-RAM shift, which is 0");
+
+        byte[] hPal = makeNes2Header(0);
+        hPal[9] = 0x01; // size MSB nibble, NOT the 1.0 PAL bit
+        hPal[12] = 0x01; // PAL
+        INESHeader palHeader = new INESHeader(hPal);
+        assertTrue(palHeader.isPAL());
+        byte[] hRam = makeNes2Header(0);
+        hRam[10] = 0x07; // PRG-RAM shift 7 = 8KB
+        assertTrue(new INESHeader(hRam).hasPRGRAMPresent());
+    }
+
+    @Test
+    void nes2_miscRomCountAndExpansionDevice() {
+        byte[] h = makeNes2Header(0);
+        h[14] = 0x02;
+        h[15] = 0x01; // standard controllers
+        INESHeader header = new INESHeader(h);
+        assertEquals(2, header.getMiscRomCount());
+        assertEquals(1, header.getDefaultExpansionDevice());
+
+        byte[] h10 = makeHeader(0);
+        h10[14] = 0x02;
+        h10[15] = 0x01;
+        INESHeader legacy = new INESHeader(h10);
+        assertEquals(0, legacy.getMiscRomCount());
+        assertEquals(0, legacy.getDefaultExpansionDevice());
+    }
 }

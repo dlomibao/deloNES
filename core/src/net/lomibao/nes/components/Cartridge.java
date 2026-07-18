@@ -19,6 +19,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Set;
 
 @Log4j2
 public class Cartridge extends CPUBusComponent {
@@ -40,6 +41,17 @@ public class Cartridge extends CPUBusComponent {
     public static final int HEADER_SIZE = 16;
     public static final int TRAINER_SIZE = 512;
 
+    /**
+     * Mappers this Cartridge can construct. Single source of truth — the
+     * construction switch below and the desktop pre-flight validator
+     * ({@code iNESHeaderValidator}) both consult it, so the two can't drift.
+     */
+    public static final Set<Integer> SUPPORTED_MAPPERS = Set.of(0, 1, 2, 3, 4, 7, 30);
+
+    public static boolean isMapperSupported(int mapperNumber) {
+        return SUPPORTED_MAPPERS.contains(mapperNumber);
+    }
+
     @SneakyThrows
     public Cartridge(InputStream inputStream, String name) {
         fileName = name;
@@ -49,76 +61,128 @@ public class Cartridge extends CPUBusComponent {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        if (data.length < HEADER_SIZE) {
+            throw new RuntimeException("ROM file is " + data.length
+                    + " bytes — shorter than the " + HEADER_SIZE + "-byte iNES header");
+        }
         header = new INESHeader(Arrays.copyOfRange(data, 0, HEADER_SIZE));
         log.info("bytes[0:4]=" + new String(Arrays.copyOfRange(header.getHeaderBytes(), 0, 4), "UTF-8"));
-        log.info("PRG ROM Size: " + header.getPRGROMSize() + " x 16 KB");
-        log.info("CHR ROM Size: " + header.getCHRROMSize() + " x 8 KB");
+        log.info("NES 2.0 Format: " + header.isNES2Format());
+        log.info("PRG ROM Size: " + header.getPRGROMSizeBytes() + " bytes");
+        log.info("CHR ROM Size: " + header.getCHRROMSizeBytes() + " bytes");
         log.info("Horizontal Mirroring: " + header.isHorizontalMirroring());
         log.info("Battery Backed RAM: " + header.hasBatteryBackedRAM());
         log.info("Trainer: " + header.hasTrainer());
         log.info("Four Screen VRAM: " + header.isFourScreenVRAM());
-        log.info("Mapper Number: " + header.getMapperNumber());
-        log.info("VS Unisystem: " + header.isVSUnisystem());
-        log.info("PlayChoice-10: " + header.isPlayChoice10());
-        log.info("NES 2.0 Format: " + header.isNES2Format());
-        log.info("PRG RAM Size: " + header.getPRGRAMSize() + " x 8 KB");
-        log.info("PAL: " + header.isPAL());
-        log.info("PRG RAM Present: " + header.hasPRGRAMPresent());
+        log.info("Mapper Number: " + header.getMapperNumber()
+                + " (submapper " + header.getSubmapper() + ")");
+        log.info("Console Type: " + header.getConsoleType());
+        log.info("TV Timing: " + header.getTimingMode());
+        log.info("PRG RAM/NVRAM: " + header.getPRGRAMSizeBytes()
+                + "/" + header.getPRGNVRAMSizeBytes() + " bytes");
+        log.info("CHR RAM/NVRAM: " + header.getCHRRAMSizeBytes()
+                + "/" + header.getCHRNVRAMSizeBytes() + " bytes");
+        log.info("Misc ROM count: " + header.getMiscRomCount());
+
+        // VS System / PlayChoice-10 / extended consoles use different
+        // PPU/palette/IO hardware — loading them can only render garbage.
+        // Gate here (not just in the desktop validator) because the web
+        // drag-drop path constructs a Cartridge directly. (DECISIONS.md D4)
+        if (header.getConsoleType() != 0) {
+            throw new RuntimeException("Unsupported console type "
+                    + header.getConsoleType()
+                    + " (VS System / PlayChoice-10 / extended) — only NES/Famicom ROMs run");
+        }
+        if (header.getTimingMode() != INESHeader.TvTiming.NTSC) {
+            log.warn("ROM declares {} timing; this emulator runs NTSC timing only",
+                    header.getTimingMode());
+        }
+
         int offset = HEADER_SIZE;
         if (header.hasTrainer()) {
             // skip trainer section for now
             offset += TRAINER_SIZE;
         }
 
-        int fileType = (header.getFlags7() & 0x0C) == 0x08 ? 2 : 1;
+        // Unified iNES 1.0 / NES 2.0 load path: the header accessors return
+        // byte-exact sizes for either format, so nothing below branches on it.
+        // Note Arrays.copyOfRange does NOT throw when to > data.length — it
+        // silently zero-pads — so a truncated file must be caught explicitly
+        // or it emulates garbage with no signal. (DECISIONS.md D9)
+        int vPRGSize = header.getPRGROMSizeBytes();
+        requireRemaining(offset, vPRGSize, "PRG-ROM");
+        nPRGBanks = vPRGSize / 16384;
+        vPRGMemory = Arrays.copyOfRange(data, offset, offset + vPRGSize);
+        offset += vPRGSize;
 
-        if (fileType == 1) {
-            nPRGBanks = header.getSizeOfPRGRom();
-            int vPRGSize = nPRGBanks * 16384;
-            vPRGMemory = Arrays.copyOfRange(data, offset, offset + vPRGSize);
-            offset += vPRGSize;
-            nCHRBanks = header.getCHRROMSize();
+        int chrRomSize = header.getCHRROMSizeBytes();
+        nCHRBanks = chrRomSize / 8192;
 
-            // Construct the mapper BEFORE allocating vCHRMemory so we
-            // can consult mapper.getChrRamSize() for CHR-RAM carts
-            // (nCHRBanks == 0). Default is 8KB; UNROM-512 overrides to
-            // 32KB (4 × 8KB banks).
-            int mapperType = header.getMapperNumber();
-            switch (mapperType) {
-                case 0:
-                    mapper = new Mapper000(nPRGBanks, nCHRBanks);
-                    break;
-                case 1:
-                    mapper = new MapperMMC1(nPRGBanks, nCHRBanks);
-                    break;
-                case 2:
-                    mapper = new MapperUxROM(nPRGBanks, nCHRBanks);
-                    break;
-                case 3:
-                    mapper = new MapperCNROM(nPRGBanks, nCHRBanks);
-                    break;
-                case 4:
-                    mapper = new MapperMMC3(nPRGBanks, nCHRBanks);
-                    break;
-                case 7:
-                    mapper = new MapperAxROM(nPRGBanks, nCHRBanks);
-                    break;
-                case 30:
-                    mapper = new MapperUNROM512(nPRGBanks, nCHRBanks);
-                    break;
-                case 66:
-                    break;
-            }
-
-            int vCHRSize = nCHRBanks == 0
-                    ? (mapper == null ? 8192 : mapper.getChrRamSize())
-                    : nCHRBanks * 8192;
-            vCHRMemory = Arrays.copyOfRange(data, offset, offset + vCHRSize);
-        } else if (fileType == 2) {
-            // Todo complete
-
+        // Construct the mapper BEFORE allocating vCHRMemory so we can
+        // consult mapper.getChrRamSize() for CHR-RAM carts (nCHRBanks == 0).
+        // Default is 8KB; UNROM-512 overrides to 32KB (4 × 8KB banks).
+        int mapperType = header.getMapperNumber();
+        switch (mapperType) {
+            case 0:
+                mapper = new Mapper000(nPRGBanks, nCHRBanks);
+                break;
+            case 1:
+                mapper = new MapperMMC1(nPRGBanks, nCHRBanks);
+                break;
+            case 2:
+                mapper = new MapperUxROM(nPRGBanks, nCHRBanks);
+                break;
+            case 3:
+                mapper = new MapperCNROM(nPRGBanks, nCHRBanks);
+                break;
+            case 4:
+                mapper = new MapperMMC3(nPRGBanks, nCHRBanks);
+                break;
+            case 7:
+                mapper = new MapperAxROM(nPRGBanks, nCHRBanks);
+                break;
+            case 30:
+                mapper = new MapperUNROM512(nPRGBanks, nCHRBanks);
+                break;
+        }
+        // Fail fast: cpuBusRead/cpuBusWrite dereference the mapper on every
+        // CPU cycle, so a null mapper NPEs at the first reset-vector fetch
+        // anyway — better a clear error at load time. (DECISIONS.md D8)
+        if (mapper == null) {
+            throw new RuntimeException("Unsupported mapper " + mapperType
+                    + " (supported: " + SUPPORTED_MAPPERS.stream().sorted()
+                            .map(String::valueOf)
+                            .reduce((a, b) -> a + ", " + b).orElse("") + ")");
         }
 
+        if (chrRomSize > 0) {
+            requireRemaining(offset, chrRomSize, "CHR-ROM");
+            vCHRMemory = Arrays.copyOfRange(data, offset, offset + chrRomSize);
+        } else {
+            // CHR-RAM cart. NES 2.0 byte 11 declares the size; never
+            // under-allocate below what the mapper's banking addresses
+            // (UNROM-512 assumes 32KB) — max of the two. (DECISIONS.md D3)
+            int headerChrRam = header.getCHRRAMSizeBytes();
+            int mapperChrRam = mapper.getChrRamSize();
+            if (headerChrRam > 0 && headerChrRam != mapperChrRam) {
+                log.warn("Header declares {} bytes CHR-RAM but mapper {} expects {} — allocating the larger",
+                        headerChrRam, mapperType, mapperChrRam);
+            }
+            vCHRMemory = new byte[Math.max(headerChrRam, mapperChrRam)];
+        }
+    }
+
+    /**
+     * Verifies {@code count} bytes exist at {@code offset} in the ROM file.
+     *
+     * @throws RuntimeException naming the section and both sizes if not
+     */
+    private void requireRemaining(int offset, int count, String section) {
+        if ((long) offset + count > data.length) {
+            throw new RuntimeException("Truncated ROM: file is " + data.length
+                    + " bytes but the header declares " + section
+                    + " through byte " + ((long) offset + count));
+        }
     }
 
     public static byte[] toByteArray(InputStream inputStream) throws IOException {
