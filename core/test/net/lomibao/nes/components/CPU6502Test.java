@@ -129,4 +129,75 @@ public class CPU6502Test {
         }
         return byteArray;
     }
+
+    /**
+     * BRK is a 2-byte instruction: the pushed return address must be the
+     * BRK opcode address + 2 (NESdev / MOS 6502). The old implementation
+     * pushed opcode+3, which broke software that passes inline argument
+     * bytes after BRK and derives their address from the pushed PC —
+     * Micro Mages drives every entity animation this way, and the
+     * off-by-one made its player sprite invisible. nestest never
+     * executes BRK, so the trace baseline cannot catch this.
+     */
+    @Test
+    void brk_pushesOpcodeAddressPlusTwo() {
+        ram.setByteArray(new byte[ram.MEMORY_SIZE]);
+        // $8000: BRK, padding byte $42
+        ram.writeRange(0x8000, hexStringtoByteArray("00 42"));
+        // Reset vector -> $8000, IRQ/BRK vector -> $9000 (spin: JMP $9000)
+        ram.cpuBusWrite(0xFFFC, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFD, (byte) 0x80);
+        ram.cpuBusWrite(0xFFFE, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFF, (byte) 0x90);
+        ram.writeRange(0x9000, hexStringtoByteArray("4C 00 90"));
+
+        cpu.reset();
+        int safety = 0;
+        while (cpu.getPc() != 0x9000 && safety++ < 200) {
+            cpu.clock();
+        }
+        assertEquals(0x9000, cpu.getPc(), "BRK must vector through $FFFE");
+
+        // BRK pushed PC-hi, PC-lo, status; stack pointer dropped by 3.
+        int sp = cpu.getStkp();
+        int pushedLo = ram.cpuBusRead(0x0100 + ((sp + 2) & 0xFF));
+        int pushedHi = ram.cpuBusRead(0x0100 + ((sp + 3) & 0xFF));
+        int pushedPc = (pushedHi << 8) | pushedLo;
+        assertEquals(0x8002, pushedPc,
+                "BRK at $8000 must push $8002 (opcode+2), not opcode+3");
+    }
+
+    /**
+     * Functional pin of the BRK-as-RPC idiom (Micro Mages' set-animation
+     * calls): the handler pops the pushed PC, subtracts 2 to find the BRK
+     * opcode, and reads the inline argument at offset +1. With the
+     * correct pushed address the handler must see the actual argument
+     * byte, not the byte after it.
+     */
+    @Test
+    void brk_inlineArgumentReadableViaPushedPc() {
+        ram.setByteArray(new byte[ram.MEMORY_SIZE]);
+        // $8000: BRK, arg $42
+        ram.writeRange(0x8000, hexStringtoByteArray("00 42"));
+        ram.cpuBusWrite(0xFFFC, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFD, (byte) 0x80);
+        ram.cpuBusWrite(0xFFFE, (byte) 0x00);
+        ram.cpuBusWrite(0xFFFF, (byte) 0x90);
+        // Handler at $9000 (mirrors Micro Mages' $F9E6 idiom):
+        //   PLA            ; discard status
+        //   PLA / SEC / SBC #$02 / STA $D6   ; lo(pushedPC) - 2
+        //   PLA / SBC #$00 / STA $D7         ; hi -> ($D6) = BRK address
+        //   LDY #$01 / LDA ($D6),Y / STA $10 ; read inline arg
+        //   JMP $9012                        ; spin
+        ram.writeRange(0x9000, hexStringtoByteArray(
+                "68 68 38 E9 02 85 D6 68 E9 00 85 D7 A0 01 B1 D6 85 10 4C 12 90"));
+
+        cpu.reset();
+        int safety = 0;
+        while (cpu.getPc() != 0x9012 && safety++ < 400) {
+            cpu.clock();
+        }
+        assertEquals(0x42, ram.cpuBusRead(0x0010),
+                "handler must read the inline argument byte after the BRK opcode");
+    }
 }
