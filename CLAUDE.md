@@ -38,7 +38,7 @@ The NES is modeled as discrete hardware components communicating through a bus, 
 - `components.TileDecoder` converts CHR pattern planes into indexed pixel data; `debug.CHRTileViewer` / `debug.TileDebugger` visualize this.
 
 ### Cartridge / mappers
-- `components.Cartridge` parses iNES headers (`rom.mapper.INESHeader`) and wires PRG-ROM + CHR-ROM to the buses through a `Mapper` implementation. Currently only `Mapper000` (NROM) is supported. New mappers implement the `Mapper` interface in `rom.mapper`.
+- `components.Cartridge` parses iNES 1.0 **and NES 2.0** headers (`rom.mapper.INESHeader` — format-aware accessors, 12-bit mapper numbers, exponent-form sizes with a 64 MiB cap) and wires PRG-ROM + CHR-ROM/CHR-RAM to the buses through a `Mapper` implementation. Supported mappers: **0 (NROM), 1 (MMC1), 2 (UxROM), 3 (CNROM), 4 (MMC3 incl. scanline IRQ), 7 (AxROM), 30 (UNROM-512)** — the shared source of truth is `Cartridge.SUPPORTED_MAPPERS`, consulted by both the construction switch and the desktop `iNESHeaderValidator`. Unsupported mappers, non-NES console types (VS/PC10), and truncated files fail fast at construction with descriptive errors. New mappers implement the `Mapper` interface in `rom.mapper`; bank registers must wrap (modulo bank count) like hardware. Design decisions for the NES 2.0 work are logged in `DECISIONS.md` (D1–D12).
 
 ### Rendering + launchers
 - `render.PixelRenderer` draws an arbitrary RGBA pixel array via LibGDX. **Note** the historical bug fixed 2026-01-01: the PPU output is RGBA; reading it as ARGB flips alpha and causes invisible/garbled tiles — keep channel order consistent end-to-end.
