@@ -1,6 +1,8 @@
 package net.lomibao.nes.components;
 
 import lombok.extern.log4j.Log4j2;
+import net.lomibao.nes.components.apu.ApuMixer;
+import net.lomibao.nes.components.apu.ApuSampleBuffer;
 import net.lomibao.nes.components.apu.DmcChannel;
 import net.lomibao.nes.components.apu.FrameCounter;
 import net.lomibao.nes.components.apu.NoiseChannel;
@@ -50,7 +52,18 @@ public class APU extends CPUBusComponent {
      */
     static final int FRAME_COUNTER_BOOT_OFFSET = 0;
 
+    /**
+     * Audio ring capacity (Phase E1): ~186 ms at 44.1 kHz — comfortably
+     * above the ~100 ms desktop device target (D17) so the core side is
+     * never the constraint; overwrite-oldest when nobody drains
+     * (headless runs). TUNABLE pending the user's POC listening-test
+     * numbers (docs/apu-poc-findings.md tables).
+     */
+    static final int AUDIO_RING_CAPACITY = 8192;
+
     private final FrameCounter frameCounter = new FrameCounter();
+    private final ApuSampleBuffer sampleBuffer = new ApuSampleBuffer(AUDIO_RING_CAPACITY);
+    private final ApuMixer mixer = new ApuMixer(sampleBuffer);
     private final PulseChannel pulse1 = new PulseChannel(true);
     private final PulseChannel pulse2 = new PulseChannel(false);
     private final TriangleChannel triangle = new TriangleChannel();
@@ -151,6 +164,11 @@ public class APU extends CPUBusComponent {
                 dmcStallRemaining = RELOAD_STALL_CYCLES;
             }
         }
+        // E1: sample this cycle's channel levels into the box-average
+        // downsampler (§1.8 nonlinear mix inside). Runs every CPU cycle,
+        // after the timers, so the mixer sees post-clock levels.
+        mixer.acceptCpuCycle(pulse1.output(), pulse2.output(),
+                triangle.output(), noise.output(), dmc.output());
     }
 
     /**
@@ -448,6 +466,10 @@ public class APU extends CPUBusComponent {
         frameCounter.reset(last4017, FRAME_COUNTER_BOOT_OFFSET);
         noise.resetLfsr();
         triangle.resetPhase();
+        // E1: downsampler/IIR state and the ring are reset with the
+        // system (determinism section — audio state is a pure function
+        // of the tick stream after reset/ROM load).
+        clearAudio();
     }
 
     /**
@@ -459,6 +481,34 @@ public class APU extends CPUBusComponent {
      */
     public boolean irqAsserted() {
         return frameCounter.isFrameIrqFlag() || dmcIrqFlag;
+    }
+
+    // -- Phase E audio surface (S7 hosts + E4 harness) -------------------
+
+    /** The core-owned sample ring hosts drain once per frame (D16). */
+    public ApuSampleBuffer sampleBuffer() {
+        return sampleBuffer;
+    }
+
+    /**
+     * Host-supplied output sample rate (D12) — desktop leaves the 44100
+     * default; web passes {@code ctx.sampleRate}. Call before the first
+     * frame; resets audio stream state and empties the ring.
+     */
+    public void setSampleRate(int rate) {
+        mixer.setSampleRate(rate);
+        sampleBuffer.clear();
+    }
+
+    /**
+     * D18 host hook: drop buffered samples and downsampler/IIR state
+     * without touching emulation state — used on pause-resume and ROM
+     * swap so stale audio never bursts out. Also runs inside
+     * {@link #reset()}.
+     */
+    public void clearAudio() {
+        mixer.resetStream();
+        sampleBuffer.clear();
     }
 
     /** Narrow test/diagnostic seam onto the frame counter. */
