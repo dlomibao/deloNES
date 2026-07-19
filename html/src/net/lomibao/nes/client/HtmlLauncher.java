@@ -18,6 +18,8 @@ import net.lomibao.nes.components.Controller;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.rom.RomLoader;
 import org.teavm.jso.JSExport;
+import org.teavm.jso.browser.Window;
+import org.teavm.jso.dom.events.KeyboardEvent;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
@@ -107,6 +109,19 @@ public class HtmlLauncher {
         private byte[] frameBytes;
         private int frame;
         private long lastFpsLogMs;
+
+        /**
+         * Real-time accumulator pacing NES frames to the console's rate.
+         * The browser calls render() at the DISPLAY refresh rate (rAF):
+         * 60 Hz monitors happened to match NES speed, but 120/144 Hz
+         * displays ran the emulation (and the APU sample stream) 2x+ fast
+         * — audibly, a permanently overflowing ring (huge ringDropped).
+         * Only run a NES frame once 1/60.0988 s of wall time has accrued.
+         */
+        private double emuTimeAccum;
+        private static final double NES_FRAME_SECONDS = 1.0 / 60.0988;
+        /** Max NES frames per render tick — bounds catch-up after jank. */
+        private static final int MAX_CATCHUP_FRAMES = 3;
         // Microbenchmark: cumulative wall-clock time spent inside nes.runFrame()
         // since the last FPS log. Reveals whether emulation is rAF-throttled
         // (work < 16ms but FPS low) or CPU-bound (work ≈ 100/FPS ms).
@@ -155,6 +170,7 @@ public class HtmlLauncher {
             Gdx.app.log("web", "boot — NES_W=" + NES_W + " NES_H=" + NES_H);
             probeResources();
             probeInput();
+            installDomKeyHooks();
             // Cache the opcode CSV before the first emulator build so the
             // Phase F swap path doesn't have to re-fetch on every ROM pick.
             try {
@@ -327,6 +343,54 @@ public class HtmlLauncher {
             });
         }
 
+        /**
+         * Capture-phase DOM key listeners feeding the NES controller
+         * directly. gdx-teavm's own WebInput keydown listener sits on
+         * document in the BUBBLE phase, and the canvas-level GL handler
+         * stops propagation of canvas-targeted key events before they
+         * get there — observed as "keys reach the page but the game
+         * never sees them". Capture fires ahead of any element handler,
+         * so this path works no matter which element holds focus. Same
+         * pattern as WebAudioOut's gesture-resume hooks.
+         */
+        private void installDomKeyHooks() {
+            Window.current().getDocument().addEventListener(
+                    "keydown", e -> onDomKey((KeyboardEvent) e, true), true);
+            Window.current().getDocument().addEventListener(
+                    "keyup", e -> onDomKey((KeyboardEvent) e, false), true);
+            Gdx.app.log("web", "DOM key hooks installed (capture)");
+        }
+
+        private void onDomKey(KeyboardEvent e, boolean down) {
+            Button b = mapDomCode(e.getCode());
+            if (b == null || controller == null) {
+                return;
+            }
+            // Stop the browser acting on game keys (arrow scroll, Enter
+            // re-activating a focused control). Only for mapped keys so
+            // devtools/shortcuts stay usable.
+            e.preventDefault();
+            controller.setButton(0, b, down);
+        }
+
+        /** KeyboardEvent.code (layout-independent) → NES button. */
+        private static Button mapDomCode(String code) {
+            if (code == null) {
+                return null;
+            }
+            switch (code) {
+                case "ArrowUp":     return Button.UP;
+                case "ArrowDown":   return Button.DOWN;
+                case "ArrowLeft":   return Button.LEFT;
+                case "ArrowRight":  return Button.RIGHT;
+                case "KeyZ":        return Button.A;
+                case "KeyX":        return Button.B;
+                case "Enter":       return Button.START;
+                case "ShiftRight":  return Button.SELECT;
+                default:            return null;
+            }
+        }
+
         private static Button mapKey(int keycode) {
             switch (keycode) {
                 case Input.Keys.UP:           return Button.UP;
@@ -353,7 +417,20 @@ public class HtmlLauncher {
             }
 
             if (nes != null) {
-                renderEmulatorFrame();
+                // Clamp delta so a backgrounded tab doesn't fast-forward
+                // on return (rAF stops while hidden; delta spikes huge).
+                emuTimeAccum += Math.min(Gdx.graphics.getDeltaTime(), 0.25f);
+                int framesRun = 0;
+                while (nes != null && emuTimeAccum >= NES_FRAME_SECONDS
+                        && framesRun < MAX_CATCHUP_FRAMES) {
+                    renderEmulatorFrame();
+                    emuTimeAccum -= NES_FRAME_SECONDS;
+                    framesRun++;
+                }
+                if (framesRun == MAX_CATCHUP_FRAMES) {
+                    // Too far behind — drop the debt instead of spiraling.
+                    emuTimeAccum = 0;
+                }
                 // Phase E3 (D16): pump the audio sink right after
                 // runFrame() — the SPN pulls from the core ring on its
                 // own callback; this is production-side accounting +

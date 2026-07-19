@@ -1,6 +1,22 @@
+/* NES output is 256x240 — lock that aspect and scale to fit 95% of
+   the smaller viewport dimension. gdx-teavm writes inline width/height
+   styles on resize, so the display size is pinned with !important; the
+   backing-store resolution stays whatever the backend picks and WebGL
+   scales it. Pixelated keeps the 8-bit look instead of bilinear smear. */
 canvas {
     cursor: default;
     outline: none;
+    aspect-ratio: 256 / 240;
+    width: min(95vw, calc(95vh * (256 / 240))) !important;
+    height: auto !important;
+    image-rendering: pixelated;
+}
+
+/* Center the canvas in the space under the toolbar. */
+#embed-html {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 body {

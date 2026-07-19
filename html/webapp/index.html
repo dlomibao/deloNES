@@ -35,6 +35,17 @@
               function handleMouseDown(evt) {
                 evt.preventDefault();
                 evt.stopPropagation();
+                // Keyboard routing: the emulator (gdx-teavm WebInput)
+                // listens for keydown on DOCUMENT, but the Emscripten GL
+                // layer intercepts key events targeted at the CANVAS and
+                // stops their propagation. So the canvas must NOT hold
+                // focus — clear focus to <body> so key events target body
+                // and bubble cleanly to the document listener.
+                if (document.activeElement
+                    && document.activeElement !== document.body
+                    && document.activeElement.blur) {
+                  document.activeElement.blur();
+                }
                 window.focus();
               }
 
@@ -111,6 +122,18 @@
                     var ok  = callLoadRomBytes(i8);
                     if (ok) {
                       setStatus('Loaded ' + file.name + ' (' + file.size + ' bytes).');
+                      // Clear focus back to <body> — whatever control
+                      // initiated the load must not stay focused (Enter =
+                      // NES Start would re-trigger it), and body-targeted
+                      // key events are the ones that reach the emulator's
+                      // document-level listener (canvas-targeted ones get
+                      // eaten by the Emscripten GL layer).
+                      if (document.activeElement
+                          && document.activeElement !== document.body
+                          && document.activeElement.blur) {
+                        document.activeElement.blur();
+                      }
+                      window.focus();
                     } else {
                       setStatus(
                         'Emulator declined ROM (not booted yet? wait a couple seconds and retry).');
@@ -126,6 +149,11 @@
               if (buttonEl && pickerEl) {
                 buttonEl.addEventListener('click', function() {
                   pickerEl.click();
+                  // Drop focus immediately: a focused <button> re-activates
+                  // on Enter, and Enter is the NES Start key — without this
+                  // the file dialog reopens every time the player presses
+                  // Start in-game.
+                  buttonEl.blur();
                 });
                 pickerEl.addEventListener('change', function(evt) {
                   var files = evt.target.files;
