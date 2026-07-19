@@ -2,8 +2,6 @@ package net.lomibao.nes.client;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Pixmap.Format;
@@ -315,32 +313,12 @@ public class HtmlLauncher {
         }
 
         private void probeInput() {
-            // Keyboard → NES controller (player 0). Matches the desktop
-            // ControlsConfig defaults: Arrows = D-pad, Z = A, X = B,
-            // Enter = START, Right Shift = SELECT. Pressing/releasing any
-            // bound key flips the corresponding bit in the live controller
-            // state; the cart polls it via the $4016 shift register.
-            Gdx.input.setInputProcessor(new InputAdapter() {
-                @Override
-                public boolean keyDown(int keycode) {
-                    Button b = mapKey(keycode);
-                    if (b != null && controller != null) {
-                        controller.setButton(0, b, true);
-                        return true;
-                    }
-                    return false;
-                }
-
-                @Override
-                public boolean keyUp(int keycode) {
-                    Button b = mapKey(keycode);
-                    if (b != null && controller != null) {
-                        controller.setButton(0, b, false);
-                        return true;
-                    }
-                    return false;
-                }
-            });
+            // Keyboard is handled by installDomKeyHooks() — gdx-teavm's
+            // WebInput key path is focus-gated (hasFocus is only set by
+            // mousedown on the canvas) and effectively dead here, and a
+            // second keymap maintained in parallel is a divergence
+            // hazard (review be7cf87 round 1). Kept as a named probe
+            // point should a Gdx InputProcessor ever be needed again.
         }
 
         /**
@@ -385,25 +363,13 @@ public class HtmlLauncher {
                 case "ArrowRight":  return Button.RIGHT;
                 case "KeyZ":        return Button.A;
                 case "KeyX":        return Button.B;
-                case "Enter":       return Button.START;
+                case "Enter":
+                case "NumpadEnter": return Button.START;
                 case "ShiftRight":  return Button.SELECT;
                 default:            return null;
             }
         }
 
-        private static Button mapKey(int keycode) {
-            switch (keycode) {
-                case Input.Keys.UP:           return Button.UP;
-                case Input.Keys.DOWN:         return Button.DOWN;
-                case Input.Keys.LEFT:         return Button.LEFT;
-                case Input.Keys.RIGHT:        return Button.RIGHT;
-                case Input.Keys.Z:            return Button.A;
-                case Input.Keys.X:            return Button.B;
-                case Input.Keys.ENTER:        return Button.START;
-                case Input.Keys.SHIFT_RIGHT:  return Button.SELECT;
-                default:                      return null;
-            }
-        }
 
         @Override
         public void render() {
@@ -427,8 +393,13 @@ public class HtmlLauncher {
                     emuTimeAccum -= NES_FRAME_SECONDS;
                     framesRun++;
                 }
-                if (framesRun == MAX_CATCHUP_FRAMES) {
-                    // Too far behind — drop the debt instead of spiraling.
+                if (framesRun == MAX_CATCHUP_FRAMES
+                        && emuTimeAccum >= NES_FRAME_SECONDS) {
+                    // Genuinely still behind after max catch-up — drop the
+                    // debt instead of spiraling. A legitimate sub-frame
+                    // remainder is kept (zeroing it under sustained rAF
+                    // throttling would run the NES a permanent -0.16%
+                    // slow and slowly starve the audio ring).
                     emuTimeAccum = 0;
                 }
                 // Phase E3 (D16): pump the audio sink right after
