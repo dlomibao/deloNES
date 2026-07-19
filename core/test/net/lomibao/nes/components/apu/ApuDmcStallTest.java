@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * can only be armed by a CPU write to $4015, impossible while the CPU
  * is halted inside a burst. The
  * {@link #oamBurst_resumesWithIntactGetPutAlternation_afterMidBurstDmcStall()}
- * test is the tripwire: changing either stall length corrupts it.
+ * test is the integrity check (not a length tripwire — see class note): changing either stall length corrupts it.
  */
 class ApuDmcStallTest {
 
@@ -231,10 +231,14 @@ class ApuDmcStallTest {
         int over514 = burstTurns - 514;
         assertTrue((over513 > 0 && over513 % 4 == 0) || (over514 > 0 && over514 % 4 == 0),
                 "burst extended by whole 4-cycle stalls, got " + burstTurns + " turns");
-        // THE PARITY TRIPWIRE (D4): a stall of odd length would flip the
-        // get/put phase — the paused burst would resume writing stale
-        // data and skewing indices, garbling OAM. Byte-exact OAM content
-        // proves the alternation resumed on the phase it was paused on.
+        // Pause/resume INTEGRITY check — NOT a stall-length integrity check (not a length tripwire — see class note).
+        // Review round 1 proved by mutation (length 3 and 5) that OAM
+        // content survives ANY stall parity here: the DMA keys get/put
+        // off masterClockCount statelessly, so the pre-stall latched
+        // byte still lands and read/write pairing self-heals. The stall
+        // lengths are guarded by the exact-count tests above, whose
+        // authority is the NESdev citation (4-cycle reload / 3-cycle
+        // $4015 start), not this assertion.
         for (int i = 0; i < 256; i++) {
             assertEquals((byte) (i ^ 0x5A), ppu.readOam(i),
                     "OAM[" + i + "] — get/put alternation must survive the mid-burst stall");

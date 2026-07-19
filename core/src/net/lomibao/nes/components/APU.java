@@ -106,8 +106,13 @@ public class APU extends CPUBusComponent {
      * alternate that parity, so only an even-length stall preserves a
      * paused burst's alternation phase; the odd 3-cycle start stall can
      * only be armed by a CPU write to $4015 — impossible mid-burst while
-     * the CPU is halted. Changing either length silently corrupts OAM —
-     * the D2 alternation test is the tripwire.
+     * the CPU is halted. The stall lengths are pinned by the exact-count unit tests
+     * (reloadFetch_stallsCpuExactly4Turns / startFetch 3), whose value
+     * rests on the NESdev citation — review round 1 proved by mutation
+     * that OAM content does NOT corrupt under a changed length: the
+     * DMA keys get/put off masterClockCount parity statelessly, so the
+     * pre-stall latched byte still lands and pairing self-heals. The
+     * alternation test verifies pause/resume integrity, not length.
      */
     private int dmcStallRemaining;
 
