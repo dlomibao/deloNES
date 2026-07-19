@@ -136,6 +136,14 @@ public class HtmlLauncher {
          */
         private WebAudioTonePoc audioPoc;
 
+        /**
+         * Phase E3 production audio sink — null when WebAudio is
+         * unavailable (emulator runs silent). Created BEFORE
+         * {@link #setupEmulator()} so {@link #installRom} can bind the
+         * APU's sample rate/ring on the very first ROM.
+         */
+        private WebAudioOut audioOut;
+
         @Override
         public void create() {
             batch = new SpriteBatch();
@@ -154,6 +162,10 @@ public class HtmlLauncher {
             } catch (Throwable t) {
                 Gdx.app.error("web", "OPCODES CSV LOAD FAIL: " + t.getMessage(), t);
             }
+            // Phase E3: build the WebAudio chain before the first ROM
+            // install so installRom() can bind sample rate + ring (D12).
+            audioOut = WebAudioOut.createOrNull();
+
             setupEmulator();
 
             // Phase 0 APU POC-W probe — flag-gated, see WebAudioTonePoc.
@@ -203,6 +215,11 @@ public class HtmlLauncher {
             // (no GL handles) — the SpriteBatch/Pixmap/Texture are owned by
             // this launcher and re-used across ROMs (their sizes never change),
             // so we don't dispose them here.
+            // D18: gain-mute + ring clear across the swap; installRom()'s
+            // success path rebinds (and unmutes) against the new APU.
+            if (audioOut != null) {
+                audioOut.detach();
+            }
             nes = null;
             cpu = null;
             ppu = null;
@@ -232,6 +249,13 @@ public class HtmlLauncher {
                 this.ppu = loaded.ppu;
                 this.controller = loaded.controller;
                 this.loadedRom = romName;
+                // Phase E3 (D12): tell the fresh APU the browser's real
+                // output rate BEFORE its first frame, then point the SPN
+                // at the new core ring (clears it + unmutes).
+                if (audioOut != null && nes.getApu() != null) {
+                    nes.getApu().setSampleRate(audioOut.sampleRate());
+                    audioOut.setSource(nes.getApu().sampleBuffer());
+                }
                 Gdx.app.log("web",
                         "EMULATOR READY rom=" + loadedRom
                         + " mapper=" + loaded.cartridge.header.getMapperNumber()
@@ -330,6 +354,13 @@ public class HtmlLauncher {
 
             if (nes != null) {
                 renderEmulatorFrame();
+                // Phase E3 (D16): pump the audio sink right after
+                // runFrame() — the SPN pulls from the core ring on its
+                // own callback; this is production-side accounting +
+                // per-second stats for the manual soak checklist.
+                if (audioOut != null) {
+                    audioOut.onFrame();
+                }
             } else {
                 renderFallbackGradient();
             }
