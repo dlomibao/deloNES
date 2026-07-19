@@ -17,6 +17,7 @@ public interface Logger {
     void warn(String message);
     void warn(String message, Object p0);
     void warn(String message, Object p0, Object p1);
+    void warn(String message, Object p0, Object p1, Object p2);
     void warn(String message, Object... params);
     
     void error(String message);

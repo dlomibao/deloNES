@@ -38,6 +38,7 @@ import java.util.function.Consumer;
 public class NesSystem {
     private final CPU6502 cpu;
     private final PPU ppu;
+    private final APU apu;
     private final CPUBus cpuBus;
 
     /**
@@ -60,6 +61,7 @@ public class NesSystem {
         // get a NullPointerException deep inside CPUBus.clock() on first tick.
         this.cpu = Objects.requireNonNull(cpu, "cpu is required");
         this.ppu = Objects.requireNonNull(ppu, "ppu is required");
+        this.apu = apu; // optional; when present its IRQ line is polled in tick()
         Objects.requireNonNull(ram, "ram is required (CPU bus needs $0000-$1FFF backing)");
         // apu, cartridge, controller, dma, testRam remain optional.
         this.cpuBus = CPUBus.builder()
@@ -95,6 +97,17 @@ public class NesSystem {
         Cartridge cart = cpuBus.getCartridge();
         if (cart != null && cart.mapperIrqPending() && cpu.irq()) {
             cart.mapperIrqClear();
+        }
+        // APU frame/DMC IRQ line (seam S4, Phase C3): level-held — the APU
+        // keeps it asserted until SOFTWARE clears the flag ($4015 read /
+        // $4017 bit 6). Taking the interrupt never clears it (no
+        // clear-on-taken), so the line is simply re-polled every tick;
+        // cpu.irq() refuses while the I flag masks it. Known CPU defect
+        // (disclosed in the plan's Phase C risks): irq() can fire
+        // mid-instruction and clobber the in-flight cycle count — harmless
+        // for the gate ROMs, owned by a future cycle-stepped-CPU project.
+        if (apu != null && apu.irqAsserted()) {
+            cpu.irq();
         }
         if (ppu.consumeNmi()) {
             cpu.nmi();

@@ -17,6 +17,7 @@ import net.lomibao.nes.components.DmaController;
 import net.lomibao.nes.components.PPU;
 import net.lomibao.nes.components.PPUBus;
 import net.lomibao.nes.components.Ram;
+import net.lomibao.nes.desktop.audio.AudioOut;
 import net.lomibao.nes.harness.InputRecorder;
 import net.lomibao.nes.harness.MovieFormat;
 import net.lomibao.nes.render.NesMasterPalette;
@@ -60,6 +61,12 @@ public class EmulatorScreen implements Screen {
     private PPU ppu;
     private PPUBus ppuBus;
     private Cartridge cartridge;
+
+    // Audio output (Phase E2). Null when no audio device is available
+    // (headless tests, CI) — the emulator then runs silent.
+    /** Desktop output sample rate — 44100, the APU core default (D12). */
+    static final int AUDIO_SAMPLE_RATE = 44100;
+    private AudioOut audioOut;
 
     // Movie recording (headless-harness plan, Phase D2 desktop wiring).
     /**
@@ -109,6 +116,12 @@ public class EmulatorScreen implements Screen {
     /** Toggles paused state. While paused, render() skips emulation but still re-blits. */
     public void togglePause() {
         paused = !paused;
+        // D18: while paused we simply stop writing and let the device
+        // drain; on resume, drop whatever stale samples accumulated so
+        // audio restarts clean instead of bursting old buffer content.
+        if (!paused && nesSystem != null && nesSystem.getApu() != null) {
+            nesSystem.getApu().clearAudio();
+        }
     }
 
     public boolean isPaused() {
@@ -129,6 +142,10 @@ public class EmulatorScreen implements Screen {
         }
         if (ppu != null) {
             ppu.reset();
+        }
+        // D18: drop buffered audio + downsampler state across a reset.
+        if (nesSystem != null && nesSystem.getApu() != null) {
+            nesSystem.getApu().clearAudio();
         }
     }
 
@@ -166,6 +183,7 @@ public class EmulatorScreen implements Screen {
         }
 
         setupNESSystem();
+        setupAudio();
 
         // Guard against bad-ROM bricking. LibGDX Game.setScreen() has already
         // swapped this.screen to us *before* calling show(), so if we let
@@ -225,6 +243,27 @@ public class EmulatorScreen implements Screen {
         // NMI dispatch is owned by NesSystem (it polls PPU.consumeNmi() after
         // each tick). PPU.setCPU is a no-op stub retained for API compatibility
         // — we deliberately do NOT call it here, since the wiring isn't needed.
+    }
+
+    /**
+     * Phase E2: open the mono output device (D15) at the APU's default
+     * 44100 Hz (D12 — no setSampleRate call needed on desktop). Failure
+     * (headless test env, no sound hardware) leaves {@code audioOut}
+     * null and the emulator runs silent — never fatal.
+     */
+    private void setupAudio() {
+        if (Gdx.audio == null) {
+            return;
+        }
+        try {
+            audioOut = AudioOut.open(AUDIO_SAMPLE_RATE);
+            System.out.println("[EmulatorScreen] audio device open @"
+                    + AUDIO_SAMPLE_RATE + "Hz mono");
+        } catch (RuntimeException e) {
+            audioOut = null;
+            System.err.println("[EmulatorScreen] audio unavailable — running silent: "
+                    + e.getMessage());
+        }
     }
 
     private void loadROM() {
@@ -293,6 +332,14 @@ public class EmulatorScreen implements Screen {
                 movieRecorder.sampleFrame(controller);
             }
             runFrame();
+            // D16: drain the APU sample ring to the device immediately
+            // after runFrame() — the one definition of "frame" shared
+            // with the harness/recorder. Paused frames write nothing
+            // (D18): the device drains and OpenAL auto-recovers on the
+            // next write.
+            if (audioOut != null && nesSystem.getApu() != null) {
+                audioOut.drain(nesSystem.getApu().sampleBuffer());
+            }
         }
 
         // Always present the most recent buffer (allows seeing the last frame while paused).
@@ -465,6 +512,7 @@ public class EmulatorScreen implements Screen {
     @Override
     public void dispose() {
         dumpMovieIfRecording();
+        if (audioOut != null) { audioOut.dispose(); audioOut = null; }
         if (batch != null) { batch.dispose(); batch = null; }
         if (font != null) { font.dispose(); font = null; }
         if (pixelRenderer != null) { pixelRenderer.dispose(); pixelRenderer = null; }

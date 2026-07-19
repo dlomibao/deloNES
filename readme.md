@@ -1,5 +1,5 @@
 # deloNES
-a Java and LibGDX NES Emulator POC
+a Java and LibGDX NES Emulator POC — CPU, PPU, and APU (full audio) emulation; runs on desktop (LWJGL3) and in the browser (TeaVM/WebGL + WebAudio)
 
 ## Reference links
 
@@ -9,6 +9,19 @@ a Java and LibGDX NES Emulator POC
 
 
 ## Devlog
+### 7-18-2026 (APU shipped — the NES has a voice)
+* **Full APU (audio processing unit) delivered end-to-end** on `feature/apu`: research → reviewed plan → phased TDD (0/A–E), every phase through the two-reviewer review-fix loop to double-CLEAN. Desktop and web both play real game audio (user-verified with Micro Mages: music, effects, pause/reset all correct).
+  * **Phase 0 — host-output derisking POCs**: desktop LibGDX `AudioDevice` tone POC and a TeaVM/WebAudio `ScriptProcessorNode` tone POC (`?audioPoc=1`). Found up front: teavm-jso's `AudioContext.create()` binding is broken (use the `@JSClass` constructor), autoplay needs state-gated capture-phase gesture resume, and headless Chrome can't create WebGL for benching (D9 waiver, JVM-proxy fallback).
+  * **A — frame counter**: 4/5-step sequencer at the hardware cycle numbers (7457/14913/22371/29828-30 + mode-1 skip), IRQ inhibit/assert semantics, `$4017` write side-effects with the 3/4-cycle delayed reload.
+  * **B — pulse channels**: envelopes, sweeps (pulse-1 one's-complement negate), length counters, duty sequencing, the t<8/target>$7FF mute rules.
+  * **C — triangle + noise**: linear counter reload semantics, ultrasonic-period silencing, LFSR bit-1/bit-6 taps. blargg `apu_test` ROM gates green.
+  * **D — DMC**: sample fetch with cycle-exact CPU stalls (4-cycle reload / 3-cycle start), IRQ, `$4015` read-clears with window re-assertion; `works_immediately` and the dmc_tests suite green (audio-reporting ROMs adjudicated behaviorally — a plan bug the review loop caught).
+  * **E — mixer + host output**: hardware nonlinear mixer via the NESdev lookup tables (95.52/163.67), drift-free fractional box-average downsampler (40.58 CPU cycles/sample @ 44.1k), 90 Hz HP + 14 kHz LP IIRs, float ring buffer; desktop `AudioOut` drained post-frame (D16), web `WebAudioOut` on the POC-proven SPN pattern with D18 mute/clear on swap and tab-background. Audio-stream FNV-1a determinism proof, register→frequency zero-crossing pin (t=253 → 440.4 Hz), JaCoCo ≥90% gate on `components.apu.*`.
+* **Review-loop catches worth remembering**: an inline copy of the mix formula in the hot path was mutation-blind (production `2*tri` mutant survived 1067 tests — now pinned); the dmc_tests "screen-reporting" assumption was wrong; `works_immediately` needed Phase D DMC and was relocated; the frame-counter boot offset is +8 (not +7); research §1.7's `$4015` race model was corrected to read-always-clears (ROM-adjudicated).
+* **The browser session then caught three real web-shim bugs** (fixed + reviewed same day): emulation speed was coupled to display refresh (2× on 120 Hz ProMotion — now wall-time-paced at 60.0988 Hz with catch-up bounds; audio ring went from ~48k dropped samples/s to 0), canvas-targeted key events never reached gdx-teavm's bubble-phase document key listener (the GL layer swallows them — gameplay keys now come from capture-phase document hooks feeding the controller directly), and the Load ROM button kept focus so Enter (= Start) re-opened the file dialog. Plus: canvas now aspect-locked 256:240 at min(95vw/95vh), pixelated.
+* Live web numbers with the APU on: `runFrame=5.4–6.2ms` @ 48 kHz, `ringDropped=0`, `starvedSamples=0` over minutes of play.
+* Decisions D1–D19 in `docs/apu-plan.md`; blargg test ROMs committed with attribution (`CREDITS.md`). Test count: **836 → 1067 core tests**, nestest 8992/8992 intact throughout.
+
 ### 7-18-2026 (headless harness + TAS foundation shipped)
 * **Headless test/automation harness delivered end-to-end** (plan + phases A-D, PRs #38-#41), turning this morning's ad-hoc debugging diagnostics into a first-class toolkit. Every phase went through the two-reviewer review-fix loop to double-CLEAN before merge.
   * **A — input scripting**: fluent `InputTimeline` (`press(START).atFrame(1650).holdFrames(20)`, seconds sugar at NTSC 60.0988), `NesHarness` facade, 0-based frame semantics; `MicroMagesBootIT` drives title→join→start→gameplay in five lines and permanently regression-gates the BRK fix.

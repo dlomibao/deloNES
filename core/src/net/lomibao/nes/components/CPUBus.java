@@ -100,11 +100,19 @@ public class CPUBus {
             } else {
                 log.error("no device found in range of address {}", address);
             }
+        } else if (cartridge != null && addr < 0x8000) {         // $4020-$7FFF
+            // Seam S1 (docs/apu-plan.md): route $4020-$7FFF writes to the
+            // cartridge — $6000-$7FFF lands in its PRG-RAM (blargg $6000
+            // result protocol), $4020-$5FFF is silently dropped by the
+            // cartridge (genuinely unmapped). Routing is deliberately
+            // scoped: $8000-$FFFF writes keep the historical drop-with-log
+            // below — full write routing to mapper registers is a future
+            // mapper-branch item that owns its determinism/movie impact.
+            cartridge.cpuBusWrite(addr, value);
         } else {
-            // $4020-$FFFF — historically CPU writes here just log as a
-            // "no device" miss (NROM PRG is read-only, the cart's
-            // cpuBusWrite is intentionally not wired into this path). Format
-            // is now regex-free in the html stub so the cost is small.
+            // $8000-$FFFF (or no cartridge) — CPU writes here just log as
+            // a "no device" miss (NROM PRG is read-only). Format is now
+            // regex-free in the html stub so the cost is small.
             log.error("no device found in range of address {}", address);
         }
     }
@@ -160,6 +168,9 @@ public class CPUBus {
 
     public void reset() {
         cpu.reset();
+        // Seam S3 (docs/apu-plan.md): reset acts as $4015 = $00 on the
+        // APU while the last $4017 value is retained (apu_reset ROMs).
+        if (apu != null) apu.reset();
         masterClockCount = 0;
         phase = 0;
     }
@@ -172,10 +183,25 @@ public class CPUBus {
         // ppu is 3x faster than the cpu — phase counter avoids
         // (masterClockCount % 3) Long_rem on TeaVM.
         if (phase == 0) {
-            // DMA preempts the CPU when active: instead of cpu.clock() this
-            // CPU-turn goes to the DMA state machine. CPU is suspended for
-            // the duration of the DMA burst (513 or 514 CPU cycles).
-            if (dma != null && dma.isActive()) {
+            // Seam S2 (docs/apu-plan.md): the APU clocks once per CPU
+            // cycle, FIRST in the branch, before the DMA/CPU turn
+            // consumer — the APU never stops, even during DMA stalls.
+            // This ordering is part of the movie-determinism contract
+            // and does not change in later phases.
+            if (apu != null) apu.clock();
+            // Seam S5 (docs/apu-plan.md Phase D2, decision D4): a DMC DMA
+            // stall consumes the CPU-turn slot BEFORE the OAM DMA check —
+            // DMC wins, an in-flight OAM burst pauses (its get/put
+            // alternation keys off masterClockCount parity, which keeps
+            // advancing, and the even 4-cycle reload stall preserves the
+            // phase — see the D4 parity argument in APU). The fetch
+            // happens on the last stall cycle inside tickDmcStall().
+            if (apu != null && apu.dmcStallPending()) {
+                apu.tickDmcStall();
+            } else if (dma != null && dma.isActive()) {
+                // OAM DMA preempts the CPU when active: instead of
+                // cpu.clock() this CPU-turn goes to the DMA state machine.
+                // CPU is suspended for the burst (513/514 CPU cycles).
                 dma.tickDmaCycle(this, ppu, masterClockCount);
             } else if (cpu != null) {
                 cpu.clock();
