@@ -767,6 +767,20 @@ informational, not a gate (D10); web runFrame + audio callback hold
 > Also still open from Phase 0: the POC manual checklist itself
 > (subsumed by items 2-3 if the production path is verified instead).
 > When 1-3 are recorded here, flip this block to ☑ CLOSED.
+>
+> **Review loop CLOSED (round 1 + round 2, both reviewers, 2026-07-18):**
+> round 1 found one MEDIUM (the `acceptCpuCycle` inline mix formula was
+> mutation-blind — no test drove the production copy with nonzero
+> tri/noise/dmc) and one LOW (frequency-pin window loose); fixed in
+> 2fb1fcb (tests only — E4 hashes untouched). Round 2: both reviewers
+> independently mutation-verified the new production-path pin (distinct
+> mutants: 2*tri, 3*noise) and confirmed the box-average-of-a-constant
+> argument sound. **Correction to 2fb1fcb's commit message:** the
+> tightened [872,890] window does NOT catch a t-vs-t+1 period error on
+> its own (875–884 measured crossings all land inside it; a ±1% window
+> cannot resolve a 0.39% error) — the exact t+1 guard is and remains
+> `PulseChannelTest`'s period pins; the window tightening is
+> defense-in-depth only. Both reviewers: no code change warranted.
 
 ## Phase F — Quality follow-ups *(scoped here, separate effort)*
 
