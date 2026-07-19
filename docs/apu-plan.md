@@ -726,6 +726,48 @@ over 5 minutes); `apu_mixer/*.nes` by-ear check is explicitly
 informational, not a gate (D10); web runFrame + audio callback hold
 60 FPS in Chrome.
 
+> **◐ PHASE E STATUS (2026-07-18): code-complete, gate NOT closed —
+> pending the user's browser/speaker session.** All four sub-stages
+> landed (E1 `ApuMixer`+`ApuSampleBuffer` with §1.8 tables,
+> fractional box-average, 90 Hz HP + 14 kHz LP; E2 `desktop.audio
+> .AudioOut` drained post-`runFrame()` in `EmulatorScreen` per D16,
+> `setAudioConfig(16, 1024, 4)` per the D17 strawman — TUNABLE, the
+> POC listening tables are still unfilled; E3 `client.WebAudioOut`
+> via the `@JSClass` `new AudioContext()` constructor + SPN(2048,0,1)
+> + state-gated capture-phase gesture resume, `ctx.sampleRate` fed to
+> `APU.setSampleRate` per D12, D18 mute/clear on swap +
+> tab-background; E4 audio-stream FNV-1a twice-replay proof,
+> register→frequency zero-crossing pin, post-HP silence pin).
+> **Headless gate items verified:** `core:check` green (1067 tests, 0
+> failed, 1 pre-existing MMC3 real-ROM skip); `NestestTest` 8992/8992
+> per-line; all blargg gates green; D3 framebuffer + new E4 audio
+> determinism proofs green; JaCoCo ≥90% on `components.apu.*`
+> enforced in `check`; `html:generateJavaScript` green with the audio
+> chain verified in the emitted `classes.js`.
+> **Gate items that REQUIRE THE USER (the gate cannot close without
+> them):**
+> 1. **Phase B's owed D9 web-bench number** — load the web build
+>    WITHOUT `?audioPoc=1`, 60 s steady state, record `runFrame=X.XXms`
+>    from the console (now includes the E1 per-cycle mixer); compare
+>    against the pre-APU baseline per the D9 band and record here.
+> 2. **Manual audible smoke, desktop:** `desktop:run`, DK, 5+ min —
+>    jump/walk effects recognizably correct, no sustained crackle;
+>    pause (stop-writing drain, clean resume) and reset behave.
+> 3. **Manual audible smoke, web:** serve the web build (POC findings
+>    doc has the commands), click once (autoplay gate: console shows
+>    suspended→running), DK 5+ min at 60 FPS — clean audio, `[audio]`
+>    per-second line shows bounded ringAvail, callbacks > 0, starved
+>    settling to ~0. If SILENT with `callbacks=0`, that is the SPN
+>    zero-input-channel quirk — flip `WebAudioOut.SPN_INPUT_CHANNELS`
+>    to 1 before concluding failure (POC findings "Fallback notes").
+>    Record `ctx.sampleRate` (44100/48000) per browser; second engine
+>    (Firefox/Safari) repeat.
+> 4. **D17 tuning numbers:** fill the POC-D/POC-W tables in
+>    `docs/apu-poc-findings.md` (or accept the strawmen in a note).
+> Also still open from Phase 0: the POC manual checklist itself
+> (subsumed by items 2-3 if the production path is verified instead).
+> When 1-3 are recorded here, flip this block to ☑ CLOSED.
+
 ## Phase F — Quality follow-ups *(scoped here, separate effort)*
 
 Not part of this branch's definition of done; recorded so review passes
