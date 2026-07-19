@@ -76,9 +76,13 @@ class ApuAudioOutputTest {
 
         // Expect ~2 * 440.4 = 880.8 crossings over the second (+/-3%).
         int crossings = zeroCrossings(samples, 0.005f);
-        assertTrue(crossings >= 854 && crossings <= 907,
+        // Window tightened to ~±1% (review round 1): wide enough for edge
+        // truncation, tight enough that a t-vs-t+1 period error (0.39%,
+        // ~877 vs 881) plus table jitter cannot slip through unnoticed
+        // when combined with the exact PulseChannelTest period pins.
+        assertTrue(crossings >= 872 && crossings <= 890,
                 "zero-crossing count " + crossings
-                + " outside the 440.4 Hz fundamental window [854, 907]");
+                + " outside the 440.4 Hz fundamental window [872, 890]");
 
         // Non-vacuity: the tone is actually loud, not numerical dust.
         float peak = 0f;

@@ -272,4 +272,30 @@ class ApuMixerTest {
         assertEquals(44100, mixer.getSampleRate());
         assertEquals(ApuMixer.DEFAULT_SAMPLE_RATE, mixer.getSampleRate());
     }
+
+    /**
+     * Review round 1 (mutation-proven gap): acceptCpuCycle duplicates the
+     * mix formula inline, and no prior test exercised the PRODUCTION copy
+     * with nonzero triangle/noise/dmc — a 2*tri or wrong-noise-multiplier
+     * mutant survived the whole suite. This pins the production path's
+     * raw level to mixLevel() for an all-channels-nonzero configuration
+     * (kills any multiplier divergence between the two copies) without
+     * touching the hot path's float rounding.
+     */
+    @org.junit.jupiter.api.Test
+    void acceptCpuCycle_productionPath_matchesMixLevel_allChannelsNonzero() {
+        ApuMixer m = new ApuMixer(new ApuSampleBuffer(8192));
+        m.setSampleRate(44100);
+        int p1 = 7, p2 = 11, tri = 9, noise = 5, dmc = 63;
+        // Constant input across >1 full window: the box-average of a
+        // constant is the constant, so lastRaw must equal mixLevel().
+        for (int i = 0; i < 100; i++) {
+            m.acceptCpuCycle(p1, p2, tri, noise, dmc);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(
+                ApuMixer.mixLevel(p1, p2, tri, noise, dmc), m.lastRaw, 1e-6f,
+                "production accumulate path must apply the exact same table "
+                + "composition as mixLevel() — the two copies had diverged "
+                + "unobservably before this pin");
+    }
 }
