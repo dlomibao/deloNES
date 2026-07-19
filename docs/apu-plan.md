@@ -726,8 +726,31 @@ over 5 minutes); `apu_mixer/*.nes` by-ear check is explicitly
 informational, not a gate (D10); web runFrame + audio callback hold
 60 FPS in Chrome.
 
-> **◐ PHASE E STATUS (2026-07-18): code-complete, gate NOT closed —
-> pending the user's browser/speaker session.** All four sub-stages
+> **☑ PHASE E GATE CLOSED (2026-07-18, user browser/speaker session).**
+> User-verified items, recorded from the live session:
+> 1. **D9 web-bench:** `runFrame=5.4–6.2ms` steady (ceiling 162–192fps)
+>    on the production page with the E1 per-cycle mixer live — well
+>    inside the D9 band (pre-APU web baseline was ~4.4ms; +~1.5ms for
+>    the full APU+mixer, and the 60.0988Hz pacing budget of 16.6ms has
+>    ~3x headroom).
+> 2. **Desktop audible smoke:** user confirmed sound correct
+>    (Micro Mages), pause/reset clean.
+> 3. **Web audible smoke (Chrome):** user confirmed music + effects
+>    correct, no crackle. `ctx.sampleRate=48000`, autoplay gesture
+>    resume observed, per-second stats healthy over minutes of play:
+>    `ringDropped=0, starvedSamples=0, callbacks 23-24/s, ringAvail`
+>    bounded ~1-3k. Second-engine (Firefox/Safari) repeat: waived for
+>    this gate, tracked as a Phase F follow-up.
+> 4. **D17 tuning:** strawman defaults accepted (desktop 16/1024/4;
+>    web SPN 2048) on the strength of the zero-drop/zero-starve stats
+>    above; POC listening tables intentionally left unfilled.
+> The session also surfaced and fixed three real web-shim bugs
+> (be7cf87): display-refresh-coupled emulation speed (2x at 120Hz,
+> audio ring overflow), canvas-targeted key events never reaching
+> gdx-teavm's bubble-phase document listener, and the Load ROM
+> button's focus swallowing Enter/Start.
+>
+> Original gate wording (kept for the record): All four sub-stages
 > landed (E1 `ApuMixer`+`ApuSampleBuffer` with §1.8 tables,
 > fractional box-average, 90 Hz HP + 14 kHz LP; E2 `desktop.audio
 > .AudioOut` drained post-`runFrame()` in `EmulatorScreen` per D16,
